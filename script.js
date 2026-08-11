@@ -44,8 +44,24 @@ window.addEventListener("appinstalled", () => {
   });
 })();
 
-// ============ CATÁLOGO REAL (data.js) ============
-const catalogo = (typeof CATALOGO_ALCOVER !== "undefined" ? CATALOGO_ALCOVER : []);
+// ============ SESIÓN (gate de login cuando Supabase está configurado) ============
+(async function gateSesion() {
+  if (window.JARVIS_DB && window.JARVIS_DB.supabaseHabilitado) {
+    const activa = await window.JARVIS_DB.sesionActiva();
+    if (!activa) window.location.replace("login.html");
+  }
+})();
+
+const logoutBtn = document.getElementById("logoutBtn");
+if (logoutBtn) {
+  logoutBtn.addEventListener("click", async () => {
+    if (window.JARVIS_DB) await window.JARVIS_DB.cerrarSesion();
+    window.location.href = window.JARVIS_DB?.supabaseHabilitado ? "login.html" : "index.html";
+  });
+}
+
+// ============ CATÁLOGO (Supabase si está configurado, si no data.js) ============
+let catalogo = [];
 
 function formatearMoneda(valor) {
   if (!valor) return "Consultar precio";
@@ -71,43 +87,65 @@ function thumbHtml(auto, className) {
   return carIconSvg;
 }
 
-// Top autos destacados (panel principal)
 const carListEl = document.getElementById("carList");
-if (carListEl && catalogo.length) {
-  const destacados = catalogo.filter((a) => a.destacado);
-  destacados.forEach((auto) => {
-    const li = document.createElement("li");
-    li.innerHTML = `
-      <div class="car-thumb${auto.fotos ? " has-photo" : ""}">${thumbHtml(auto, "car-thumb")}</div>
-      <div class="car-info">
-        <span class="car-name">${nombreAuto(auto)} ${auto.anio || ""}</span>
-        <span class="car-views">${formatearKm(auto)} · ${formatearMoneda(auto.precio)}</span>
-      </div>`;
-    if (auto.fotos) {
-      li.querySelector(".car-thumb").addEventListener("click", () => abrirGaleria(auto));
-    }
-    carListEl.appendChild(li);
-  });
-}
-
-// Contadores reales de stock
 const stockCountEl = document.getElementById("stockCount");
 const stockUpdatedEl = document.getElementById("stockUpdated");
 const inventarioTotalEl = document.getElementById("inventarioTotal");
 const modalTotalEl = document.getElementById("modalTotal");
 const modalFechaEl = document.getElementById("modalFecha");
-const fechaCatalogo = typeof CATALOGO_ACTUALIZADO !== "undefined" ? CATALOGO_ACTUALIZADO : "";
-if (stockCountEl) stockCountEl.textContent = catalogo.length;
-if (stockUpdatedEl) stockUpdatedEl.textContent = fechaCatalogo;
-if (inventarioTotalEl) inventarioTotalEl.textContent = catalogo.length;
-if (modalTotalEl) modalTotalEl.textContent = catalogo.length;
-if (modalFechaEl) modalFechaEl.textContent = fechaCatalogo;
-
-// Auto destacado en el escenario central
 const stageLabelEl = document.getElementById("stageLabel");
-if (stageLabelEl && catalogo.length) {
-  const hero = catalogo.find((a) => a.destacado) || catalogo[0];
-  stageLabelEl.textContent = `ALCOVER · ${nombreAuto(hero).toUpperCase()} ${hero.anio || ""}`;
+const brandSubEl = document.getElementById("brandSub");
+
+let catalogoListoResolve;
+const catalogoListo = new Promise((resolve) => { catalogoListoResolve = resolve; });
+
+async function initCatalogo() {
+  const { vehiculos, fuente } = await window.JARVIS_DB.cargarCatalogo();
+  catalogo = vehiculos;
+  const fechaCatalogo = fuente === "supabase" ? "en vivo" : (typeof CATALOGO_ACTUALIZADO !== "undefined" ? CATALOGO_ACTUALIZADO : "");
+
+  // Top autos destacados (panel principal)
+  if (carListEl) {
+    const destacados = catalogo.filter((a) => a.destacado);
+    destacados.forEach((auto) => {
+      const li = document.createElement("li");
+      li.innerHTML = `
+        <div class="car-thumb${auto.fotos ? " has-photo" : ""}">${thumbHtml(auto, "car-thumb")}</div>
+        <div class="car-info">
+          <span class="car-name">${nombreAuto(auto)} ${auto.anio || ""}</span>
+          <span class="car-views">${formatearKm(auto)} · ${formatearMoneda(auto.precio)}</span>
+        </div>`;
+      if (auto.fotos) {
+        li.querySelector(".car-thumb").addEventListener("click", () => abrirGaleria(auto));
+      }
+      carListEl.appendChild(li);
+    });
+  }
+
+  // Contadores reales de stock
+  if (stockCountEl) stockCountEl.textContent = catalogo.length;
+  if (stockUpdatedEl) stockUpdatedEl.textContent = fechaCatalogo;
+  if (inventarioTotalEl) inventarioTotalEl.textContent = catalogo.length;
+  if (modalTotalEl) modalTotalEl.textContent = catalogo.length;
+  if (modalFechaEl) modalFechaEl.textContent = fechaCatalogo;
+
+  // Auto destacado en el escenario central
+  if (stageLabelEl && catalogo.length) {
+    const hero = catalogo.find((a) => a.destacado) || catalogo[0];
+    stageLabelEl.textContent = `${nombreAuto(hero).toUpperCase()} ${hero.anio || ""}`;
+  }
+
+  catalogoListoResolve();
+}
+
+async function initAgencia() {
+  const agencia = await window.JARVIS_DB.cargarAgencia();
+  if (brandSubEl && agencia?.nombre) brandSubEl.textContent = agencia.nombre.toUpperCase();
+}
+
+if (window.JARVIS_DB) {
+  initCatalogo();
+  initAgencia();
 }
 
 // Modal de inventario completo
@@ -179,7 +217,8 @@ document.addEventListener("keydown", (e) => {
 });
 
 if (openModalBtn && modal) {
-  openModalBtn.addEventListener("click", () => {
+  openModalBtn.addEventListener("click", async () => {
+    await catalogoListo;
     renderInventarioCompleto();
     modal.classList.add("open");
   });

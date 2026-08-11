@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>JARVIS · Ingresar</title>
+<meta name="theme-color" content="#04070d" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='42' fill='%23020617' stroke='%2322d3ee' stroke-width='6'/%3E%3Ccircle cx='50' cy='50' r='18' fill='%2322d3ee'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="style.css" />
+<style>
+  body { display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+  .login-box {
+    width: min(360px, 90vw); padding: 32px 28px; text-align: center;
+  }
+  .login-avatar { width: 70px; height: 70px; margin: 0 auto 16px; }
+  .login-box h1 { font-size: 1.1rem; letter-spacing: 0.1em; margin-bottom: 4px; }
+  .login-box p.sub { color: var(--text-muted); font-size: 0.75rem; margin-bottom: 22px; }
+  .login-field { text-align: left; margin-bottom: 14px; }
+  .login-field label { display: block; font-size: 0.68rem; color: var(--text-muted); letter-spacing: 0.05em; margin-bottom: 5px; }
+  .login-field input {
+    width: 100%; background: #0d1b2b; border: 1px solid var(--border); border-radius: 8px;
+    padding: 10px 12px; color: var(--text); font-size: 0.85rem;
+  }
+  .login-field input:focus { outline: none; border-color: var(--accent); }
+  .login-btn {
+    width: 100%; margin-top: 6px; background: linear-gradient(90deg, var(--blue), var(--accent));
+    border: none; border-radius: 9px; padding: 11px; color: #04070d; font-weight: 700;
+    letter-spacing: 0.06em; font-size: 0.8rem; cursor: pointer;
+  }
+  .login-btn:disabled { opacity: 0.6; cursor: default; }
+  .login-error { color: var(--red); font-size: 0.72rem; margin-top: 12px; min-height: 1em; }
+  .login-note { color: var(--text-muted); font-size: 0.62rem; margin-top: 20px; line-height: 1.5; }
+</style>
+</head>
+<body>
+
+  <div class="panel login-box">
+    <svg class="login-avatar" viewBox="0 0 100 100">
+      <circle cx="50" cy="50" r="46" fill="none" stroke="#0e2a3a" stroke-width="2"/>
+      <circle cx="50" cy="50" r="38" fill="none" stroke="#22d3ee" stroke-width="1.5" stroke-dasharray="4 6"/>
+      <circle cx="50" cy="50" r="24" fill="none" stroke="#22d3ee" stroke-width="2"/>
+      <circle cx="50" cy="50" r="10" fill="#22d3ee" opacity="0.85"/>
+    </svg>
+    <h1>JARVIS</h1>
+    <p class="sub">Ingresá con tu cuenta de agencia</p>
+
+    <form id="loginForm">
+      <div class="login-field">
+        <label for="email">Email</label>
+        <input type="email" id="email" autocomplete="username" required />
+      </div>
+      <div class="login-field">
+        <label for="password">Contraseña</label>
+        <input type="password" id="password" autocomplete="current-password" required />
+      </div>
+      <button type="submit" class="login-btn" id="loginBtn">INGRESAR</button>
+      <p class="login-error" id="loginError"></p>
+    </form>
+
+    <p class="login-note">Panel de gestión JARVIS. Si no tenés acceso, contactá al administrador de tu agencia.</p>
+  </div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="config.js"></script>
+<script src="data.js"></script>
+<script src="db.js"></script>
+<script src="login.js"></script>
+</body>
+</html>
