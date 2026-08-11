@@ -176,9 +176,9 @@
         </div>
         <div class="panel stat-card">
           <div class="stat-label">AUTOS EN STOCK</div>
-          <div class="stat-value">36 <svg class="trend down" viewBox="0 0 24 24"><path d="M4 8 10 14 14 10 20 18"/><path d="M14 18h6v-6"/></svg></div>
-          <div class="stat-sub">vs semana anterior <span class="down">-2</span></div>
-          <svg class="spark down" viewBox="0 0 100 30" preserveAspectRatio="none"><polyline points="0,6 15,10 30,8 45,14 60,12 75,18 100,22" /></svg>
+          <div class="stat-value"><span id="stockCount">—</span></div>
+          <div class="stat-sub">fuente: lista de precios · <span id="stockUpdated"></span></div>
+          <svg class="spark" viewBox="0 0 100 30" preserveAspectRatio="none"><polyline points="0,14 15,15 30,13 45,16 60,12 75,14 100,11" /></svg>
         </div>
       </section>
 
@@ -188,32 +188,13 @@
         <!-- Top autos más vistos -->
         <div class="panel">
           <div class="panel-header">
-            <h2>TOP AUTOS MÁS VISTOS</h2>
+            <h2>TOP AUTOS DESTACADOS</h2>
             <button class="close-x">×</button>
           </div>
-          <ul class="car-list">
-            <li>
-              <div class="car-thumb"><svg viewBox="0 0 24 24"><path d="M3 12l1.5-4.5A2 2 0 0 1 6.4 6h11.2a2 2 0 0 1 1.9 1.5L21 12"/><rect x="2.5" y="12" width="19" height="5.5" rx="1.5"/><circle cx="7" cy="18.5" r="1.6"/><circle cx="17" cy="18.5" r="1.6"/></svg></div>
-              <div class="car-info"><span class="car-name">Toyota Hilux 2021</span><span class="car-views"><svg viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>245 vistas</span></div>
-            </li>
-            <li>
-              <div class="car-thumb"><svg viewBox="0 0 24 24"><path d="M3 12l1.5-4.5A2 2 0 0 1 6.4 6h11.2a2 2 0 0 1 1.9 1.5L21 12"/><rect x="2.5" y="12" width="19" height="5.5" rx="1.5"/><circle cx="7" cy="18.5" r="1.6"/><circle cx="17" cy="18.5" r="1.6"/></svg></div>
-              <div class="car-info"><span class="car-name">Volkswagen Amarok 2020</span><span class="car-views"><svg viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>198 vistas</span></div>
-            </li>
-            <li>
-              <div class="car-thumb"><svg viewBox="0 0 24 24"><path d="M3 12l1.5-4.5A2 2 0 0 1 6.4 6h11.2a2 2 0 0 1 1.9 1.5L21 12"/><rect x="2.5" y="12" width="19" height="5.5" rx="1.5"/><circle cx="7" cy="18.5" r="1.6"/><circle cx="17" cy="18.5" r="1.6"/></svg></div>
-              <div class="car-info"><span class="car-name">Ford Ranger 2019</span><span class="car-views"><svg viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>176 vistas</span></div>
-            </li>
-            <li>
-              <div class="car-thumb"><svg viewBox="0 0 24 24"><path d="M3 12l1.5-4.5A2 2 0 0 1 6.4 6h11.2a2 2 0 0 1 1.9 1.5L21 12"/><rect x="2.5" y="12" width="19" height="5.5" rx="1.5"/><circle cx="7" cy="18.5" r="1.6"/><circle cx="17" cy="18.5" r="1.6"/></svg></div>
-              <div class="car-info"><span class="car-name">Chevrolet Tracker 2022</span><span class="car-views"><svg viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>142 vistas</span></div>
-            </li>
-            <li>
-              <div class="car-thumb"><svg viewBox="0 0 24 24"><path d="M3 12l1.5-4.5A2 2 0 0 1 6.4 6h11.2a2 2 0 0 1 1.9 1.5L21 12"/><rect x="2.5" y="12" width="19" height="5.5" rx="1.5"/><circle cx="7" cy="18.5" r="1.6"/><circle cx="17" cy="18.5" r="1.6"/></svg></div>
-              <div class="car-info"><span class="car-name">Peugeot 208 2023</span><span class="car-views"><svg viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>118 vistas</span></div>
-            </li>
+          <ul class="car-list" id="carList">
+            <!-- Renderizado dinámico desde data.js (CATALOGO_ALCOVER) -->
           </ul>
-          <button class="btn-outline full">VER INVENTARIO COMPLETO</button>
+          <button class="btn-outline full" id="verInventarioBtn">VER INVENTARIO COMPLETO (<span id="inventarioTotal">0</span>)</button>
         </div>
 
         <!-- Visual del auto central -->
@@ -241,7 +222,7 @@
               <path d="M45 74 L182 74" stroke="#0a1622" stroke-width="1" opacity="0.5"/>
             </svg>
           </div>
-          <div class="stage-label">ALCOVER · AUDI A5 2024</div>
+          <div class="stage-label" id="stageLabel">ALCOVER AUTOMOTORES</div>
         </div>
 
         <!-- Columna: fuentes de leads + actividad -->
@@ -444,6 +425,21 @@
 
 </div>
 
+<!-- MODAL INVENTARIO COMPLETO -->
+<div class="modal-overlay" id="inventarioModal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <div>
+        <h2>INVENTARIO COMPLETO</h2>
+        <p class="modal-sub"><span id="modalTotal">0</span> vehículos disponibles · actualizado <span id="modalFecha"></span> · fuente: lista de precios interna</p>
+      </div>
+      <button class="close-x" id="closeModal">×</button>
+    </div>
+    <div class="modal-list" id="modalList"></div>
+  </div>
+</div>
+
+<script src="data.js"></script>
 <script src="script.js"></script>
 </body>
 </html>

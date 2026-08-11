@@ -357,6 +357,37 @@ svg { width: 1em; height: 1em; fill: none; stroke: currentColor; stroke-width: 1
 .weather-stats { display: flex; justify-content: space-between; font-size: 0.65rem; color: var(--text-muted); }
 .weather-stats b { color: var(--text); }
 
+/* ============ MODAL INVENTARIO ============ */
+.modal-overlay {
+  display: none; position: fixed; inset: 0; background: #010409cc; backdrop-filter: blur(4px);
+  align-items: center; justify-content: center; z-index: 50; padding: 24px;
+}
+.modal-overlay.open { display: flex; }
+.modal-box {
+  width: min(920px, 100%); max-height: 85vh; display: flex; flex-direction: column;
+  background: #060b14; border: 1px solid var(--border); border-radius: var(--radius);
+  box-shadow: 0 0 60px -10px var(--accent-soft);
+}
+.modal-header { display: flex; align-items: flex-start; justify-content: space-between; padding: 20px 24px; border-bottom: 1px solid var(--border); }
+.modal-header h2 { font-size: 1rem; letter-spacing: 0.08em; margin-bottom: 4px; }
+.modal-sub { font-size: 0.7rem; color: var(--text-muted); }
+.modal-list { overflow-y: auto; padding: 10px 24px 24px; display: flex; flex-direction: column; gap: 10px; }
+.inv-row {
+  display: grid; grid-template-columns: 40px 1.4fr 0.9fr 0.7fr 0.9fr; align-items: center; gap: 12px;
+  padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: #0a1220a0;
+}
+.inv-row:hover { border-color: var(--accent); }
+.inv-icon { width: 26px; height: 26px; color: var(--accent); }
+.inv-name { font-size: 0.8rem; font-weight: 600; }
+.inv-version { font-size: 0.66rem; color: var(--text-muted); }
+.inv-specs { font-size: 0.68rem; color: var(--text-muted); }
+.inv-price { font-size: 0.82rem; font-weight: 700; color: var(--accent); text-align: right; }
+.inv-badge { font-size: 0.58rem; letter-spacing: 0.06em; padding: 2px 7px; border-radius: 999px; border: 1px solid var(--green); color: var(--green); width: fit-content; }
+.inv-badge.cero { border-color: var(--accent); color: var(--accent); }
+@media (max-width: 720px) {
+  .inv-row { grid-template-columns: 34px 1fr; }
+}
+
 /* ============ RESPONSIVE ============ */
 @media (max-width: 1400px) {
   .main-grid { grid-template-columns: 1fr; }
