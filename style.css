@@ -387,6 +387,28 @@ svg { width: 1em; height: 1em; fill: none; stroke: currentColor; stroke-width: 1
 @media (max-width: 720px) {
   .inv-row { grid-template-columns: 34px 1fr; }
 }
+.inv-fotos { display: block; font-size: 0.58rem; color: var(--text-muted); margin-top: 3px; }
+.inv-fotos.sinfoto { color: #55697c; font-style: italic; }
+.car-thumb-img, .inv-icon-img { width: 100%; height: 100%; object-fit: cover; border-radius: 8px; }
+.car-thumb.has-photo, .inv-icon.has-photo { cursor: pointer; overflow: hidden; padding: 0; border-color: var(--accent); }
+.car-thumb.has-photo:hover, .inv-icon.has-photo:hover { box-shadow: 0 0 12px -2px var(--accent-soft); }
+
+/* ============ LIGHTBOX GALERÍA ============ */
+.galeria-overlay { z-index: 60; }
+.galeria-box { width: min(880px, 100%); max-height: 90vh; background: #05070c; border: 1px solid var(--border); border-radius: var(--radius); box-shadow: 0 0 60px -10px var(--accent-soft); overflow: hidden; }
+.galeria-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid var(--border); }
+.galeria-titulo { font-size: 0.85rem; font-weight: 700; letter-spacing: 0.04em; }
+.galeria-contador { font-size: 0.68rem; color: var(--text-muted); margin-top: 2px; }
+.galeria-imgwrap { position: relative; display: flex; align-items: center; justify-content: center; background: #000; min-height: 300px; }
+.galeria-imgwrap img { width: 100%; max-height: 70vh; object-fit: contain; display: block; }
+.galeria-nav {
+  position: absolute; top: 50%; transform: translateY(-50%); width: 42px; height: 42px; border-radius: 50%;
+  background: #000000aa; border: 1px solid var(--accent); color: var(--accent); font-size: 1.6rem; line-height: 1;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+}
+.galeria-nav.prev { left: 14px; }
+.galeria-nav.next { right: 14px; }
+.galeria-nav:hover { background: var(--accent-soft); }
 
 /* ============ RESPONSIVE ============ */
 @media (max-width: 1400px) {

@@ -15,6 +15,16 @@ function nombreAuto(auto) {
 }
 const carIconSvg = `<svg viewBox="0 0 24 24"><path d="M3 12l1.5-4.5A2 2 0 0 1 6.4 6h11.2a2 2 0 0 1 1.9 1.5L21 12"/><rect x="2.5" y="12" width="19" height="5.5" rx="1.5"/><circle cx="7" cy="18.5" r="1.6"/><circle cx="17" cy="18.5" r="1.6"/></svg>`;
 
+function fotoUrl(auto, n) {
+  return `images/${auto.dominio}/${n}.webp`;
+}
+function thumbHtml(auto, className) {
+  if (auto.fotos) {
+    return `<img class="${className}-img" src="${fotoUrl(auto, 1)}" alt="${nombreAuto(auto)}" loading="lazy">`;
+  }
+  return carIconSvg;
+}
+
 // Top autos destacados (panel principal)
 const carListEl = document.getElementById("carList");
 if (carListEl && catalogo.length) {
@@ -22,11 +32,14 @@ if (carListEl && catalogo.length) {
   destacados.forEach((auto) => {
     const li = document.createElement("li");
     li.innerHTML = `
-      <div class="car-thumb">${carIconSvg}</div>
+      <div class="car-thumb${auto.fotos ? " has-photo" : ""}">${thumbHtml(auto, "car-thumb")}</div>
       <div class="car-info">
         <span class="car-name">${nombreAuto(auto)} ${auto.anio || ""}</span>
         <span class="car-views">${formatearKm(auto)} · ${formatearMoneda(auto.precio)}</span>
       </div>`;
+    if (auto.fotos) {
+      li.querySelector(".car-thumb").addEventListener("click", () => abrirGaleria(auto));
+    }
     carListEl.appendChild(li);
   });
 }
@@ -66,17 +79,58 @@ function renderInventarioCompleto() {
       const row = document.createElement("div");
       row.className = "inv-row";
       row.innerHTML = `
-        <div class="inv-icon">${carIconSvg}</div>
+        <div class="inv-icon${auto.fotos ? " has-photo" : ""}">${thumbHtml(auto, "inv-icon")}</div>
         <div>
           <div class="inv-name">${nombreAuto(auto)} ${auto.anio || ""}</div>
           <div class="inv-version">${auto.version || ""}</div>
         </div>
         <div class="inv-specs">${formatearKm(auto)}</div>
-        <div><span class="inv-badge ${auto.esCero ? "cero" : ""}">${auto.esCero ? "0KM" : "USADO"}</span></div>
+        <div><span class="inv-badge ${auto.esCero ? "cero" : ""}">${auto.esCero ? "0KM" : "USADO"}</span>${auto.fotos ? `<span class="inv-fotos">${auto.fotos} fotos</span>` : `<span class="inv-fotos sinfoto">sin fotos</span>`}</div>
         <div class="inv-price">${formatearMoneda(auto.precio)}</div>`;
+      if (auto.fotos) {
+        row.querySelector(".inv-icon").addEventListener("click", () => abrirGaleria(auto));
+      }
       modalList.appendChild(row);
     });
 }
+
+// ============ GALERÍA DE FOTOS (lightbox) ============
+const galeria = document.getElementById("galeriaModal");
+const galeriaImg = document.getElementById("galeriaImg");
+const galeriaTitulo = document.getElementById("galeriaTitulo");
+const galeriaContador = document.getElementById("galeriaContador");
+let galeriaAuto = null;
+let galeriaIndex = 0;
+
+function abrirGaleria(auto) {
+  galeriaAuto = auto;
+  galeriaIndex = 0;
+  actualizarGaleria();
+  galeria.classList.add("open");
+}
+function actualizarGaleria() {
+  if (!galeriaAuto) return;
+  galeriaImg.src = fotoUrl(galeriaAuto, galeriaIndex + 1);
+  galeriaTitulo.textContent = `${nombreAuto(galeriaAuto)} ${galeriaAuto.anio || ""}`;
+  galeriaContador.textContent = `${galeriaIndex + 1} / ${galeriaAuto.fotos}`;
+}
+function moverGaleria(delta) {
+  if (!galeriaAuto) return;
+  galeriaIndex = (galeriaIndex + delta + galeriaAuto.fotos) % galeriaAuto.fotos;
+  actualizarGaleria();
+}
+document.getElementById("galeriaPrev")?.addEventListener("click", () => moverGaleria(-1));
+document.getElementById("galeriaNext")?.addEventListener("click", () => moverGaleria(1));
+document.getElementById("galeriaClose")?.addEventListener("click", () => galeria.classList.remove("open"));
+galeria?.addEventListener("click", (e) => {
+  if (e.target === galeria) galeria.classList.remove("open");
+});
+document.addEventListener("keydown", (e) => {
+  if (!galeria || !galeria.classList.contains("open")) return;
+  if (e.key === "Escape") galeria.classList.remove("open");
+  if (e.key === "ArrowRight") moverGaleria(1);
+  if (e.key === "ArrowLeft") moverGaleria(-1);
+});
 
 if (openModalBtn && modal) {
   openModalBtn.addEventListener("click", () => {
