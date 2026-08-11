@@ -280,9 +280,35 @@ if (waveform) {
 
 // Botón de micrófono: activa/desactiva estado "escuchando" (mock, sin reconocimiento real)
 const micBtn = document.getElementById("micBtn");
-if (micBtn) {
+const voiceStatusEl = document.getElementById("voiceStatus");
+const elevenlabsSlot = document.getElementById("elevenlabsWidgetSlot");
+const agentId = window.JARVIS_CONFIG?.ELEVENLABS_AGENT_ID;
+
+if (agentId) {
+  // Inyecta el widget oficial de ElevenLabs Conversational AI (voz real: habla y escucha).
+  const widgetScript = document.createElement("script");
+  widgetScript.src = "https://unpkg.com/@elevenlabs/convai-widget-embed";
+  widgetScript.async = true;
+  document.body.appendChild(widgetScript);
+
+  const widgetEl = document.createElement("elevenlabs-convai");
+  widgetEl.setAttribute("agent-id", agentId);
+  elevenlabsSlot.appendChild(widgetEl);
+
+  if (voiceStatusEl) {
+    voiceStatusEl.textContent = "Voz activa (ElevenLabs) — tocá el ícono flotante para hablar con JARVIS.";
+    voiceStatusEl.classList.add("active");
+  }
+  if (micBtn) {
+    micBtn.addEventListener("click", () => {
+      micBtn.classList.toggle("listening");
+      widgetEl.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+  }
+} else if (micBtn) {
   micBtn.addEventListener("click", () => {
     micBtn.classList.toggle("listening");
+    alert("La voz de JARVIS (ElevenLabs) todavía no está configurada. Mirá el README para activarla — es un paso rápido.");
   });
 }
 

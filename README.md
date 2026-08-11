@@ -47,3 +47,26 @@ Por defecto el sitio funciona sin backend, con los datos de `data.js`. Para que 
 **Para sumar una agencia nueva** (cliente de suscripción), se inserta una fila más en `agencias`, se cargan sus vehículos en `vehiculos` con ese `agencia_id`, y se crea un usuario vinculado — cada una ve únicamente sus propios datos gracias a las políticas de seguridad por fila. Por ahora esto se hace por SQL; el alta con formulario propio y el cobro con Mercado Pago son los próximos pasos del roadmap.
 
 Los datos mostrados fuera del inventario (ventas, leads, análisis) siguen siendo de ejemplo.
+
+## Activar la voz de JARVIS (ElevenLabs, opcional)
+
+El botón de micrófono del panel lateral puede conectarse a un agente conversacional real (habla y escucha) de ElevenLabs. Sin configurar, solo muestra un aviso al tocarlo.
+
+1. **Creá tu cuenta**: entrá a [elevenlabs.io](https://elevenlabs.io) y registrate (la Conversational AI tiene minutos limitados en el plan gratis; para uso real de la agencia conviene un plan pago).
+2. **Creá el agente**: andá a **Conversational AI → Agents → New Agent**. Sugerencia de configuración:
+   - **Nombre**: JARVIS
+   - **Voz**: elegí una que te guste del catálogo de voces
+   - **System prompt** (personalidad e instrucciones), por ejemplo:
+     > Sos JARVIS, el asistente de voz de Agencia Alcover Automotores en Salta. Respondés de forma breve, profesional y amable en español rioplatense. Podés ayudar a explicar el funcionamiento del panel, dar información general sobre el proceso de compra de autos usados y 0km, financiación, y agendar seguimientos. Si te preguntan datos específicos de stock, precios o leads que no tenés confirmados, aclará que podés consultarlo en el panel y no inventes cifras.
+   - Dejá el resto de las opciones (idioma español, modelo, latencia) en su valor por defecto para arrancar.
+3. **Copiá el Agent ID**: está en la configuración del agente (o en la pestaña "Embed"). Es un identificador público, seguro para pegar en el código (no es tu API key secreta).
+4. **Completá `config.js`**:
+   ```js
+   window.JARVIS_CONFIG = {
+     ...
+     ELEVENLABS_AGENT_ID: "tu-agent-id",
+   };
+   ```
+5. Subí el cambio (commit + push). El widget oficial de ElevenLabs se carga solo y aparece como burbuja flotante; el mic del panel lateral hace scroll hacia él.
+
+Por ahora el agente no tiene acceso a los datos reales del panel (stock, ventas, leads) — es conversación general. Darle acceso en vivo a esos datos (por ejemplo vía "tools" del agente contra la base de Supabase) es un paso futuro, una vez que Supabase esté activo.
