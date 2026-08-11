@@ -59,6 +59,8 @@ El botón de micrófono del panel lateral puede conectarse a un agente conversac
    - **Voz**: para la demo, elegí la voz clonada del paso anterior. Para producción/venta, elegí una voz original del catálogo.
    - **System prompt** (personalidad e instrucciones), por ejemplo:
      > Sos JARVIS, el asistente de voz de Agencia Alcover Automotores en Salta. Respondés de forma breve, profesional y amable en español rioplatense. Podés ayudar a explicar el funcionamiento del panel, dar información general sobre el proceso de compra de autos usados y 0km, financiación, y agendar seguimientos. Si te preguntan datos específicos de stock, precios o leads que no tenés confirmados, aclará que podés consultarlo en el panel y no inventes cifras.
+   - **First message** (el saludo que dice JARVIS apenas arranca la conversación, sin esperar que hables primero): escribí ahí literalmente
+     > Hola Agustín, buenos días. ¿En qué puedo ayudarte?
    - Dejá el resto de las opciones (idioma español, modelo, latencia) en su valor por defecto para arrancar.
 4. **Copiá el Agent ID**: está en la configuración del agente (o en la pestaña "Embed"). Es un identificador público, seguro para pegar en el código (no es tu API key secreta).
 5. **Completá `config.js`**:
@@ -71,3 +73,11 @@ El botón de micrófono del panel lateral puede conectarse a un agente conversac
 6. Subí el cambio (commit + push). El widget oficial de ElevenLabs se carga solo y aparece como burbuja flotante; el mic del panel lateral hace scroll hacia él.
 
 Por ahora el agente no tiene acceso a los datos reales del panel (stock, ventas, leads) — es conversación general. Darle acceso en vivo a esos datos (por ejemplo vía "tools" del agente contra la base de Supabase) es un paso futuro, una vez que Supabase esté activo.
+
+### Activación por aplauso
+
+El mic del panel lateral también se activa con un aplauso fuerte y seco (detecta el pico brusco de volumen). Dos cosas a tener en cuenta:
+
+- **La primera vez hay que tocar el mic con la mano** — los navegadores no dejan pedir permiso de micrófono sin un click real; después de ese primer toque, queda escuchando aplausos en segundo plano el resto de la visita.
+- Es un detector simple (pico de volumen), no un modelo entrenado — un portazo o un golpe fuerte también lo puede disparar. Si da falsos positivos muy seguido, avisame y le subo el umbral.
+- Por las políticas de autoplay de los navegadores, es posible que el audio de JARVIS no se escuche hasta que haya habido al menos un click real en la página en esa sesión — probalo y contame si pasa.

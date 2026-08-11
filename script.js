@@ -312,6 +312,55 @@ if (agentId) {
   });
 }
 
+// ============ Activación por aplauso ============
+// Detecta un pico brusco de volumen (aplauso) y "clickea" el mic por vos.
+// La primera vez necesita que toques el mic una vez para dar permiso al micrófono
+// (los navegadores no dejan pedirlo solo con un aplauso); después queda escuchando
+// aplausos en segundo plano el resto de la sesión.
+(function activacionPorAplauso() {
+  if (!agentId || !micBtn) return;
+
+  let escuchando = false;
+  let ultimoAplauso = 0;
+
+  async function iniciarEscuchaAplausos() {
+    if (escuchando) return;
+    escuchando = true;
+    let stream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch (err) {
+      console.warn("No se pudo activar la detección de aplausos:", err);
+      escuchando = false;
+      return;
+    }
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const source = audioCtx.createMediaStreamSource(stream);
+    const analyser = audioCtx.createAnalyser();
+    analyser.fftSize = 512;
+    source.connect(analyser);
+    const datos = new Uint8Array(analyser.frequencyBinCount);
+    let promedioAnterior = 0;
+
+    function loop() {
+      analyser.getByteFrequencyData(datos);
+      const promedio = datos.reduce((a, b) => a + b, 0) / datos.length;
+      const salto = promedio - promedioAnterior;
+      const ahora = performance.now();
+      // Aplauso = subida muy brusca de volumen en un solo frame, con cooldown para no disparar seguido.
+      if (salto > 35 && promedio > 45 && ahora - ultimoAplauso > 1500) {
+        ultimoAplauso = ahora;
+        micBtn.click();
+      }
+      promedioAnterior = promedio;
+      requestAnimationFrame(loop);
+    }
+    loop();
+  }
+
+  micBtn.addEventListener("click", () => { iniciarEscuchaAplausos(); });
+})();
+
 // ============ Siluetas por tipo de carrocería (pickup / suv / sedán-hatch) ============
 // El avatar cambia de forma según el auto real detectado, no solo la foto.
 const SILUETAS = {
