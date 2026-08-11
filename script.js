@@ -63,6 +63,24 @@ if (logoutBtn) {
 // ============ CATÁLOGO (Supabase si está configurado, si no data.js) ============
 let catalogo = [];
 
+// Los datos del catálogo hoy son propios, pero en el modo multi-agencia (Supabase)
+// van a poder venir de otras agencias — se escapan igual antes de insertarlos vía
+// innerHTML para no dejar abierta una inyección de HTML/XSS si algún campo de texto
+// (marca, modelo, versión, nombre de agencia) llegara a tener contenido malicioso.
+function escapeHtml(str) {
+  if (str == null) return "";
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+// Para usar en atributos como src="images/DOMINIO/1.webp": solo letras/números.
+function sanitizeDominio(dominio) {
+  return String(dominio || "").replace(/[^A-Za-z0-9-]/g, "");
+}
+
 function formatearMoneda(valor) {
   if (!valor) return "Consultar precio";
   return "$ " + valor.toLocaleString("es-AR");
@@ -78,11 +96,11 @@ function nombreAuto(auto) {
 const carIconSvg = `<svg viewBox="0 0 24 24"><path d="M3 12l1.5-4.5A2 2 0 0 1 6.4 6h11.2a2 2 0 0 1 1.9 1.5L21 12"/><rect x="2.5" y="12" width="19" height="5.5" rx="1.5"/><circle cx="7" cy="18.5" r="1.6"/><circle cx="17" cy="18.5" r="1.6"/></svg>`;
 
 function fotoUrl(auto, n) {
-  return `images/${auto.dominio}/${n}.webp`;
+  return `images/${sanitizeDominio(auto.dominio)}/${n}.webp`;
 }
 function thumbHtml(auto, className) {
   if (auto.fotos) {
-    return `<img class="${className}-img" src="${fotoUrl(auto, 1)}" alt="${nombreAuto(auto)}" loading="lazy">`;
+    return `<img class="${className}-img" src="${fotoUrl(auto, 1)}" alt="${escapeHtml(nombreAuto(auto))}" loading="lazy">`;
   }
   return carIconSvg;
 }
@@ -112,8 +130,8 @@ async function initCatalogo() {
       li.innerHTML = `
         <div class="car-thumb${auto.fotos ? " has-photo" : ""}">${thumbHtml(auto, "car-thumb")}</div>
         <div class="car-info">
-          <span class="car-name">${nombreAuto(auto)} ${auto.anio || ""}</span>
-          <span class="car-views">${formatearKm(auto)} · ${formatearMoneda(auto.precio)}</span>
+          <span class="car-name">${escapeHtml(nombreAuto(auto))} ${escapeHtml(auto.anio || "")}</span>
+          <span class="car-views">${escapeHtml(formatearKm(auto))} · ${escapeHtml(formatearMoneda(auto.precio))}</span>
         </div>`;
       if (auto.fotos) {
         li.querySelector(".car-thumb").addEventListener("click", () => abrirGaleria(auto));
@@ -165,12 +183,12 @@ function renderInventarioCompleto() {
       row.innerHTML = `
         <div class="inv-icon${auto.fotos ? " has-photo" : ""}">${thumbHtml(auto, "inv-icon")}</div>
         <div>
-          <div class="inv-name">${nombreAuto(auto)} ${auto.anio || ""}</div>
-          <div class="inv-version">${auto.version || ""}</div>
+          <div class="inv-name">${escapeHtml(nombreAuto(auto))} ${escapeHtml(auto.anio || "")}</div>
+          <div class="inv-version">${escapeHtml(auto.version || "")}</div>
         </div>
-        <div class="inv-specs">${formatearKm(auto)}</div>
-        <div><span class="inv-badge ${auto.esCero ? "cero" : ""}">${auto.esCero ? "0KM" : "USADO"}</span>${auto.fotos ? `<span class="inv-fotos">${auto.fotos} fotos</span>` : `<span class="inv-fotos sinfoto">sin fotos</span>`}</div>
-        <div class="inv-price">${formatearMoneda(auto.precio)}</div>`;
+        <div class="inv-specs">${escapeHtml(formatearKm(auto))}</div>
+        <div><span class="inv-badge ${auto.esCero ? "cero" : ""}">${auto.esCero ? "0KM" : "USADO"}</span>${auto.fotos ? `<span class="inv-fotos">${escapeHtml(auto.fotos)} fotos</span>` : `<span class="inv-fotos sinfoto">sin fotos</span>`}</div>
+        <div class="inv-price">${escapeHtml(formatearMoneda(auto.precio))}</div>`;
       if (auto.fotos) {
         row.querySelector(".inv-icon").addEventListener("click", () => abrirGaleria(auto));
       }
@@ -430,7 +448,7 @@ const SILUETAS = {
     if (auto.fotos) {
       // Foto real del auto exacto, con filtro "escaneo holográfico" — insignia y forma reales.
       carGraphic.style.opacity = "0";
-      photoCrop.innerHTML = `<img class="holo" src="${fotoUrl(auto, 1)}" alt="${nombreAuto(auto)}">`;
+      photoCrop.innerHTML = `<img class="holo" src="${fotoUrl(auto, 1)}" alt="${escapeHtml(nombreAuto(auto))}">`;
       photoCrop.classList.add("show");
     } else {
       // Sin foto disponible: cae a la silueta genérica del tipo de carrocería.
@@ -439,7 +457,7 @@ const SILUETAS = {
       photoCrop.classList.remove("show");
       photoCrop.innerHTML = "";
     }
-    caption.innerHTML = `Mostrando: <b>${nombreAuto(auto)} ${auto.anio || ""}</b>${auto.fotos ? "" : " <i>(sin foto, silueta genérica)</i>"}`;
+    caption.innerHTML = `Mostrando: <b>${escapeHtml(nombreAuto(auto))} ${escapeHtml(auto.anio || "")}</b>${auto.fotos ? "" : " <i>(sin foto, silueta genérica)</i>"}`;
   }
 
   function ocultarAuto() {

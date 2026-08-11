@@ -81,3 +81,25 @@ El mic del panel lateral también se activa con un aplauso fuerte y seco (detect
 - **La primera vez hay que tocar el mic con la mano** — los navegadores no dejan pedir permiso de micrófono sin un click real; después de ese primer toque, queda escuchando aplausos en segundo plano el resto de la visita.
 - Es un detector simple (pico de volumen), no un modelo entrenado — un portazo o un golpe fuerte también lo puede disparar. Si da falsos positivos muy seguido, avisame y le subo el umbral.
 - Por las políticas de autoplay de los navegadores, es posible que el audio de JARVIS no se escuche hasta que haya habido al menos un click real en la página en esa sesión — probalo y contame si pasa.
+
+## Seguridad
+
+Ningún sitio es "inhackeable", pero esto es lo que está aplicado y por qué (y lo que queda pendiente):
+
+**Ya aplicado:**
+- **Content-Security-Policy** en `index.html` y `login.html`: solo permite cargar scripts desde el propio sitio, jsdelivr (Supabase) y unpkg (ElevenLabs) — bloquea que se inyecte y ejecute JavaScript de otro origen. `object-src 'none'` y `base-uri 'self'` cierran vectores clásicos de inyección.
+- **Todo el texto dinámico se escapa antes de insertarse en el HTML** (`escapeHtml()` en `script.js`): nombres/versiones de autos, nombre de agencia, etc. Hoy esos datos son propios, pero en el modo multi-agencia van a poder cargarlos otras agencias — así ninguna puede inyectar HTML/JS a través del nombre de un auto.
+- **`dominio` (patente) se sanitiza** antes de usarse en una URL de imagen (`sanitizeDominio()`), para que no se pueda manipular la ruta del archivo.
+- **RLS (Row Level Security) en Supabase**: cada agencia solo puede leer/escribir sus propios datos (`agencia_id`). No hay política de `insert`/`update` en `agencias` ni `perfiles` desde el cliente — un usuario no puede auto-asignarse a otra agencia ni cambiar su propio rol; esas altas se hacen a mano por SQL. La función que resuelve "tu agencia" usa `security definer` con `search_path` fijo (evita el ataque clásico de hijacking de `search_path` en Postgres).
+- **Ninguna clave secreta vive en el repo**: `SUPABASE_ANON_KEY` y `ELEVENLABS_AGENT_ID` son identificadores públicos pensados para exponerse en el cliente (la seguridad real la da RLS del lado de Supabase, no el secreto de esas claves). La clave `service_role` de Supabase, el token de acceso de Mercado Pago y el secreto de la App de Meta **nunca deben pegarse acá** — cuando se necesiten (fases futuras), van como secreto de una función servidor (Edge Function de Supabase), nunca en el código del sitio.
+- **HTTPS obligatorio**: GitHub Pages sirve todo por HTTPS automáticamente.
+
+**Limitaciones conocidas (por ser un sitio 100% estático en GitHub Pages):**
+- No se puede fijar `X-Frame-Options` / `frame-ancestors` por header real (GitHub Pages no permite headers custom), así que la protección contra clickjacking vía header no está disponible — el CSP vía `<meta>` tampoco puede incluir `frame-ancestors` (el navegador lo ignora ahí). Si esto llegara a importar en producción, la solución es servir el sitio detrás de Cloudflare (gratis) que sí permite agregar headers.
+- Las librerías externas (Supabase JS, widget de ElevenLabs) se cargan por versión mayor (`@2`) sin hash de integridad (SRI) — quedó pendiente calcular los hashes exactos porque este entorno de desarrollo no tuvo acceso de red a esos CDNs para generarlos. Se puede agregar más adelante corriendo `curl -s <url> | openssl dgst -sha384 -binary | openssl base64 -A` y pegando el resultado en un atributo `integrity=""`.
+
+**Recomendado hacer del lado de las cuentas** (no es código, son configuraciones de cada servicio):
+- Activar verificación en dos pasos (2FA) en GitHub, Supabase y ElevenLabs.
+- En Supabase, revisar periódicamente **Authentication → Rate Limits** y dejar activada la confirmación de email para altas de usuarios.
+- Cuando se sume Mercado Pago o Meta, esos tokens van a Supabase Edge Functions (secretos server-side), nunca a `config.js`.
+- Mantener las dependencias (versiones de Supabase JS / widget de ElevenLabs) actualizadas de vez en cuando — son la superficie de ataque más probable a mediano plazo (cadena de suministro).
