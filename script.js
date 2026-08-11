@@ -312,6 +312,195 @@ if (agentId) {
   });
 }
 
+// ============ Siluetas por tipo de carrocería (pickup / suv / sedán-hatch) ============
+// El avatar cambia de forma según el auto real detectado, no solo la foto.
+const SILUETAS = {
+  sedan: `
+    <path class="car-silhouette" d="M5 58 Q6 50 16 47 Q25 34 40 28 Q50 24 60 25 Q71 27 80 38 Q88 45 94 54 L94 61 L5 61 Z"
+      fill="#0c1a2b" stroke="#22d3ee" stroke-width="2"/>
+    <path d="M31 44 Q38 31 48 27 Q56 25 62 27 Q71 30 77 40 L78 44 Z" fill="none" stroke="#22d3ee" stroke-width="1.2" opacity="0.8"/>
+    <circle cx="27" cy="61" r="9.5" fill="#050a14" stroke="#22d3ee" stroke-width="2.2" class="wheel-avatar"/>
+    <circle cx="27" cy="61" r="4" fill="none" stroke="#22d3ee" stroke-width="1"/>
+    <circle cx="76" cy="61" r="9.5" fill="#050a14" stroke="#22d3ee" stroke-width="2.2" class="wheel-avatar"/>
+    <circle cx="76" cy="61" r="4" fill="none" stroke="#22d3ee" stroke-width="1"/>`,
+  hatch: `
+    <path class="car-silhouette" d="M5 58 Q6 51 15 48 Q22 36 34 30 Q42 26 50 27 Q60 28 68 36 Q78 40 88 46 Q93 49 94 54 L94 61 L5 61 Z"
+      fill="#0c1a2b" stroke="#22d3ee" stroke-width="2"/>
+    <path d="M27 46 Q33 33 42 29 Q49 27 55 29 Q64 33 70 40 L72 44 Z" fill="none" stroke="#22d3ee" stroke-width="1.2" opacity="0.8"/>
+    <circle cx="26" cy="61" r="9.5" fill="#050a14" stroke="#22d3ee" stroke-width="2.2" class="wheel-avatar"/>
+    <circle cx="26" cy="61" r="4" fill="none" stroke="#22d3ee" stroke-width="1"/>
+    <circle cx="75" cy="61" r="9.5" fill="#050a14" stroke="#22d3ee" stroke-width="2.2" class="wheel-avatar"/>
+    <circle cx="75" cy="61" r="4" fill="none" stroke="#22d3ee" stroke-width="1"/>`,
+  suv: `
+    <path class="car-silhouette" d="M4 58 Q5 47 15 41 Q22 29 34 25 Q45 21 60 22 Q75 23 85 31 Q92 37 95 47 L95 61 L4 61 Z"
+      fill="#0c1a2b" stroke="#22d3ee" stroke-width="2"/>
+    <path d="M20 41 Q27 30 36 27 Q46 24 58 25 Q70 26 80 33 L82 41 Z" fill="none" stroke="#22d3ee" stroke-width="1.2" opacity="0.8"/>
+    <line x1="46" y1="24" x2="46" y2="41" stroke="#22d3ee" stroke-width="0.9" opacity="0.55"/>
+    <circle cx="24" cy="61" r="10" fill="#050a14" stroke="#22d3ee" stroke-width="2.2" class="wheel-avatar"/>
+    <circle cx="24" cy="61" r="4.2" fill="none" stroke="#22d3ee" stroke-width="1"/>
+    <circle cx="77" cy="61" r="10" fill="#050a14" stroke="#22d3ee" stroke-width="2.2" class="wheel-avatar"/>
+    <circle cx="77" cy="61" r="4.2" fill="none" stroke="#22d3ee" stroke-width="1"/>`,
+  pickup: `
+    <path class="car-silhouette" d="M4 58 Q5 50 14 48 Q20 36 32 30 Q40 26 48 27 L58 27 L58 38 L90 38 Q95 40 96 46 L96 58 L4 58 Z"
+      fill="#0c1a2b" stroke="#22d3ee" stroke-width="2"/>
+    <path d="M22 47 Q28 35 36 30 Q42 27 48 28 L56 28 L56 38 L22 38 Z" fill="none" stroke="#22d3ee" stroke-width="1.2" opacity="0.8"/>
+    <line x1="58" y1="27" x2="58" y2="38" stroke="#22d3ee" stroke-width="1.1" opacity="0.7"/>
+    <circle cx="24" cy="59" r="9.5" fill="#050a14" stroke="#22d3ee" stroke-width="2.2" class="wheel-avatar"/>
+    <circle cx="24" cy="59" r="4" fill="none" stroke="#22d3ee" stroke-width="1"/>
+    <circle cx="82" cy="59" r="9.5" fill="#050a14" stroke="#22d3ee" stroke-width="2.2" class="wheel-avatar"/>
+    <circle cx="82" cy="59" r="4" fill="none" stroke="#22d3ee" stroke-width="1"/>`,
+};
+
+// ============ Avatar reactivo: se deforma al hablar y muestra autos reales del inventario ============
+(function avatarReactivo() {
+  if (!micBtn || !agentId) return; // sin voz configurada, no hay nada que reaccionar
+
+  const avatarEl = document.querySelector(".jarvis-avatar");
+  const photoCrop = document.getElementById("avatarPhotoCrop");
+  const caption = document.getElementById("avatarCarCaption");
+  const carGraphic = document.getElementById("carGraphic");
+  if (!avatarEl || !photoCrop || !caption || !carGraphic) return;
+
+  let audioCtx, analyser, micStream, rafId, reconocedor;
+  let activo = false;
+  let cicloIndex = -1;
+  let mostrandoEspecifico = false;
+  let volverAGenericoTimeout = null;
+
+  function autosParaCiclo() {
+    const destacados = catalogo.filter((a) => a.destacado);
+    return destacados.length ? destacados : catalogo;
+  }
+
+  function cambiarSilueta(tipo) {
+    carGraphic.innerHTML = SILUETAS[tipo] || SILUETAS.sedan;
+  }
+
+  function mostrarAuto(auto) {
+    if (!auto) return;
+    if (auto.fotos) {
+      // Foto real del auto exacto, con filtro "escaneo holográfico" — insignia y forma reales.
+      carGraphic.style.opacity = "0";
+      photoCrop.innerHTML = `<img class="holo" src="${fotoUrl(auto, 1)}" alt="${nombreAuto(auto)}">`;
+      photoCrop.classList.add("show");
+    } else {
+      // Sin foto disponible: cae a la silueta genérica del tipo de carrocería.
+      carGraphic.style.opacity = "1";
+      cambiarSilueta(auto.carroceria);
+      photoCrop.classList.remove("show");
+      photoCrop.innerHTML = "";
+    }
+    caption.innerHTML = `Mostrando: <b>${nombreAuto(auto)} ${auto.anio || ""}</b>${auto.fotos ? "" : " <i>(sin foto, silueta genérica)</i>"}`;
+  }
+
+  function ocultarAuto() {
+    carGraphic.style.opacity = "1";
+    cambiarSilueta("sedan");
+    photoCrop.classList.remove("show");
+    photoCrop.innerHTML = "";
+    caption.textContent = "";
+  }
+
+  function siguienteDelCiclo() {
+    if (mostrandoEspecifico) return;
+    const lista = autosParaCiclo();
+    if (!lista.length) return;
+    cicloIndex = (cicloIndex + 1) % lista.length;
+    mostrarAuto(lista[cicloIndex]);
+  }
+
+  function buscarAutoMencionado(texto) {
+    const t = texto.toLowerCase();
+    return catalogo.find((a) => a.modelo && t.includes(a.modelo.toLowerCase()));
+  }
+
+  function onFrase(texto) {
+    const auto = buscarAutoMencionado(texto);
+    if (!auto) return;
+    mostrandoEspecifico = true;
+    mostrarAuto(auto);
+    clearTimeout(volverAGenericoTimeout);
+    volverAGenericoTimeout = setTimeout(() => { mostrandoEspecifico = false; }, 15000);
+  }
+
+  // Analiza el volumen del mic en vivo: deforma el avatar mientras hablás, y detecta
+  // pausas para ir rotando el auto mostrado (aproximación de "cuando termina de responder").
+  function iniciarAnalisisVolumen(stream) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const source = audioCtx.createMediaStreamSource(stream);
+    analyser = audioCtx.createAnalyser();
+    analyser.fftSize = 256;
+    source.connect(analyser);
+    const data = new Uint8Array(analyser.frequencyBinCount);
+    let silencioDesde = null;
+
+    function loop() {
+      analyser.getByteFrequencyData(data);
+      const promedio = data.reduce((a, b) => a + b, 0) / data.length;
+      const hablando = promedio > 12;
+      avatarEl.classList.toggle("hablando", hablando);
+
+      if (hablando) {
+        silencioDesde = null;
+      } else if (silencioDesde === null) {
+        silencioDesde = performance.now();
+      } else if (performance.now() - silencioDesde > 1800) {
+        silencioDesde = performance.now();
+        siguienteDelCiclo();
+      }
+      rafId = requestAnimationFrame(loop);
+    }
+    loop();
+  }
+
+  // Reconocimiento de voz del navegador (Chrome/Android; no disponible en Safari/iOS):
+  // detecta si mencionaste un modelo del inventario para mostrar justo ese auto.
+  function iniciarReconocimiento() {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) return null;
+    const rec = new SR();
+    rec.lang = "es-AR";
+    rec.continuous = true;
+    rec.interimResults = false;
+    rec.onresult = (e) => {
+      const texto = Array.from(e.results).map((r) => r[0].transcript).join(" ");
+      onFrase(texto);
+    };
+    rec.onerror = () => {};
+    rec.onend = () => { if (activo) { try { rec.start(); } catch (_) {} } };
+    try { rec.start(); } catch (_) {}
+    return rec;
+  }
+
+  async function activar() {
+    try {
+      micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch (err) {
+      console.warn("No se pudo acceder al micrófono para la reacción visual del avatar:", err);
+      return;
+    }
+    activo = true;
+    iniciarAnalisisVolumen(micStream);
+    reconocedor = iniciarReconocimiento();
+    await catalogoListo;
+    siguienteDelCiclo();
+  }
+
+  function desactivar() {
+    activo = false;
+    if (rafId) cancelAnimationFrame(rafId);
+    if (audioCtx) audioCtx.close();
+    if (micStream) micStream.getTracks().forEach((t) => t.stop());
+    if (reconocedor) { try { reconocedor.stop(); } catch (_) {} }
+    avatarEl.classList.remove("hablando");
+    ocultarAuto();
+  }
+
+  micBtn.addEventListener("click", () => {
+    if (!activo) activar(); else desactivar();
+  });
+})();
+
 // Botón circular JARVIS AI: pulso visual al hacer clic (mock)
 const jarvisBtn = document.getElementById("jarvisBtn");
 if (jarvisBtn) {

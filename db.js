@@ -33,6 +33,7 @@
       specs: row.specs || [],
       destacado: row.destacado,
       fotos: row.fotos || 0,
+      carroceria: row.carroceria,
     };
   }
 

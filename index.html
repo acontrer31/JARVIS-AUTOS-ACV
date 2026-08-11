@@ -24,15 +24,33 @@
     <div class="jarvis-avatar">
       <div class="avatar-ring"></div>
       <svg viewBox="0 0 100 100" class="avatar-face">
-        <path d="M50 8c-16 0-27 11-27 26v10c0 4 2 7 5 9l4 14c1 4 4 6 8 6h20c4 0 7-2 8-6l4-14c3-2 5-5 5-9V34C77 19 66 8 50 8z" fill="none" stroke="#22d3ee" stroke-width="2.5"/>
-        <circle cx="38" cy="40" r="5" fill="#22d3ee" class="eye"/>
-        <circle cx="62" cy="40" r="5" fill="#22d3ee" class="eye"/>
-        <path d="M38 60h24" stroke="#22d3ee" stroke-width="2" stroke-linecap="round"/>
-        <path d="M23 44v10M77 44v10" stroke="#22d3ee" stroke-width="2"/>
+        <!-- El contenido de este grupo lo reemplaza script.js según el tipo de auto (pickup/suv/sedán) -->
+        <g id="carGraphic">
+          <path class="car-silhouette" d="M5 58
+            Q6 50 16 47
+            Q25 34 40 28
+            Q50 24 60 25
+            Q71 27 80 38
+            Q88 45 94 54
+            L94 61
+            L5 61
+            Z"
+            fill="#0c1a2b" stroke="#22d3ee" stroke-width="2"/>
+          <path d="M31 44 Q38 31 48 27 Q56 25 62 27 Q71 30 77 40 L78 44 Z"
+            fill="none" stroke="#22d3ee" stroke-width="1.2" opacity="0.8"/>
+          <circle cx="27" cy="61" r="9.5" fill="#050a14" stroke="#22d3ee" stroke-width="2.2" class="wheel-avatar"/>
+          <circle cx="27" cy="61" r="4" fill="none" stroke="#22d3ee" stroke-width="1"/>
+          <circle cx="76" cy="61" r="9.5" fill="#050a14" stroke="#22d3ee" stroke-width="2.2" class="wheel-avatar"/>
+          <circle cx="76" cy="61" r="4" fill="none" stroke="#22d3ee" stroke-width="1"/>
+        </g>
+        <text x="50" y="80" text-anchor="middle" class="avatar-legend-main">ALCOVER</text>
+        <text x="50" y="90" text-anchor="middle" class="avatar-legend-sub">AUTOMOTORES</text>
       </svg>
+      <div class="avatar-photo-crop" id="avatarPhotoCrop"></div>
     </div>
     <div class="jarvis-label">JARVIS</div>
     <div class="jarvis-status"><span class="dot dot-online"></span>ONLINE</div>
+    <p class="avatar-car-caption" id="avatarCarCaption"></p>
 
     <nav class="nav">
       <a class="nav-item active" href="#" data-view="dashboard">

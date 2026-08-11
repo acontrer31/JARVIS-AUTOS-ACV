@@ -101,10 +101,42 @@ svg { width: 1em; height: 1em; fill: none; stroke: currentColor; stroke-width: 1
   content: ""; position: absolute; inset: -6px; border-radius: 50%;
   border: 1px dashed #22d3ee66;
 }
-.avatar-face { width: 60px; height: 60px; filter: drop-shadow(0 0 6px var(--accent)); }
-.avatar-face .eye { animation: blink 4s ease-in-out infinite; }
+.avatar-face { width: 64px; height: 64px; filter: drop-shadow(0 0 6px var(--accent)); transition: transform 0.08s ease-out; transform-origin: 50% 62%; }
+.avatar-legend-main { font-size: 9.5px; font-weight: 800; letter-spacing: 0.5px; fill: #dff4ff; font-family: inherit; }
+.avatar-legend-sub { font-size: 6px; font-weight: 600; letter-spacing: 0.6px; fill: #6f8ba3; font-family: inherit; }
+.wheel-avatar { animation: spin 3s linear infinite; transform-origin: center; transform-box: fill-box; }
+.jarvis-avatar.hablando .avatar-face { animation: deform 0.35s ease-in-out infinite alternate; }
+.jarvis-avatar.hablando .avatar-ring { box-shadow: 0 0 30px 6px var(--accent-soft), inset 0 0 24px -2px var(--accent); }
 @keyframes spin { to { transform: rotate(360deg); } }
-@keyframes blink { 0%, 92%, 100% { opacity: 1; } 96% { opacity: 0.15; } }
+@keyframes deform {
+  0% { transform: scaleX(1) scaleY(1) skewX(0deg); }
+  50% { transform: scaleX(1.06) scaleY(0.94) skewX(-1.5deg); }
+  100% { transform: scaleX(0.95) scaleY(1.05) skewX(1.5deg); }
+}
+#carGraphic { transition: opacity 0.3s ease; }
+.avatar-photo-crop {
+  position: absolute; inset: 0; border-radius: 50%; overflow: hidden; opacity: 0; transition: opacity 0.4s ease;
+  background: #030a12;
+}
+.avatar-photo-crop.show { opacity: 1; }
+.avatar-photo-crop img { width: 100%; height: 100%; object-fit: cover; }
+.avatar-photo-crop img.holo {
+  filter: grayscale(1) contrast(1.5) brightness(1.2) sepia(1) hue-rotate(152deg) saturate(6);
+  mix-blend-mode: screen;
+}
+.avatar-photo-crop.show::after {
+  content: ""; position: absolute; inset: 0; border-radius: 50%;
+  background: linear-gradient(180deg, transparent 0%, #22d3ee55 48%, transparent 52%);
+  background-size: 100% 220%;
+  animation: holoscan 2.6s linear infinite;
+  mix-blend-mode: overlay; pointer-events: none;
+}
+@keyframes holoscan { 0% { background-position: 0 -120%; } 100% { background-position: 0 120%; } }
+.avatar-car-caption {
+  font-size: 0.6rem; color: var(--text-muted); text-align: center; margin-top: 2px; min-height: 1.2em;
+  letter-spacing: 0.03em;
+}
+.avatar-car-caption b { color: var(--accent); }
 
 .jarvis-label { font-weight: 700; letter-spacing: 0.12em; font-size: 0.95rem; margin-top: 4px; }
 .jarvis-status { font-size: 0.68rem; letter-spacing: 0.1em; color: var(--text-muted); display: flex; align-items: center; gap: 5px; margin-bottom: 18px; }
