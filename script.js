@@ -1,3 +1,49 @@
+// ============ PWA: instalación en celular/PC ============
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("service-worker.js").catch(() => {});
+  });
+}
+
+let deferredInstallPrompt = null;
+const installBtn = document.getElementById("installBtn");
+
+window.addEventListener("beforeinstallprompt", (e) => {
+  e.preventDefault();
+  deferredInstallPrompt = e;
+  if (installBtn) installBtn.hidden = false;
+});
+
+if (installBtn) {
+  installBtn.addEventListener("click", async () => {
+    if (!deferredInstallPrompt) return;
+    deferredInstallPrompt.prompt();
+    await deferredInstallPrompt.userChoice;
+    deferredInstallPrompt = null;
+    installBtn.hidden = true;
+  });
+}
+
+window.addEventListener("appinstalled", () => {
+  if (installBtn) installBtn.hidden = true;
+});
+
+// Aviso manual para iOS (Safari no dispara beforeinstallprompt)
+(function iosInstallTip() {
+  const tip = document.getElementById("iosInstallTip");
+  if (!tip) return;
+  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  const isStandalone = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone;
+  const dismissed = localStorage.getItem("jarvisIosTipDismissed");
+  if (isIOS && !isStandalone && !dismissed) {
+    tip.hidden = false;
+  }
+  document.getElementById("iosInstallClose")?.addEventListener("click", () => {
+    tip.hidden = true;
+    localStorage.setItem("jarvisIosTipDismissed", "1");
+  });
+})();
+
 // ============ CATÁLOGO REAL (data.js) ============
 const catalogo = (typeof CATALOGO_ALCOVER !== "undefined" ? CATALOGO_ALCOVER : []);
 

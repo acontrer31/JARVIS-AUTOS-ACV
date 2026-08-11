@@ -192,6 +192,14 @@ svg { width: 1em; height: 1em; fill: none; stroke: currentColor; stroke-width: 1
 
 .content { display: flex; flex-direction: column; gap: 16px; }
 
+.ios-install-tip {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  background: #0d1e30; border: 1px solid var(--accent); border-radius: 10px;
+  padding: 10px 16px; font-size: 0.76rem; color: var(--text);
+}
+.ios-install-tip strong { color: var(--accent); }
+.ios-install-tip[hidden] { display: none; }
+
 /* Welcome */
 .welcome-panel { display: flex; align-items: center; justify-content: space-between; gap: 24px; flex-wrap: wrap; }
 .welcome-text h1 { font-size: 1.5rem; letter-spacing: 0.03em; margin-bottom: 4px; }
