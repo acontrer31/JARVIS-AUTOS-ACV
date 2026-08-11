@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>JARVIS · Agencia Alcover Automotores</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='42' fill='%23020617' stroke='%2322d3ee' stroke-width='6'/%3E%3Ccircle cx='50' cy='50' r='18' fill='%2322d3ee'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<div class="app">
+
+  <!-- ============ SIDEBAR IZQUIERDA ============ -->
+  <aside class="sidebar">
+    <div class="jarvis-avatar">
+      <div class="avatar-ring"></div>
+      <svg viewBox="0 0 100 100" class="avatar-face">
+        <path d="M50 8c-16 0-27 11-27 26v10c0 4 2 7 5 9l4 14c1 4 4 6 8 6h20c4 0 7-2 8-6l4-14c3-2 5-5 5-9V34C77 19 66 8 50 8z" fill="none" stroke="#22d3ee" stroke-width="2.5"/>
+        <circle cx="38" cy="40" r="5" fill="#22d3ee" class="eye"/>
+        <circle cx="62" cy="40" r="5" fill="#22d3ee" class="eye"/>
+        <path d="M38 60h24" stroke="#22d3ee" stroke-width="2" stroke-linecap="round"/>
+        <path d="M23 44v10M77 44v10" stroke="#22d3ee" stroke-width="2"/>
+      </svg>
+    </div>
+    <div class="jarvis-label">JARVIS</div>
+    <div class="jarvis-status"><span class="dot dot-online"></span>ONLINE</div>
+
+    <nav class="nav">
+      <a class="nav-item active" href="#" data-view="dashboard">
+        <svg viewBox="0 0 24 24"><path d="M3 11.5 12 4l9 7.5"/><path d="M5 10v9a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1v-9"/></svg>
+        DASHBOARD
+      </a>
+      <a class="nav-item" href="#" data-view="inventario">
+        <svg viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="12" rx="1"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+        INVENTARIO
+      </a>
+      <a class="nav-item" href="#" data-view="clientes">
+        <svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-4 3-6 6-6s6 2 6 6"/><circle cx="18" cy="9" r="2.4"/><path d="M15 20c.3-2.6 1.8-4.3 3.8-4.6"/></svg>
+        CLIENTES
+      </a>
+      <a class="nav-item" href="#" data-view="leads">
+        <svg viewBox="0 0 24 24"><path d="M4 4h16v4l-6 6v6l-4-2v-4L4 8Z"/></svg>
+        LEADS
+      </a>
+      <a class="nav-item" href="#" data-view="ventas">
+        <svg viewBox="0 0 24 24"><path d="M3 17v-3l4-4 4 3 6-7 4 3"/><path d="M3 20h18"/></svg>
+        VENTAS
+      </a>
+      <a class="nav-item" href="#" data-view="finanzas">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5v9M9.3 15c.3 1.1 1.3 1.6 2.7 1.6 1.7 0 2.8-.8 2.8-2s-1-1.7-2.8-2c-1.7-.3-2.7-.9-2.7-2s1.1-2 2.7-2c1.4 0 2.4.5 2.7 1.6"/></svg>
+        FINANZAS
+      </a>
+      <a class="nav-item" href="#" data-view="marketing">
+        <svg viewBox="0 0 24 24"><path d="M3 10v4h4l5 4V6L7 10H3Z"/><path d="M16 9a4 4 0 0 1 0 6M19 6a8 8 0 0 1 0 12"/></svg>
+        MARKETING
+      </a>
+      <a class="nav-item" href="#" data-view="analisis">
+        <svg viewBox="0 0 24 24"><path d="M4 20V10M11 20V4M18 20v-7"/></svg>
+        ANÁLISIS
+      </a>
+      <a class="nav-item" href="#" data-view="tareas">
+        <svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="m8 12 2.5 2.5L16 9"/></svg>
+        TAREAS
+      </a>
+      <a class="nav-item" href="#" data-view="configuracion">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 13.5a7.6 7.6 0 0 0 0-3l2-1.5-2-3.5-2.4 1a7.7 7.7 0 0 0-2.6-1.5L14 2h-4l-.4 2.5a7.7 7.7 0 0 0-2.6 1.5l-2.4-1-2 3.5 2 1.5a7.6 7.6 0 0 0 0 3l-2 1.5 2 3.5 2.4-1c.8.7 1.6 1.2 2.6 1.5L10 22h4l.4-2.5a7.7 7.7 0 0 0 2.6-1.5l2.4 1 2-3.5Z"/></svg>
+        CONFIGURACIÓN
+      </a>
+    </nav>
+
+    <div class="jarvis-ai-mini">
+      <div class="ai-mini-header">
+        <span class="ai-dot"></span>
+        <div>
+          <div class="ai-mini-title">JARVIS AI</div>
+          <div class="ai-mini-sub">ASISTENTE INTELIGENTE</div>
+        </div>
+      </div>
+      <p class="ai-mini-text">¿En qué puedo ayudarte?</p>
+      <p class="ai-mini-text muted">Puedes decir cosas como:</p>
+      <ul class="ai-suggestions">
+        <li>"Mostrarme los autos más vendidos"</li>
+        <li>"¿Cuántos leads tengo hoy?"</li>
+        <li>"Análisis de ventas del mes"</li>
+        <li>"Recordar seguimiento de clientes"</li>
+      </ul>
+      <button class="mic-btn" id="micBtn" aria-label="Activar micrófono">
+        <svg viewBox="0 0 24 24"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v4M8 22h8"/></svg>
+      </button>
+      <div class="waveform" id="waveform"></div>
+    </div>
+  </aside>
+
+  <!-- ============ CONTENIDO PRINCIPAL ============ -->
+  <div class="main">
+
+    <!-- TOPBAR -->
+    <header class="topbar">
+      <div class="topbar-left">
+        <span class="brand">JARVIS</span>
+        <span class="brand-sep"></span>
+        <span class="brand-sub">AGENCIA ALCOVER AUTOMOTORES</span>
+      </div>
+      <div class="topbar-center">
+        <div class="reactor">
+          <svg viewBox="0 0 100 100">
+            <circle cx="50" cy="50" r="46" fill="none" stroke="#0e2a3a" stroke-width="2"/>
+            <circle cx="50" cy="50" r="38" fill="none" stroke="#22d3ee" stroke-width="1.5" stroke-dasharray="4 6"/>
+            <circle cx="50" cy="50" r="24" fill="none" stroke="#22d3ee" stroke-width="2"/>
+            <circle cx="50" cy="50" r="10" fill="#22d3ee" opacity="0.85"/>
+          </svg>
+        </div>
+      </div>
+      <div class="topbar-right">
+        <span id="topDate" class="top-date"></span>
+        <span id="topTime" class="top-time"></span>
+        <span class="status-pill"><span class="dot dot-online"></span>ONLINE</span>
+        <button class="icon-btn" aria-label="Configuración">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 13.5a7.6 7.6 0 0 0 0-3l2-1.5-2-3.5-2.4 1a7.7 7.7 0 0 0-2.6-1.5L14 2h-4l-.4 2.5a7.7 7.7 0 0 0-2.6 1.5l-2.4-1-2 3.5 2 1.5a7.6 7.6 0 0 0 0 3l-2 1.5 2 3.5 2.4-1c.8.7 1.6 1.2 2.6 1.5L10 22h4l.4-2.5a7.7 7.7 0 0 0 2.6-1.5l2.4 1 2-3.5Z"/></svg>
+        </button>
+        <button class="icon-btn" aria-label="Notificaciones">
+          <svg viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 5 2 6 2 6H4s2-1 2-6Z"/><path d="M10 20a2 2 0 0 0 4 0"/></svg>
+          <span class="badge"></span>
+        </button>
+        <button class="icon-btn" aria-label="Cerrar sesión">
+          <svg viewBox="0 0 24 24"><path d="M12 3v9"/><path d="M6.3 6.3a8 8 0 1 0 11.4 0"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- CONTENIDO SCROLLEABLE -->
+    <div class="content">
+
+      <!-- BIENVENIDA -->
+      <section class="panel welcome-panel">
+        <div class="welcome-text">
+          <h1>BIENVENIDO, AGUSTÍN</h1>
+          <p>¿Qué vamos a lograr hoy?</p>
+        </div>
+        <div class="welcome-status">
+          <div class="ai-pulse-dot"></div>
+          <div class="welcome-status-text">
+            <p>Analizando rendimiento de la agencia…</p>
+            <p class="muted">Todo funcionando al 98.7%</p>
+          </div>
+          <div class="mini-waveform"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+        </div>
+      </section>
+
+      <!-- STAT CARDS -->
+      <section class="stats-row">
+        <div class="panel stat-card">
+          <div class="stat-label">VENTAS ESTE MES</div>
+          <div class="stat-value">18 <svg class="trend up" viewBox="0 0 24 24"><path d="M4 16 10 10 14 14 20 6"/><path d="M14 6h6v6"/></svg></div>
+          <div class="stat-sub">vs mes anterior <span class="up">+12%</span></div>
+          <svg class="spark" viewBox="0 0 100 30" preserveAspectRatio="none"><polyline points="0,24 15,20 30,22 45,14 60,16 75,8 100,4" /></svg>
+        </div>
+        <div class="panel stat-card">
+          <div class="stat-label">INGRESOS</div>
+          <div class="stat-value">$ 42.850.000 <svg class="trend up" viewBox="0 0 24 24"><path d="M4 16 10 10 14 14 20 6"/><path d="M14 6h6v6"/></svg></div>
+          <div class="stat-sub">vs mes anterior <span class="up">+8.5%</span></div>
+          <svg class="spark" viewBox="0 0 100 30" preserveAspectRatio="none"><polyline points="0,22 15,20 30,18 45,20 60,12 75,10 100,3" /></svg>
+        </div>
+        <div class="panel stat-card">
+          <div class="stat-label">LEADS ACTIVOS</div>
+          <div class="stat-value">112 <svg class="trend up" viewBox="0 0 24 24"><path d="M4 16 10 10 14 14 20 6"/><path d="M14 6h6v6"/></svg></div>
+          <div class="stat-sub">vs semana anterior <span class="up">+15%</span></div>
+          <svg class="spark" viewBox="0 0 100 30" preserveAspectRatio="none"><polyline points="0,20 15,22 30,16 45,18 60,10 75,12 100,4" /></svg>
+        </div>
+        <div class="panel stat-card">
+          <div class="stat-label">TASA CONVERSIÓN</div>
+          <div class="stat-value">24.6% <svg class="trend up" viewBox="0 0 24 24"><path d="M4 16 10 10 14 14 20 6"/><path d="M14 6h6v6"/></svg></div>
+          <div class="stat-sub">vs mes anterior <span class="up">+5.1%</span></div>
+          <svg class="spark" viewBox="0 0 100 30" preserveAspectRatio="none"><polyline points="0,18 15,20 30,14 45,16 60,10 75,14 100,6" /></svg>
+        </div>
+        <div class="panel stat-card">
+          <div class="stat-label">AUTOS EN STOCK</div>
+          <div class="stat-value">36 <svg class="trend down" viewBox="0 0 24 24"><path d="M4 8 10 14 14 10 20 18"/><path d="M14 18h6v-6"/></svg></div>
+          <div class="stat-sub">vs semana anterior <span class="down">-2</span></div>
+          <svg class="spark down" viewBox="0 0 100 30" preserveAspectRatio="none"><polyline points="0,6 15,10 30,8 45,14 60,12 75,18 100,22" /></svg>
+        </div>
+      </section>
+
+      <!-- GRID PRINCIPAL -->
+      <section class="main-grid">
+
+        <!-- Top autos más vistos -->
+        <div class="panel">
+          <div class="panel-header">
+            <h2>TOP AUTOS MÁS VISTOS</h2>
+            <button class="close-x">×</button>
+          </div>
+          <ul class="car-list">
+            <li>
+              <div class="car-thumb"><svg viewBox="0 0 24 24"><path d="M3 12l1.5-4.5A2 2 0 0 1 6.4 6h11.2a2 2 0 0 1 1.9 1.5L21 12"/><rect x="2.5" y="12" width="19" height="5.5" rx="1.5"/><circle cx="7" cy="18.5" r="1.6"/><circle cx="17" cy="18.5" r="1.6"/></svg></div>
+              <div class="car-info"><span class="car-name">Toyota Hilux 2021</span><span class="car-views"><svg viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>245 vistas</span></div>
+            </li>
+            <li>
+              <div class="car-thumb"><svg viewBox="0 0 24 24"><path d="M3 12l1.5-4.5A2 2 0 0 1 6.4 6h11.2a2 2 0 0 1 1.9 1.5L21 12"/><rect x="2.5" y="12" width="19" height="5.5" rx="1.5"/><circle cx="7" cy="18.5" r="1.6"/><circle cx="17" cy="18.5" r="1.6"/></svg></div>
+              <div class="car-info"><span class="car-name">Volkswagen Amarok 2020</span><span class="car-views"><svg viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>198 vistas</span></div>
+            </li>
+            <li>
+              <div class="car-thumb"><svg viewBox="0 0 24 24"><path d="M3 12l1.5-4.5A2 2 0 0 1 6.4 6h11.2a2 2 0 0 1 1.9 1.5L21 12"/><rect x="2.5" y="12" width="19" height="5.5" rx="1.5"/><circle cx="7" cy="18.5" r="1.6"/><circle cx="17" cy="18.5" r="1.6"/></svg></div>
+              <div class="car-info"><span class="car-name">Ford Ranger 2019</span><span class="car-views"><svg viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>176 vistas</span></div>
+            </li>
+            <li>
+              <div class="car-thumb"><svg viewBox="0 0 24 24"><path d="M3 12l1.5-4.5A2 2 0 0 1 6.4 6h11.2a2 2 0 0 1 1.9 1.5L21 12"/><rect x="2.5" y="12" width="19" height="5.5" rx="1.5"/><circle cx="7" cy="18.5" r="1.6"/><circle cx="17" cy="18.5" r="1.6"/></svg></div>
+              <div class="car-info"><span class="car-name">Chevrolet Tracker 2022</span><span class="car-views"><svg viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>142 vistas</span></div>
+            </li>
+            <li>
+              <div class="car-thumb"><svg viewBox="0 0 24 24"><path d="M3 12l1.5-4.5A2 2 0 0 1 6.4 6h11.2a2 2 0 0 1 1.9 1.5L21 12"/><rect x="2.5" y="12" width="19" height="5.5" rx="1.5"/><circle cx="7" cy="18.5" r="1.6"/><circle cx="17" cy="18.5" r="1.6"/></svg></div>
+              <div class="car-info"><span class="car-name">Peugeot 208 2023</span><span class="car-views"><svg viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>118 vistas</span></div>
+            </li>
+          </ul>
+          <button class="btn-outline full">VER INVENTARIO COMPLETO</button>
+        </div>
+
+        <!-- Visual del auto central -->
+        <div class="panel car-stage">
+          <div class="stage-rings">
+            <div class="ring ring-1"></div>
+            <div class="ring ring-2"></div>
+            <div class="ring ring-3"></div>
+            <div class="stage-glow"></div>
+            <svg class="stage-car" viewBox="0 0 240 110" xmlns="http://www.w3.org/2000/svg">
+              <ellipse cx="120" cy="94" rx="92" ry="8" fill="#22d3ee" opacity="0.12"/>
+              <path class="car-body" d="M18 68 Q22 40 60 33 L92 16 Q120 6 150 12 L182 22 Q206 30 214 50 L222 62 Q226 66 224 72 L214 74
+                Q213 84 200 84 Q187 84 185 74 L86 74 Q84 84 71 84 Q58 84 56 74 L24 74 Q14 74 14 66 Z"
+                fill="#0c1a2b" stroke="#22d3ee" stroke-width="1.8"/>
+              <path d="M68 33 L96 18 Q120 9 148 15 L172 24 Q182 28 186 34 L70 34 Z" fill="#132840" stroke="#22d3ee" stroke-width="1.3"/>
+              <line x1="96" y1="18" x2="100" y2="34" stroke="#22d3ee" stroke-width="1"/>
+              <line x1="148" y1="15" x2="146" y2="34" stroke="#22d3ee" stroke-width="1"/>
+              <path d="M14 66 Q40 60 90 60 L200 60 Q216 60 224 62" fill="none" stroke="#67f3ff" stroke-width="1" opacity="0.6"/>
+              <circle class="wheel" cx="65" cy="76" r="13" fill="#050a14" stroke="#22d3ee" stroke-width="2"/>
+              <circle cx="65" cy="76" r="5.5" fill="none" stroke="#22d3ee" stroke-width="1.2"/>
+              <circle class="wheel" cx="196" cy="76" r="13" fill="#050a14" stroke="#22d3ee" stroke-width="2"/>
+              <circle cx="196" cy="76" r="5.5" fill="none" stroke="#22d3ee" stroke-width="1.2"/>
+              <rect x="24" y="46" width="16" height="9" rx="2" fill="#67f3ff" opacity="0.85"/>
+              <rect x="204" y="42" width="14" height="8" rx="2" fill="#67f3ff" opacity="0.85"/>
+              <path d="M45 74 L182 74" stroke="#0a1622" stroke-width="1" opacity="0.5"/>
+            </svg>
+          </div>
+          <div class="stage-label">ALCOVER · AUDI A5 2024</div>
+        </div>
+
+        <!-- Columna: fuentes de leads + actividad -->
+        <div class="grid-col-right">
+          <div class="panel">
+            <div class="panel-header">
+              <h2>FUENTES DE LEADS</h2>
+              <button class="close-x">×</button>
+            </div>
+            <div class="donut-wrap">
+              <svg viewBox="0 0 42 42" class="donut">
+                <circle class="donut-ring" cx="21" cy="21" r="15.9" fill="transparent" stroke="#0e1c2e" stroke-width="5"/>
+                <circle cx="21" cy="21" r="15.9" fill="transparent" stroke="#ec4899" stroke-width="5"
+                  stroke-dasharray="38 62" stroke-dashoffset="25" />
+                <circle cx="21" cy="21" r="15.9" fill="transparent" stroke="#8b5cf6" stroke-width="5"
+                  stroke-dasharray="28 72" stroke-dashoffset="-13" />
+                <circle cx="21" cy="21" r="15.9" fill="transparent" stroke="#3b82f6" stroke-width="5"
+                  stroke-dasharray="18 82" stroke-dashoffset="-41" />
+                <circle cx="21" cy="21" r="15.9" fill="transparent" stroke="#22d3ee" stroke-width="5"
+                  stroke-dasharray="10 90" stroke-dashoffset="-59" />
+                <circle cx="21" cy="21" r="15.9" fill="transparent" stroke="#64748b" stroke-width="5"
+                  stroke-dasharray="6 94" stroke-dashoffset="-69" />
+              </svg>
+              <div class="donut-center"><span>112</span><small>TOTAL</small></div>
+            </div>
+            <ul class="legend">
+              <li><span class="dot-legend" style="background:#ec4899"></span>Instagram <b>38%</b></li>
+              <li><span class="dot-legend" style="background:#8b5cf6"></span>Web <b>28%</b></li>
+              <li><span class="dot-legend" style="background:#3b82f6"></span>Facebook <b>18%</b></li>
+              <li><span class="dot-legend" style="background:#22d3ee"></span>Referidos <b>10%</b></li>
+              <li><span class="dot-legend" style="background:#64748b"></span>Otros <b>6%</b></li>
+            </ul>
+          </div>
+
+          <div class="panel">
+            <div class="panel-header">
+              <h2>ACTIVIDAD RECIENTE</h2>
+            </div>
+            <ul class="activity-list">
+              <li><span class="act-icon"><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4z"/><path d="M4 8h16"/></svg></span><div><p>Nuevo lead de Instagram</p><small>Hace 2 min</small></div></li>
+              <li><span class="act-icon"><svg viewBox="0 0 24 24"><path d="m5 13 4 4L19 7"/></svg></span><div><p>Venta concretada - Hilux 2021</p><small>Hace 15 min</small></div></li>
+              <li><span class="act-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg></span><div><p>Seguimiento de cliente</p><small>Hace 1 hora</small></div></li>
+              <li><span class="act-icon"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span><div><p>Nuevo auto agregado</p><small>Hace 2 horas</small></div></li>
+            </ul>
+            <button class="btn-outline full">VER TODA LA ACTIVIDAD</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ANÁLISIS INTELIGENTE -->
+      <section class="panel insight-panel">
+        <div class="insight-header">
+          <h2>ANÁLISIS INTELIGENTE</h2>
+          <p>Insights generados por JARVIS AI</p>
+        </div>
+        <div class="insight-grid">
+          <div class="insight-col">
+            <h3>OPORTUNIDADES</h3>
+            <ul class="insight-list">
+              <li>
+                <span class="insight-icon"><svg viewBox="0 0 24 24"><path d="M12 2 2 7l10 5 10-5-10-5Z"/><path d="M2 17l10 5 10-5M2 12l10 5 10-5"/></svg></span>
+                <div><p>Aumentar inversión en Instagram</p><small>+23% más leads potenciales</small></div>
+              </li>
+              <li>
+                <span class="insight-icon"><svg viewBox="0 0 24 24"><path d="M3 12l1.5-4.5A2 2 0 0 1 6.4 6h11.2a2 2 0 0 1 1.9 1.5L21 12"/><rect x="2.5" y="12" width="19" height="5.5" rx="1.5"/><circle cx="7" cy="18.5" r="1.6"/><circle cx="17" cy="18.5" r="1.6"/></svg></span>
+                <div><p>Toyota Hilux tiene alta demanda</p><small>Stock bajo · Oportunidad de compra</small></div>
+              </li>
+              <li>
+                <span class="insight-icon"><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4z"/><path d="M8 10h8M8 14h5"/></svg></span>
+                <div><p>Mejorar seguimiento de leads fríos</p><small>32 leads sin contacto &gt; 7 días</small></div>
+              </li>
+            </ul>
+          </div>
+
+          <div class="insight-center">
+            <button class="jarvis-ai-btn" id="jarvisBtn">
+              <span class="jarvis-ai-rings"></span>
+              <span class="jarvis-ai-label">JARVIS<br/>AI</span>
+            </button>
+          </div>
+
+          <div class="insight-col">
+            <h3>PREDICCIONES</h3>
+            <ul class="insight-list">
+              <li>
+                <span class="insight-icon"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/></svg></span>
+                <div><p>Ventas próximas 30 días</p><small><b class="accent-text">$ 65.000.000</b> Confianza: 87%</small></div>
+              </li>
+              <li>
+                <span class="insight-icon"><svg viewBox="0 0 24 24"><path d="M4 16 10 10 14 14 20 6"/><path d="M14 6h6v6"/></svg></span>
+                <div><p>Auto más vendido</p><small><b class="accent-text">Toyota Hilux</b> Confianza: 92%</small></div>
+              </li>
+              <li>
+                <span class="insight-icon"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/></svg></span>
+                <div><p>Mejor día para publicar</p><small><b class="accent-text">Sábado</b> Confianza: 78%</small></div>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+    </div>
+
+    <!-- BOTTOM NAV -->
+    <nav class="bottom-nav">
+      <button class="bn-item active" aria-label="Inicio"><svg viewBox="0 0 24 24"><path d="M3 11.5 12 4l9 7.5"/><path d="M5 10v9a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1v-9"/></svg></button>
+      <button class="bn-item" aria-label="Vehículos"><svg viewBox="0 0 24 24"><path d="M3 12l1.5-4.5A2 2 0 0 1 6.4 6h11.2a2 2 0 0 1 1.9 1.5L21 12"/><rect x="2.5" y="12" width="19" height="5.5" rx="1.5"/><circle cx="7" cy="18.5" r="1.6"/><circle cx="17" cy="18.5" r="1.6"/></svg></button>
+      <button class="bn-item" aria-label="Clientes"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-4 3-6 6-6s6 2 6 6"/><circle cx="18" cy="9" r="2.4"/><path d="M15 20c.3-2.6 1.8-4.3 3.8-4.6"/></svg></button>
+      <button class="bn-item" aria-label="Leads"><svg viewBox="0 0 24 24"><path d="M4 4h16v4l-6 6v6l-4-2v-4L4 8Z"/></svg></button>
+      <button class="bn-item" aria-label="Calendario"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/></svg></button>
+      <button class="bn-item bn-center" aria-label="JARVIS AI"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/></svg></button>
+      <button class="bn-item" aria-label="Chat"><svg viewBox="0 0 24 24"><path d="M4 4h16v12H8l-4 4Z"/></svg></button>
+      <button class="bn-item" aria-label="Mensajes"><svg viewBox="0 0 24 24"><path d="M21 5 3 12l7 2 2 7 9-16Z"/></svg></button>
+      <button class="bn-item" aria-label="Documentos"><svg viewBox="0 0 24 24"><path d="M6 2h9l5 5v15H6Z"/><path d="M15 2v5h5"/></svg></button>
+      <button class="bn-item" aria-label="Compartir"><svg viewBox="0 0 24 24"><circle cx="6" cy="12" r="2.4"/><circle cx="18" cy="6" r="2.4"/><circle cx="18" cy="18" r="2.4"/><path d="M8.2 10.8 15.8 7M8.2 13.2l7.6 3.8"/></svg></button>
+    </nav>
+  </div>
+
+  <!-- ============ SIDEBAR DERECHA ============ -->
+  <aside class="right-sidebar">
+
+    <div class="panel">
+      <div class="panel-header">
+        <h2>RECORDATORIOS</h2>
+        <button class="close-x">×</button>
+      </div>
+      <ul class="reminder-list">
+        <li><span class="check">✓</span><span class="rem-text">Llamar a Juan Pérez</span><span class="rem-time">11:00 AM</span></li>
+        <li><span class="check">✓</span><span class="rem-text">Seguimiento María López</span><span class="rem-time">Hoy</span></li>
+        <li><span class="check">✓</span><span class="rem-text">Test Drive - 15:30</span><span class="rem-time">Hoy</span></li>
+        <li><span class="check">✓</span><span class="rem-text">Enviar cotización</span><span class="rem-time">Mañana</span></li>
+      </ul>
+      <button class="btn-outline full">VER TODOS</button>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">
+        <h2>PRÓXIMOS TEST DRIVE</h2>
+        <button class="close-x">×</button>
+      </div>
+      <ul class="testdrive-list">
+        <li>
+          <div class="avatar">JP</div>
+          <div class="td-info"><span class="td-name">Juan Pérez</span><span class="td-car">Toyota Hilux 2021</span></div>
+          <span class="td-time">Hoy 11:00</span>
+        </li>
+        <li>
+          <div class="avatar">ML</div>
+          <div class="td-info"><span class="td-name">María López</span><span class="td-car">VW Amarok 2020</span></div>
+          <span class="td-time">Hoy 15:30</span>
+        </li>
+        <li>
+          <div class="avatar">CG</div>
+          <div class="td-info"><span class="td-name">Carlos Gómez</span><span class="td-car">Ford Ranger 2019</span></div>
+          <span class="td-time">Mañana 10:00</span>
+        </li>
+      </ul>
+      <button class="btn-outline full">VER TODOS</button>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">
+        <h2>RENDIMIENTO DE VENTAS</h2>
+        <select class="period-select"><option>Este mes</option><option>Mes anterior</option><option>Este año</option></select>
+      </div>
+      <svg class="line-chart" viewBox="0 0 260 130" preserveAspectRatio="none">
+        <line x1="0" y1="10" x2="260" y2="10" class="grid-line"/>
+        <line x1="0" y1="40" x2="260" y2="40" class="grid-line"/>
+        <line x1="0" y1="70" x2="260" y2="70" class="grid-line"/>
+        <line x1="0" y1="100" x2="260" y2="100" class="grid-line"/>
+        <polyline class="line-area" points="0,90 30,75 60,85 90,60 120,68 150,45 180,55 210,25 240,32 260,18 260,130 0,130" />
+        <polyline class="line-stroke" points="0,90 30,75 60,85 90,60 120,68 150,45 180,55 210,25 240,32 260,18" />
+        <circle cx="260" cy="18" r="3.5" class="line-dot"/>
+      </svg>
+      <div class="chart-x-labels"><span>1 Ago</span><span>8 Ago</span><span>15 Ago</span><span>22 Ago</span><span>31 Ago</span></div>
+      <div class="goal-row">
+        <span>META: $50.000.000</span><span class="accent-text">85.7%</span>
+      </div>
+      <div class="goal-bar"><div class="goal-fill" style="width:85.7%"></div></div>
+    </div>
+
+    <div class="panel weather-panel">
+      <div class="panel-header">
+        <h2>CLIMA EN SALTA</h2>
+        <button class="close-x">×</button>
+      </div>
+      <div class="weather-main">
+        <svg class="weather-icon" viewBox="0 0 24 24"><path d="M7 17a4 4 0 1 1 1.1-7.8A5 5 0 0 1 18 11a3.5 3.5 0 0 1-1 6.9H7Z"/><path d="M9 21v.01M12 21v.01M15 21v.01"/></svg>
+        <span class="weather-temp">18°C</span>
+      </div>
+      <p class="weather-desc">Parcialmente nublado</p>
+      <div class="weather-stats">
+        <span>Humedad <b>65%</b></span>
+        <span>Viento <b>12 km/h</b></span>
+        <span>Prob. lluvia <b>10%</b></span>
+      </div>
+    </div>
+
+  </aside>
+
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
