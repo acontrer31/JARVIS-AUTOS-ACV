@@ -1,3 +1,14 @@
+// ============ Secuencia de arranque (una vez por sesión del navegador) ============
+(function bootSequence() {
+  const boot = document.getElementById("bootOverlay");
+  if (!boot) return;
+  if (sessionStorage.getItem("jarvisBooted")) { boot.remove(); return; }
+  sessionStorage.setItem("jarvisBooted", "1");
+  const cerrar = () => { boot.classList.add("done"); setTimeout(() => boot.remove(), 500); };
+  setTimeout(cerrar, 1700);
+  boot.addEventListener("click", cerrar);
+})();
+
 // ============ PWA: instalación en celular/PC ============
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
