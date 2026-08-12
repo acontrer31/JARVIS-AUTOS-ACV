@@ -14,7 +14,7 @@ Sin configurar nada más, el sitio funciona con el catálogo real de Alcover Aut
 
 ## Contenido
 
-- `index.html` / `style.css` / `script.js` — el dashboard: sidebar, topbar, tarjetas, gráficos, inventario, galería de fotos, panel de análisis.
+- `index.html` / `style.css` / `script.js` — el dashboard: sidebar, topbar, tarjetas, gráficos, inventario, galería de fotos, panel de análisis, foco central por servicio.
 - `data.js` — catálogo de Alcover (fallback estático, se usa si Supabase no está configurado).
 - `manifest.json` / `service-worker.js` / `icons/` — PWA: instalable en Android/PC (botón nativo) y iPhone (Agregar a pantalla de inicio), con caché offline de lo esencial.
 - `config.js` — credenciales de conexión a Supabase (vacío por defecto).
@@ -99,6 +99,15 @@ El mic del panel lateral también se activa con un aplauso fuerte y seco (detect
 - **La primera vez hay que tocar el mic con la mano** — los navegadores no dejan pedir permiso de micrófono sin un click real; después de ese primer toque, queda escuchando aplausos en segundo plano el resto de la visita.
 - Es un detector simple (pico de volumen), no un modelo entrenado — un portazo o un golpe fuerte también lo puede disparar. Si da falsos positivos muy seguido, avisame y le subo el umbral.
 - Por las políticas de autoplay de los navegadores, es posible que el audio de JARVIS no se escuche hasta que haya habido al menos un click real en la página en esa sesión — probalo y contame si pasa.
+
+### Foco central: un servicio a la vez, junto al avatar
+
+En vez de mostrar todo el dashboard mezclado, cada opción del menú (Inventario, Clientes, Leads, Ventas, Finanzas, Marketing, Análisis, Tareas, Configuración) se abre en pantalla grande y centrada, con el avatar de JARVIS animado arriba y solo el contenido de ese servicio debajo. El resto del panel queda atenuado detrás.
+
+- **Por click/toque**: tocá la opción en el menú lateral (o en el menú inferior en celular).
+- **Por voz**: si la voz está configurada (ver más abajo) y el navegador soporta reconocimiento de voz (Chrome/Android; no disponible en Safari/iOS), pedirlo con frases como "mostrame el inventario", "cómo vienen las ventas" o "abrí clientes" abre el mismo panel automáticamente. Decir "cerrar" o "volver al inicio" cierra el foco y vuelve al dashboard.
+- Se cierra con la "×", tocando fuera del panel, con la tecla Escape, o pidiéndolo por voz.
+- "Dashboard" siempre vuelve a la vista normal completa (el estado de inicio).
 
 ## Seguridad
 
