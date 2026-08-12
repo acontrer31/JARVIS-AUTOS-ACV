@@ -25,9 +25,13 @@ self.addEventListener("activate", (event) => {
 });
 
 // Cache-first para lo esencial (funciona sin conexión); network-first con fallback a caché para el resto (fotos, etc.)
+// Solo intercepta pedidos del propio sitio: los pedidos a otros dominios (Supabase,
+// ElevenLabs, etc.) los deja pasar sin tocarlos, tal cual harían sin Service Worker.
+// Interceptarlos acá rompía en particular al widget de voz de ElevenLabs.
 self.addEventListener("fetch", (event) => {
   const req = event.request;
   if (req.method !== "GET") return;
+  if (new URL(req.url).origin !== self.location.origin) return;
 
   event.respondWith(
     caches.match(req).then((cached) => {
@@ -40,7 +44,7 @@ self.addEventListener("fetch", (event) => {
           }
           return res;
         })
-        .catch(() => cached);
+        .catch(() => cached || Response.error());
     })
   );
 });
