@@ -21,6 +21,7 @@ Sin configurar nada más, el sitio funciona con el catálogo real de Alcover Aut
 - `db.js` — capa de datos: usa Supabase si está configurado, si no cae al catálogo estático.
 - `login.html` / `login.js` — pantalla de login (solo se activa si Supabase está configurado).
 - `supabase/schema.sql` — esquema de base de datos multi-agencia (tablas, seguridad por fila, seed de Alcover).
+- `supabase/functions/elevenlabs-webhook/` — Edge Function que guarda sola cada conversación de voz con JARVIS en `interacciones`.
 
 ## Activar el modo multi-agencia con Supabase (opcional)
 
@@ -64,7 +65,7 @@ insert into public.interacciones (agencia_id, cliente_id, tipo, resumen)
 values ('AGENCIA-ID', 'CLIENTE-ID', 'whatsapp', 'Consultó precio y financiación de la Hilux DX 0km');
 ```
 
-Por ahora esto se carga a mano por SQL — falta la pantalla en el panel para verlo/cargarlo sin entrar a Supabase (siguiente paso), y más adelante capturar automáticamente el resumen de cada conversación de voz con JARVIS.
+Por ahora la carga de clientes se hace a mano por SQL — falta la pantalla en el panel para verlo/cargarlo sin entrar a Supabase (próximo paso). Las conversaciones de voz con JARVIS, en cambio, ya se pueden capturar solas — ver "Captura automática de conversaciones de voz" más abajo.
 
 ## Activar la voz de JARVIS (ElevenLabs, opcional)
 
@@ -95,6 +96,34 @@ El botón de micrófono del panel lateral puede conectarse a un agente conversac
 6. Subí el cambio (commit + push). El widget oficial de ElevenLabs se carga solo y aparece como burbuja flotante; el mic del panel lateral hace scroll hacia él.
 
 Por ahora el agente no tiene acceso a los datos reales del panel (stock, ventas, leads) — es conversación general. Darle acceso en vivo a esos datos (por ejemplo vía "tools" del agente contra la base de Supabase) es un paso futuro, una vez que Supabase esté activo.
+
+### Captura automática de conversaciones de voz
+
+Cada charla por voz con JARVIS (ElevenLabs) se puede guardar sola en la memoria del negocio (`interacciones`, con `tipo = 'voz_jarvis'`), sin cargar nada a mano. Funciona con una Edge Function de Supabase (`supabase/functions/elevenlabs-webhook`) que ElevenLabs llama automáticamente cada vez que termina una conversación.
+
+⚠️ **Esto necesita Supabase activo** (ver más arriba) y, para desplegar la función, la [CLI de Supabase](https://supabase.com/docs/guides/cli) instalada en tu máquina (`npm install -g supabase`) — desde este entorno de desarrollo no tengo acceso a `elevenlabs.io` para confirmar en vivo el formato exacto del webhook, así que la función está armada para tolerar variaciones razonables del payload, pero probémosla juntos la primera vez.
+
+1. **Vinculá tu agente a tu agencia**: en el SQL Editor de Supabase, cargá el Agent ID de tu agente de ElevenLabs (el mismo de `config.js`) en la agencia correspondiente:
+   ```sql
+   update public.agencias set elevenlabs_agent_id = 'tu-agent-id' where slug = 'alcover';
+   ```
+   (La agencia Alcover ya viene con esto cargado si corriste el `schema.sql` actualizado.)
+2. **Elegí un secreto propio** para que nadie más pueda llamar a tu webhook — cualquier texto largo y random te sirve, por ejemplo generado con `openssl rand -hex 24`.
+3. **Desplegá la función** desde la carpeta del proyecto:
+   ```bash
+   supabase login
+   supabase link --project-ref tu-project-ref
+   supabase secrets set WEBHOOK_SECRET=tu-secreto-elegido
+   supabase functions deploy elevenlabs-webhook --no-verify-jwt
+   ```
+   Esto te va a dar una URL parecida a `https://tu-project-ref.supabase.co/functions/v1/elevenlabs-webhook`.
+4. **Configurá el webhook en ElevenLabs**: en el agente (Conversational AI → tu agente → Webhooks o Analysis/Post-call webhooks, el nombre exacto puede variar según la versión del dashboard), pegá:
+   ```
+   https://tu-project-ref.supabase.co/functions/v1/elevenlabs-webhook?token=tu-secreto-elegido
+   ```
+5. Probá una conversación de voz con JARVIS y fijate en Supabase (**Table Editor → interacciones**) que haya aparecido la fila nueva. Si no aparece, revisá **Edge Functions → elevenlabs-webhook → Logs** en Supabase — ahí se ve el motivo (agente no vinculado, formato de payload distinto al esperado, etc.) y lo ajustamos juntos.
+
+La función nunca inventa nada: si no logra armar un resumen automático, guarda igual la conversación con un texto genérico y el payload completo en `datos_origen`, para no perder información aunque falle la extracción.
 
 ### Activación por aplauso
 
@@ -127,6 +156,7 @@ Ningún sitio es "inhackeable", pero esto es lo que está aplicado y por qué (y
 - **`dominio` (patente) se sanitiza** antes de usarse en una URL de imagen (`sanitizeDominio()`), para que no se pueda manipular la ruta del archivo.
 - **RLS (Row Level Security) en Supabase**: cada agencia solo puede leer/escribir sus propios datos (`agencia_id`). No hay política de `insert`/`update` en `agencias` ni `perfiles` desde el cliente — un usuario no puede auto-asignarse a otra agencia ni cambiar su propio rol; esas altas se hacen a mano por SQL. La función que resuelve "tu agencia" usa `security definer` con `search_path` fijo (evita el ataque clásico de hijacking de `search_path` en Postgres).
 - **Ninguna clave secreta vive en el repo**: `SUPABASE_ANON_KEY` y `ELEVENLABS_AGENT_ID` son identificadores públicos pensados para exponerse en el cliente (la seguridad real la da RLS del lado de Supabase, no el secreto de esas claves). La clave `service_role` de Supabase, el token de acceso de Mercado Pago y el secreto de la App de Meta **nunca deben pegarse acá** — cuando se necesiten (fases futuras), van como secreto de una función servidor (Edge Function de Supabase), nunca en el código del sitio.
+- **Webhook de voz protegido**: `supabase/functions/elevenlabs-webhook` usa la clave `service_role` (que nunca sale de Supabase) y exige un secreto propio por query string (`WEBHOOK_SECRET`, configurado con `supabase secrets set`) para aceptar una conversación — sin ese secreto, cualquier llamada se rechaza con 401.
 - **HTTPS obligatorio**: GitHub Pages sirve todo por HTTPS automáticamente.
 
 **Limitaciones conocidas (por ser un sitio 100% estático en GitHub Pages):**

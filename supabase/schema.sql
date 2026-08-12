@@ -14,8 +14,10 @@ create table if not exists public.agencias (
   telefono_whatsapp text,
   tema jsonb not null default '{}'::jsonb,  -- branding futuro: {"color": "#22d3ee", "logo_url": "..."}
   activa boolean not null default true,      -- se usará para bloquear acceso si no paga (fase de cobros)
+  elevenlabs_agent_id text,                  -- para que el webhook de voz sepa a qué agencia pertenece cada conversación
   creado_en timestamptz not null default now()
 );
+alter table public.agencias add column if not exists elevenlabs_agent_id text;
 
 create table if not exists public.perfiles (
   id uuid primary key references auth.users (id) on delete cascade,
@@ -64,13 +66,18 @@ create table if not exists public.clientes (
 create table if not exists public.interacciones (
   id uuid primary key default gen_random_uuid(),
   agencia_id uuid not null references public.agencias (id) on delete cascade,
-  cliente_id uuid not null references public.clientes (id) on delete cascade,
+  -- Nullable: las conversaciones de voz capturadas automáticamente no siempre
+  -- identifican a un cliente puntual (puede ser una consulta general).
+  cliente_id uuid references public.clientes (id) on delete cascade,
   vehiculo_id uuid references public.vehiculos (id) on delete set null,
   creado_por uuid references public.perfiles (id) on delete set null,
   tipo text not null default 'otro',  -- 'llamada' | 'whatsapp' | 'visita' | 'email' | 'voz_jarvis' | 'otro'
   resumen text not null,
+  datos_origen jsonb,  -- payload crudo del webhook de origen (ej. ElevenLabs), para auditoría/debug
   creado_en timestamptz not null default now()
 );
+alter table public.interacciones alter column cliente_id drop not null;
+alter table public.interacciones add column if not exists datos_origen jsonb;
 create index if not exists interacciones_cliente_idx on public.interacciones (cliente_id, creado_en desc);
 create index if not exists interacciones_agencia_idx on public.interacciones (agencia_id, creado_en desc);
 
@@ -131,9 +138,9 @@ do $$
 declare
   aid uuid;
 begin
-  insert into public.agencias (nombre, slug, ciudad, telefono_whatsapp)
-  values ('Agencia Alcover Automotores', 'alcover', 'Salta', '5493875105956')
-  on conflict (slug) do update set nombre = excluded.nombre
+  insert into public.agencias (nombre, slug, ciudad, telefono_whatsapp, elevenlabs_agent_id)
+  values ('Agencia Alcover Automotores', 'alcover', 'Salta', '5493875105956', '8YF78LYHcMXQOWWqeipS')
+  on conflict (slug) do update set nombre = excluded.nombre, elevenlabs_agent_id = excluded.elevenlabs_agent_id
   returning id into aid;
 
   -- Evita duplicar el seed si el script se corre más de una vez
