@@ -10,7 +10,7 @@
 // clave secreta), seguro para exponer en el cliente. Ver README para la guía
 // de creación paso a paso. Mientras quede vacío, el widget de voz no aparece.
 window.JARVIS_CONFIG = {
-  SUPABASE_URL: "",
-  SUPABASE_ANON_KEY: "",
+  SUPABASE_URL: "https://qmkhiqkwiduufilkqnlt.supabase.co",
+  SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFta2hpcWt3aWR1dWZpbGtxbmx0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY1MDk5NDEsImV4cCI6MjEwMjA4NTk0MX0.akyt9skT3g0l_VsL-Le60icnp6erEY_YqWK_muGZvSA",
   ELEVENLABS_AGENT_ID: "8YF78LYHcMXQOWWqeipS",
 };
