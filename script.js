@@ -1,3 +1,12 @@
+// ============ Red de seguridad: un error en una parte no debe tirar abajo todo el panel ============
+// (ej. si falla un gráfico o el catálogo, el resto del dashboard sigue andando).
+window.addEventListener("error", (e) => {
+  console.error("JARVIS: error no controlado:", e.error || e.message);
+});
+window.addEventListener("unhandledrejection", (e) => {
+  console.error("JARVIS: promesa rechazada sin manejar:", e.reason);
+});
+
 // ============ Secuencia de arranque (una vez por sesión del navegador) ============
 (function bootSequence() {
   const boot = document.getElementById("bootOverlay");
@@ -445,6 +454,14 @@ if (agentId) {
   const widgetScript = document.createElement("script");
   widgetScript.src = "https://unpkg.com/@elevenlabs/convai-widget-embed";
   widgetScript.async = true;
+  // Si el CDN falla (sin conexión, bloqueado, caído) avisamos en vez de dejar
+  // el botón de mic muerto sin explicación.
+  widgetScript.onerror = () => {
+    if (voiceStatusEl) {
+      voiceStatusEl.textContent = "No se pudo cargar la voz de JARVIS (revisá tu conexión) — el resto del panel sigue funcionando normal.";
+      voiceStatusEl.classList.remove("active");
+    }
+  };
   document.body.appendChild(widgetScript);
 
   const widgetEl = document.createElement("elevenlabs-convai");
@@ -455,6 +472,14 @@ if (agentId) {
     voiceStatusEl.textContent = "Voz activa (ElevenLabs) — tocá el ícono flotante para hablar con JARVIS.";
     voiceStatusEl.classList.add("active");
   }
+  // El script cargó pero el widget puede no llegar a "definirse" (cuota agotada,
+  // agente mal configurado, etc.) — si a los 8s no arrancó, avisamos igual.
+  setTimeout(() => {
+    if (voiceStatusEl && !customElements.get("elevenlabs-convai")) {
+      voiceStatusEl.textContent = "La voz de JARVIS no respondió a tiempo. Puede ser el saldo/cuota de ElevenLabs — revisá tu cuenta.";
+      voiceStatusEl.classList.remove("active");
+    }
+  }, 8000);
   if (micBtn) {
     micBtn.addEventListener("click", () => {
       micBtn.classList.toggle("listening");

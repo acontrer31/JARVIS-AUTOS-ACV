@@ -133,6 +133,14 @@ El mic del panel lateral también se activa con un aplauso fuerte y seco (detect
 - Es un detector simple (pico de volumen), no un modelo entrenado — un portazo o un golpe fuerte también lo puede disparar. Si da falsos positivos muy seguido, avisame y le subo el umbral.
 - Por las políticas de autoplay de los navegadores, es posible que el audio de JARVIS no se escuche hasta que haya habido al menos un click real en la página en esa sesión — probalo y contame si pasa.
 
+### Cuidar el saldo de las APIs
+
+Ni Supabase ni ElevenLabs son gratis a partir de cierto uso — para que JARVIS no se corte en medio de una conversación o se quede sin base de datos justo cuando más se usa:
+
+- **ElevenLabs**: en tu cuenta → Usage, mirá cuántos minutos de conversación te quedan del plan. Si lo usás a diario con clientes reales, conviene un plan pago desde el arranque (el free tiene minutos muy limitados). El panel ya avisa solo si la voz no responde (por saldo agotado u otro motivo) — ver "Titulares grandes" más abajo, o el mensaje debajo del botón de micrófono.
+- **Supabase**: el plan free tiene límites de filas, ancho de banda y llamadas — para el volumen de una sola agencia alcanza de sobra, pero conviene revisar **Project Settings → Billing** cada tanto si en algún momento se suman más agencias (el objetivo de venderlo como suscripción).
+- Ninguno de los dos corta el sitio entero si se quedan sin saldo: el catálogo cae al modo estático (`data.js`) si Supabase no responde, y la voz muestra un aviso en vez de quedar colgada si ElevenLabs no responde.
+
 ### Titulares grandes junto al avatar
 
 Al abrir Ventas, Finanzas, Leads o Inventario, arriba del panel aparece un titular grande y en blanco con el dato real del momento (ej. "18 VENTAS ESTE MES", "32 AUTOS EN STOCK") — al estilo de los videos de setups con IA donde el resultado aparece como logro, no como un dato más perdido en una tabla.

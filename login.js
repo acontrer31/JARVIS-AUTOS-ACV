@@ -25,7 +25,22 @@
     const password = document.getElementById("password").value;
     const sb = window.JARVIS_DB.getClient();
 
-    const { error } = await sb.auth.signInWithPassword({ email, password });
+    if (!sb) {
+      errorEl.textContent = "No se pudo conectar con el servidor. Revisá tu conexión e intentá de nuevo.";
+      btn.disabled = false;
+      btn.textContent = "INGRESAR";
+      return;
+    }
+
+    let error;
+    try {
+      ({ error } = await sb.auth.signInWithPassword({ email, password }));
+    } catch (err) {
+      errorEl.textContent = "No se pudo conectar con el servidor. Revisá tu conexión e intentá de nuevo.";
+      btn.disabled = false;
+      btn.textContent = "INGRESAR";
+      return;
+    }
 
     if (error) {
       errorEl.textContent = "No se pudo ingresar. Revisá el email y la contraseña.";
