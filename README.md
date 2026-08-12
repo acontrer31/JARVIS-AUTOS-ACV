@@ -75,10 +75,14 @@ El botón de micrófono del panel lateral puede conectarse a un agente conversac
 3. **Creá el agente**: andá a **Conversational AI → Agents → New Agent**. Sugerencia de configuración:
    - **Nombre**: JARVIS
    - **Voz**: para la demo, elegí la voz clonada del paso anterior. Para producción/venta, elegí una voz original del catálogo.
-   - **System prompt** (personalidad e instrucciones), por ejemplo:
-     > Sos JARVIS, el asistente de voz de Agencia Alcover Automotores en Salta. Respondés de forma breve, profesional y amable en español rioplatense. Podés ayudar a explicar el funcionamiento del panel, dar información general sobre el proceso de compra de autos usados y 0km, financiación, y agendar seguimientos. Si te preguntan datos específicos de stock, precios o leads que no tenés confirmados, aclará que podés consultarlo en el panel y no inventes cifras.
+   - **System prompt** (personalidad e instrucciones). Pensado para que actúe como esos setups de "hablále a tu computadora y se ejecuta al toque" — directo, natural, sin rodeos, y que además celebre los números buenos del negocio en vez de solo informarlos:
+     > Sos JARVIS, el asistente de voz de Agencia Alcover Automotores en Salta. Hablás en español rioplatense, de vos, corto y directo — como la mano derecha de Agustín, no como un robot de call center. Nada de repetir la pregunta antes de responder ni de explicaciones largas: confirmá lo que vas a hacer en una frase y listo (ej: "Dale, te abro el inventario", "Ya te paso los leads de hoy").
+     >
+     > Podés ayudar a explicar el funcionamiento del panel, dar información general sobre el proceso de compra de autos usados y 0km, financiación, y agendar seguimientos. Si te preguntan datos específicos de stock, precios o leads que no tenés confirmados, aclará con naturalidad que lo pueden ver en el panel — nunca inventes cifras.
+     >
+     > Cuando haya una buena noticia del negocio (una venta, un objetivo cumplido, muchos leads nuevos), anuncialo con energía y corto, tipo logro conseguido — no como un reporte formal.
    - **First message** (el saludo que dice JARVIS apenas arranca la conversación, sin esperar que hables primero): escribí ahí literalmente
-     > Hola Agustín, buenos días. ¿En qué puedo ayudarte?
+     > Hola Agustín. Pedime lo que necesites — inventario, clientes, lo que sea — y me encargo.
    - Dejá el resto de las opciones (idioma español, modelo, latencia) en su valor por defecto para arrancar.
 4. **Copiá el Agent ID**: está en la configuración del agente (o en la pestaña "Embed"). Es un identificador público, seguro para pegar en el código (no es tu API key secreta).
 5. **Completá `config.js`**:
@@ -99,6 +103,10 @@ El mic del panel lateral también se activa con un aplauso fuerte y seco (detect
 - **La primera vez hay que tocar el mic con la mano** — los navegadores no dejan pedir permiso de micrófono sin un click real; después de ese primer toque, queda escuchando aplausos en segundo plano el resto de la visita.
 - Es un detector simple (pico de volumen), no un modelo entrenado — un portazo o un golpe fuerte también lo puede disparar. Si da falsos positivos muy seguido, avisame y le subo el umbral.
 - Por las políticas de autoplay de los navegadores, es posible que el audio de JARVIS no se escuche hasta que haya habido al menos un click real en la página en esa sesión — probalo y contame si pasa.
+
+### Titulares grandes junto al avatar
+
+Al abrir Ventas, Finanzas, Leads o Inventario, arriba del panel aparece un titular grande y en blanco con el dato real del momento (ej. "18 VENTAS ESTE MES", "32 AUTOS EN STOCK") — al estilo de los videos de setups con IA donde el resultado aparece como logro, no como un dato más perdido en una tabla.
 
 ### Foco central: un servicio a la vez, junto al avatar
 

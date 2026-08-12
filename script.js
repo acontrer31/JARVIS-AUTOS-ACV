@@ -283,7 +283,18 @@ const focoOverlay = document.getElementById("focoOverlay");
 const focoContent = document.getElementById("focoContent");
 const focoTitle = document.getElementById("focoTitle");
 const focoAvatarSlot = document.getElementById("focoAvatarSlot");
+const focoCallout = document.getElementById("focoCallout");
 const focoClose = document.getElementById("focoClose");
+
+// Titular grande junto al avatar al abrir un servicio (al estilo "crossed $11,000"
+// de los videos de setups con IA: un dato real y contundente, no una descripción).
+function calloutParaVista(view) {
+  const num = (id) => document.getElementById(id)?.textContent?.trim();
+  if (view === "ventas" && num("statVentas")) return `${num("statVentas")} VENTAS ESTE MES`;
+  if (view === "finanzas" && num("statIngresos")) return `${num("statIngresos")} EN INGRESOS`;
+  if (view === "leads" && num("statLeads")) return `${num("statLeads")} LEADS ACTIVOS`;
+  return null;
+}
 const focoAvatarEl = document.querySelector(".jarvis-avatar");
 const focoAvatarAnchor = document.createComment("jarvis-avatar-anchor");
 focoAvatarEl?.parentNode.insertBefore(focoAvatarAnchor, focoAvatarEl);
@@ -343,9 +354,15 @@ function abrirFoco(view) {
     focoAvatarSlot.appendChild(focoAvatarEl);
     focoAvatarEl.classList.add("foco-grande");
   }
+  if (focoCallout) focoCallout.textContent = calloutParaVista(view) || "";
   if (servicio.selectores) {
     servicio.selectores.forEach(moverAFoco);
-    if (view === "inventario") catalogoListo.then(renderInventarioCompleto);
+    if (view === "inventario") {
+      catalogoListo.then(() => {
+        renderInventarioCompleto();
+        if (focoCallout) focoCallout.textContent = `${catalogo.length} AUTOS EN STOCK`;
+      });
+    }
   } else if (servicio.html) {
     focoContent.innerHTML = servicio.html;
   }

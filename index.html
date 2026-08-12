@@ -205,19 +205,19 @@
       <section class="stats-row" id="statsRow">
         <div class="panel stat-card">
           <div class="stat-label">VENTAS ESTE MES</div>
-          <div class="stat-value">18 <svg class="trend up" viewBox="0 0 24 24"><path d="M4 16 10 10 14 14 20 6"/><path d="M14 6h6v6"/></svg></div>
+          <div class="stat-value"><span id="statVentas">18</span> <svg class="trend up" viewBox="0 0 24 24"><path d="M4 16 10 10 14 14 20 6"/><path d="M14 6h6v6"/></svg></div>
           <div class="stat-sub">vs mes anterior <span class="up">+12%</span></div>
           <svg class="spark" viewBox="0 0 100 30" preserveAspectRatio="none"><polyline points="0,24 15,20 30,22 45,14 60,16 75,8 100,4" /></svg>
         </div>
         <div class="panel stat-card">
           <div class="stat-label">INGRESOS</div>
-          <div class="stat-value">$ 42.850.000 <svg class="trend up" viewBox="0 0 24 24"><path d="M4 16 10 10 14 14 20 6"/><path d="M14 6h6v6"/></svg></div>
+          <div class="stat-value"><span id="statIngresos">$ 42.850.000</span> <svg class="trend up" viewBox="0 0 24 24"><path d="M4 16 10 10 14 14 20 6"/><path d="M14 6h6v6"/></svg></div>
           <div class="stat-sub">vs mes anterior <span class="up">+8.5%</span></div>
           <svg class="spark" viewBox="0 0 100 30" preserveAspectRatio="none"><polyline points="0,22 15,20 30,18 45,20 60,12 75,10 100,3" /></svg>
         </div>
         <div class="panel stat-card">
           <div class="stat-label">LEADS ACTIVOS</div>
-          <div class="stat-value">112 <svg class="trend up" viewBox="0 0 24 24"><path d="M4 16 10 10 14 14 20 6"/><path d="M14 6h6v6"/></svg></div>
+          <div class="stat-value"><span id="statLeads">112</span> <svg class="trend up" viewBox="0 0 24 24"><path d="M4 16 10 10 14 14 20 6"/><path d="M14 6h6v6"/></svg></div>
           <div class="stat-sub">vs semana anterior <span class="up">+15%</span></div>
           <svg class="spark" viewBox="0 0 100 30" preserveAspectRatio="none"><polyline points="0,20 15,22 30,16 45,18 60,10 75,12 100,4" /></svg>
         </div>
@@ -518,6 +518,7 @@
       <button class="close-x" id="focoClose" aria-label="Cerrar">×</button>
     </div>
     <div class="foco-avatar-slot" id="focoAvatarSlot"></div>
+    <p class="foco-callout" id="focoCallout"></p>
     <div class="foco-content" id="focoContent"></div>
   </div>
 </div>
