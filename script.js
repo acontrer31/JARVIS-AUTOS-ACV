@@ -166,8 +166,7 @@ if (window.JARVIS_DB) {
   initAgencia();
 }
 
-// Modal de inventario completo
-const modal = document.getElementById("inventarioModal");
+// Inventario completo (contenido movido dentro del foco central al abrirse)
 const modalList = document.getElementById("modalList");
 const openModalBtn = document.getElementById("verInventarioBtn");
 const closeModalBtn = document.getElementById("closeModal");
@@ -234,20 +233,17 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "ArrowLeft") moverGaleria(-1);
 });
 
-if (openModalBtn && modal) {
+// El inventario completo se abre dentro del foco central (avatar + panel grande),
+// no como modal propio — así queda consistente con el resto de los servicios.
+if (openModalBtn) {
   openModalBtn.addEventListener("click", async () => {
     await catalogoListo;
     renderInventarioCompleto();
-    modal.classList.add("open");
+    abrirFoco("inventario");
   });
 }
-if (closeModalBtn && modal) {
-  closeModalBtn.addEventListener("click", () => modal.classList.remove("open"));
-}
-if (modal) {
-  modal.addEventListener("click", (e) => {
-    if (e.target === modal) modal.classList.remove("open");
-  });
+if (closeModalBtn) {
+  closeModalBtn.addEventListener("click", () => cerrarFoco());
 }
 
 // Reloj y fecha en vivo
@@ -268,21 +264,135 @@ function actualizarReloj() {
 actualizarReloj();
 setInterval(actualizarReloj, 1000);
 
-// Navegación lateral: resaltar item activo
-document.querySelectorAll(".nav-item").forEach((item) => {
+// ============ FOCO CENTRAL: cada servicio se abre grande y solo, con el avatar ============
+// En vez de mostrar todo el dashboard junto, cada opción del menú (o un pedido por voz)
+// mueve su panel real al centro de la pantalla junto al avatar, y lo devuelve a su lugar
+// original al cerrar — así no se duplica contenido ni se rompen los listeners existentes.
+const focoOverlay = document.getElementById("focoOverlay");
+const focoContent = document.getElementById("focoContent");
+const focoTitle = document.getElementById("focoTitle");
+const focoAvatarSlot = document.getElementById("focoAvatarSlot");
+const focoClose = document.getElementById("focoClose");
+const focoAvatarEl = document.querySelector(".jarvis-avatar");
+const focoAvatarAnchor = document.createComment("jarvis-avatar-anchor");
+focoAvatarEl?.parentNode.insertBefore(focoAvatarAnchor, focoAvatarEl);
+
+const SERVICIOS = {
+  inventario: { titulo: "INVENTARIO", selectores: ["#inventarioModal .modal-box"] },
+  clientes: { titulo: "CLIENTES", selectores: ["#panelRecordatorios", "#panelTestDrive"] },
+  leads: { titulo: "LEADS", selectores: ["#panelLeads"] },
+  ventas: { titulo: "VENTAS", selectores: ["#panelRendimiento"] },
+  finanzas: { titulo: "FINANZAS", selectores: ["#statsRow"] },
+  marketing: { titulo: "MARKETING", selectores: ["#panelLeads", "#panelActividad"] },
+  analisis: { titulo: "ANÁLISIS INTELIGENTE", selectores: [".insight-panel"] },
+  tareas: { titulo: "TAREAS", selectores: ["#panelRecordatorios"] },
+  configuracion: {
+    titulo: "CONFIGURACIÓN",
+    html: `<div class="panel">
+      <p style="margin-bottom:.75rem">Panel JARVIS · Agencia Alcover Automotores</p>
+      <p class="muted" style="font-size:.75rem;line-height:1.6">
+        La conexión a Supabase, la voz (ElevenLabs) y el resto de la configuración avanzada
+        se administran desde <code>config.js</code> y el <code>README</code> del proyecto.
+      </p>
+    </div>`,
+  },
+};
+
+let focoMovidos = [];
+
+function moverAFoco(selector) {
+  const nodo = document.querySelector(selector);
+  if (!nodo) return;
+  focoMovidos.push({ nodo, padre: nodo.parentNode, siguiente: nodo.nextSibling });
+  nodo.classList.add("en-foco");
+  focoContent.appendChild(nodo);
+}
+
+function restaurarFoco() {
+  focoMovidos.reverse().forEach(({ nodo, padre, siguiente }) => {
+    nodo.classList.remove("en-foco");
+    if (siguiente && siguiente.parentNode === padre) padre.insertBefore(nodo, siguiente);
+    else padre.appendChild(nodo);
+  });
+  focoMovidos = [];
+  focoContent.innerHTML = "";
+}
+
+function marcarNavActivo(view) {
+  document.querySelectorAll(".nav-item, .bn-item").forEach((i) => i.classList.remove("active"));
+  document.querySelectorAll(`[data-view="${view}"]`).forEach((i) => i.classList.add("active"));
+}
+
+function abrirFoco(view) {
+  const servicio = SERVICIOS[view];
+  if (!servicio || !focoOverlay) return;
+  restaurarFoco();
+  focoTitle.textContent = servicio.titulo;
+  if (focoAvatarEl) {
+    focoAvatarSlot.appendChild(focoAvatarEl);
+    focoAvatarEl.classList.add("foco-grande");
+  }
+  if (servicio.selectores) {
+    servicio.selectores.forEach(moverAFoco);
+    if (view === "inventario") catalogoListo.then(renderInventarioCompleto);
+  } else if (servicio.html) {
+    focoContent.innerHTML = servicio.html;
+  }
+  focoOverlay.classList.add("open");
+  marcarNavActivo(view);
+}
+
+function cerrarFoco() {
+  if (!focoOverlay || !focoOverlay.classList.contains("open")) return;
+  focoOverlay.classList.remove("open");
+  if (focoAvatarEl) {
+    focoAvatarEl.classList.remove("foco-grande");
+    focoAvatarAnchor.parentNode.insertBefore(focoAvatarEl, focoAvatarAnchor.nextSibling);
+  }
+  restaurarFoco();
+  marcarNavActivo("dashboard");
+}
+
+document.querySelectorAll(".nav-item[data-view], .bn-item[data-view]").forEach((item) => {
   item.addEventListener("click", (e) => {
     e.preventDefault();
-    document.querySelectorAll(".nav-item").forEach((i) => i.classList.remove("active"));
-    item.classList.add("active");
+    const view = item.getAttribute("data-view");
+    if (view === "dashboard") cerrarFoco();
+    else abrirFoco(view);
   });
 });
-
-document.querySelectorAll(".bn-item").forEach((item) => {
+document.querySelectorAll(".bn-item:not([data-view])").forEach((item) => {
   item.addEventListener("click", () => {
     document.querySelectorAll(".bn-item").forEach((i) => i.classList.remove("active"));
     item.classList.add("active");
   });
 });
+focoClose?.addEventListener("click", cerrarFoco);
+focoOverlay?.addEventListener("click", (e) => { if (e.target === focoOverlay) cerrarFoco(); });
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && focoOverlay?.classList.contains("open")) cerrarFoco();
+});
+
+// Pedidos por voz ("mostrame el inventario", "cómo vienen las ventas") abren el mismo foco.
+function buscarServicioMencionado(texto) {
+  const t = texto.toLowerCase();
+  const mapa = [
+    [["inventario", "stock", "autos disponibles", "vehículos disponibles"], "inventario"],
+    [["cliente"], "clientes"],
+    [["lead"], "leads"],
+    [["venta", "rendimiento"], "ventas"],
+    [["finanza", "ingreso"], "finanzas"],
+    [["marketing"], "marketing"],
+    [["análisis", "analisis", "insight"], "analisis"],
+    [["tarea", "recordatorio"], "tareas"],
+    [["configuración", "configuracion", "ajuste"], "configuracion"],
+    [["inicio", "dashboard", "cerrá", "cerrar", "volvé", "volver"], "dashboard"],
+  ];
+  for (const [palabras, view] of mapa) {
+    if (palabras.some((p) => t.includes(p))) return view;
+  }
+  return null;
+}
 
 // Waveform decorativo del panel JARVIS AI (mini)
 const waveform = document.getElementById("waveform");
@@ -482,6 +592,11 @@ const SILUETAS = {
   }
 
   function onFrase(texto) {
+    const view = buscarServicioMencionado(texto);
+    if (view) {
+      if (view === "dashboard") cerrarFoco();
+      else abrirFoco(view);
+    }
     const auto = buscarAutoMencionado(texto);
     if (!auto) return;
     mostrandoEspecifico = true;
