@@ -48,6 +48,32 @@ create table if not exists public.vehiculos (
 );
 alter table public.vehiculos add column if not exists carroceria text;
 
+-- "Memoria" del negocio: clientes y cada interacción/operación con ellos
+-- (llamada, WhatsApp, visita, venta, conversación con JARVIS, etc.), para que
+-- quede un historial único por cliente en vez de perderse en cabezas o chats sueltos.
+create table if not exists public.clientes (
+  id uuid primary key default gen_random_uuid(),
+  agencia_id uuid not null references public.agencias (id) on delete cascade,
+  nombre text not null,
+  telefono text,
+  email text,
+  notas text,
+  creado_en timestamptz not null default now()
+);
+
+create table if not exists public.interacciones (
+  id uuid primary key default gen_random_uuid(),
+  agencia_id uuid not null references public.agencias (id) on delete cascade,
+  cliente_id uuid not null references public.clientes (id) on delete cascade,
+  vehiculo_id uuid references public.vehiculos (id) on delete set null,
+  creado_por uuid references public.perfiles (id) on delete set null,
+  tipo text not null default 'otro',  -- 'llamada' | 'whatsapp' | 'visita' | 'email' | 'voz_jarvis' | 'otro'
+  resumen text not null,
+  creado_en timestamptz not null default now()
+);
+create index if not exists interacciones_cliente_idx on public.interacciones (cliente_id, creado_en desc);
+create index if not exists interacciones_agencia_idx on public.interacciones (agencia_id, creado_en desc);
+
 -- ---------- Función helper: agencia del usuario logueado ----------
 
 create or replace function public.mi_agencia_id()
@@ -82,6 +108,19 @@ create policy "ver vehiculos de mi agencia" on public.vehiculos
 -- por ahora nadie la usa desde el frontend, pero queda lista y correctamente acotada por agencia.
 drop policy if exists "editar vehiculos de mi agencia" on public.vehiculos;
 create policy "editar vehiculos de mi agencia" on public.vehiculos
+  for all using (agencia_id = public.mi_agencia_id())
+  with check (agencia_id = public.mi_agencia_id());
+
+alter table public.clientes enable row level security;
+alter table public.interacciones enable row level security;
+
+drop policy if exists "clientes de mi agencia" on public.clientes;
+create policy "clientes de mi agencia" on public.clientes
+  for all using (agencia_id = public.mi_agencia_id())
+  with check (agencia_id = public.mi_agencia_id());
+
+drop policy if exists "interacciones de mi agencia" on public.interacciones;
+create policy "interacciones de mi agencia" on public.interacciones
   for all using (agencia_id = public.mi_agencia_id())
   with check (agencia_id = public.mi_agencia_id());
 

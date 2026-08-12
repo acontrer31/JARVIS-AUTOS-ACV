@@ -48,6 +48,24 @@ Por defecto el sitio funciona sin backend, con los datos de `data.js`. Para que 
 
 Los datos mostrados fuera del inventario (ventas, leads, análisis) siguen siendo de ejemplo.
 
+### Memoria de clientes y operaciones
+
+El esquema incluye `clientes` e `interacciones`: un historial único por cliente (llamadas, WhatsApp, visitas, ventas, conversaciones con JARVIS, lo que sea), opcionalmente vinculado a un vehículo del catálogo. Están con la misma seguridad por agencia que el resto. Ejemplo de carga manual desde el SQL Editor:
+
+```sql
+-- cliente nuevo
+insert into public.clientes (agencia_id, nombre, telefono, notas)
+select id, 'Juan Pérez', '+549387510000', 'Interesado en Hilux 0km'
+from public.agencias where slug = 'alcover'
+returning id;
+
+-- interacción (usando el id de cliente que devolvió el insert anterior)
+insert into public.interacciones (agencia_id, cliente_id, tipo, resumen)
+values ('AGENCIA-ID', 'CLIENTE-ID', 'whatsapp', 'Consultó precio y financiación de la Hilux DX 0km');
+```
+
+Por ahora esto se carga a mano por SQL — falta la pantalla en el panel para verlo/cargarlo sin entrar a Supabase (siguiente paso), y más adelante capturar automáticamente el resumen de cada conversación de voz con JARVIS.
+
 ## Activar la voz de JARVIS (ElevenLabs, opcional)
 
 El botón de micrófono del panel lateral puede conectarse a un agente conversacional real (habla y escucha) de ElevenLabs. Sin configurar, solo muestra un aviso al tocarlo.
