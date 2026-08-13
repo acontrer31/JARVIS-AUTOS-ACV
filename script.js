@@ -536,16 +536,13 @@ if (agentId) {
 
   function activarJarvisPorVoz() {
     micBtn.classList.add("listening");
-    const arrancoSola = iniciarLlamadaJarvis();
-    if (arrancoSola) {
-      // Se ocultA la burbuja (no display:none, por si el widget necesita
-      // seguir "visible" para procesar audio) — queda el avatar reactivo
-      // representando la conversación en su lugar.
-      widgetEl.classList.add("oculto-tras-activar");
-    } else {
-      widgetEl.classList.remove("oculto-tras-activar");
-      widgetEl.scrollIntoView({ behavior: "smooth", block: "center" });
-    }
+    // Intento best-effort de arrancar sola (silencioso, no garantizado — ver
+    // arriba). No hay forma confirmada de saber si realmente funcionó, así
+    // que NUNCA ocultamos la burbuja por esto: si el intento automático no
+    // hizo nada real, el usuario se queda sin nada para tocar y sin poder
+    // hablarle a JARVIS. Se prioriza que siempre quede visible y accesible.
+    iniciarLlamadaJarvis();
+    widgetEl.scrollIntoView({ behavior: "smooth", block: "center" });
   }
 
   if (micBtn) {

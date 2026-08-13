@@ -531,13 +531,6 @@ elevenlabs-convai {
   z-index: 70 !important;
   transition: opacity 0.3s ease;
 }
-/* Se oculta (sin display:none, para no arriesgar cortar el audio en curso) cuando
-   la llamada arrancó sola por aplauso/palabra clave — el avatar reactivo del
-   sidebar representa la conversación en su lugar. */
-elevenlabs-convai.oculto-tras-activar {
-  opacity: 0 !important;
-  pointer-events: none !important;
-}
 
 /* ============ FOCO CENTRAL (avatar grande + un servicio a la vez) ============ */
 .foco-overlay {
