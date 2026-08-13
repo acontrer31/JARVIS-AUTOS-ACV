@@ -79,7 +79,7 @@ El botón de micrófono del panel lateral puede conectarse a un agente conversac
    - **System prompt** (personalidad e instrucciones). Pensado para que actúe como esos setups de "hablále a tu computadora y se ejecuta al toque" — directo, natural, sin rodeos, y que además celebre los números buenos del negocio en vez de solo informarlos:
      > Sos JARVIS, el asistente de voz de Agencia Alcover Automotores en Salta. Hablás en español rioplatense, de vos, corto y directo — como la mano derecha de Agustín, no como un robot de call center. Nada de repetir la pregunta antes de responder ni de explicaciones largas: confirmá lo que vas a hacer en una frase y listo (ej: "Dale, te abro el inventario", "Ya te paso los leads de hoy").
      >
-     > Tenés una herramienta llamada consultar_inventario que te da el stock REAL de vehículos (marca, modelo, año, km, precio, si está destacado). Usala SIEMPRE que te pregunten por un auto puntual, precio, disponibilidad o por el stock en general — nunca respondas de memoria ni digas que no tenés acceso a esos datos, la herramienta te los trae al momento. Pasale el nombre o modelo en el parámetro "modelo" si preguntan por algo específico; dejalo vacío para un resumen general del stock.
+     > Tenés dos herramientas. consultar_inventario te da el stock REAL de vehículos (marca, modelo, año, km, precio, si está destacado) — usala SIEMPRE que pregunten por un auto puntual, precio, disponibilidad o por el stock en general, nunca respondas de memoria ni digas que no tenés acceso a esos datos. simular_financiacion calcula un valor de cuota aproximado para un auto del stock — usala cuando pidan simular cuotas o financiación, pasándole el modelo y la cantidad de cuotas si la mencionan (si no, se usan 12 por defecto). Si esta herramienta responde que hace falta una sesión iniciada, explicaselo al usuario con naturalidad.
      >
      > Para lo demás (cómo funciona el panel, financiación, proceso de compra en general) respondé con tu criterio, corto y directo, sin inventar cifras que no tengas confirmadas.
      >
@@ -109,6 +109,17 @@ El sitio ya expone una función (`consultar_inventario`) que el agente puede lla
 3. Guardá y probá preguntándole a JARVIS por un auto del catálogo real (ej. "¿Tenés alguna Hilux?").
 
 ⚠️ No pude verificar en vivo el nombre exacto del evento/API que usa el widget embebido para registrar herramientas del lado del cliente (sin acceso a la documentación de ElevenLabs esta sesión) — el código está armado con mi mejor entendimiento de cómo funciona. Si al preguntarle por un auto JARVIS no usa el dato real, avisame y lo revisamos con la consola del navegador, igual que hicimos con la voz.
+
+### Simular financiación (herramienta sensible, con autorización)
+
+Además de `consultar_inventario`, el sitio expone `simular_financiacion`: calcula un valor de cuota aproximado (precio dividido en cuotas, sin interés — no tenemos tasas ni condiciones bancarias reales cargadas, así que JARVIS lo aclara siempre como orientativo, no una cotización oficial). A diferencia de la de inventario, esta es una acción "sensible" — antes de calcular nada, el código verifica que haya una sesión de panel iniciada en el dispositivo (`requiereSesionJarvis()` en `script.js`); si no la hay, responde que hace falta iniciar sesión primero, en vez de calcular igual.
+
+Configuración en ElevenLabs (mismo lugar que la anterior, pestaña **Herramientas**):
+- **Nombre**: `simular_financiacion` (exacto).
+- **Descripción**: "Simula el valor de cuota aproximado de un vehículo del stock. Usar cuando pidan simular financiación, cuotas, o cuánto saldría un auto financiado."
+- **Parámetros**: `modelo` (texto) — "Auto a simular, ej. 'Hilux'." y `cuotas` (número, opcional) — "Cantidad de cuotas, ej. 12, 24, 48. Si no se especifica, se usan 12."
+
+⚠️ **Importante sobre "autorización" acá**: esto confirma que hay una sesión de panel abierta en ese dispositivo/navegador — no verifica quién está hablando. No existe forma de identificar a una persona por su voz puntual con este stack (ElevenLabs + navegador). Si en algún momento hace falta saber específicamente qué vendedor está usando JARVIS (no solo que "alguien" está logueado), hay que sumar login por PIN/voz de cada vendedor — no está construido todavía.
 
 ### Captura automática de conversaciones de voz
 

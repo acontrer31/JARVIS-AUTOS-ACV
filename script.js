@@ -19,9 +19,28 @@ window.addEventListener("unhandledrejection", (e) => {
 })();
 
 // ============ PWA: instalación en celular/PC ============
+// Auto-actualización: cuando se publica una versión nueva, el navegador la
+// detecta, instala y activa sola de fondo (el Service Worker ya usa
+// skipWaiting + clients.claim para esto). Acá cerramos el último paso: apenas
+// la nueva versión toma control, recargamos la página una vez para que se
+// vea de una — así nadie necesita tocar DevTools nunca más para ver lo último.
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("service-worker.js").catch(() => {});
+    navigator.serviceWorker.register("service-worker.js").then((registro) => {
+      // No esperamos a que el navegador decida solo cuándo chequear — lo
+      // forzamos cada vez que volvés a la pestaña, para que una demo en vivo
+      // siempre muestre lo último sin depender del timing del navegador.
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible") registro.update().catch(() => {});
+      });
+    }).catch(() => {});
+  });
+
+  let jarvisRecargandoPorSW = false;
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (jarvisRecargandoPorSW) return;
+    jarvisRecargandoPorSW = true;
+    window.location.reload();
   });
 }
 
@@ -527,6 +546,31 @@ if (agentId) {
         return consulta
           ? `Encontré ${lista.length} coincidencia(s): ${resumen}.`
           : `Hay ${catalogo.length} vehículos en stock. Algunos ejemplos: ${resumen}.`;
+      },
+      // Acción sensible (info financiera) — requiere sesión de panel activa,
+      // mismo patrón que cualquier herramienta nueva que toque algo delicado.
+      // Define en ElevenLabs: nombre "simular_financiacion", parámetros
+      // "modelo" (texto) y "cuotas" (número, opcional, default 12).
+      simular_financiacion: async (parametros) => {
+        const autorizado = await requiereSesionJarvis();
+        if (!autorizado) {
+          return "Para simular financiación necesito que haya una sesión iniciada en el panel. Pedile a alguien del equipo que inicie sesión primero.";
+        }
+        await catalogoListo;
+        const consulta = String(parametros?.modelo || "").toLowerCase().trim();
+        const auto = catalogo.find((a) => `${a.marca} ${a.modelo} ${a.version || ""}`.toLowerCase().includes(consulta));
+        if (!auto) {
+          return `No encontré ningún vehículo que coincida con "${parametros?.modelo}" en el stock actual.`;
+        }
+        if (!auto.precio) {
+          return `${nombreAuto(auto)} todavía no tiene precio cargado, no puedo simular la financiación.`;
+        }
+        const cuotas = Math.max(1, Math.min(60, parseInt(parametros?.cuotas, 10) || 12));
+        const valorCuota = Math.round(auto.precio / cuotas);
+        // Simulación orientativa: precio dividido en cuotas, sin interés cargado
+        // (no tenemos tasas ni condiciones bancarias reales) — se lo dejamos
+        // clarísimo al agente para que no lo presente como una cotización oficial.
+        return `${nombreAuto(auto)} (${formatearMoneda(auto.precio)}) en ${cuotas} cuotas darían aproximadamente ${formatearMoneda(valorCuota)} por cuota, sin interés. Esto es orientativo, no una cotización oficial — la financiación real depende del banco o tarjeta y hay que confirmarla con el equipo de ventas.`;
       },
     };
   });
