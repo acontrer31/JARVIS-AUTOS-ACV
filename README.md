@@ -138,13 +138,19 @@ Cada charla por voz con JARVIS (ElevenLabs) se puede guardar sola en la memoria 
 
 La función nunca inventa nada: si no logra armar un resumen automático, guarda igual la conversación con un texto genérico y el payload completo en `datos_origen`, para no perder información aunque falle la extracción.
 
-### Activación por aplauso
+### Activación por aplauso o diciendo "Jarvis"
 
-El mic del panel lateral también se activa con un aplauso fuerte y seco (detecta el pico brusco de volumen). Dos cosas a tener en cuenta:
+El mic del panel también se activa solo, sin tocar nada, de dos formas:
 
-- **La primera vez hay que tocar el mic con la mano** — los navegadores no dejan pedir permiso de micrófono sin un click real; después de ese primer toque, queda escuchando aplausos en segundo plano el resto de la visita.
-- Es un detector simple (pico de volumen), no un modelo entrenado — un portazo o un golpe fuerte también lo puede disparar. Si da falsos positivos muy seguido, avisame y le subo el umbral.
+- **Aplauso**: detecta un pico de volumen breve que sube y baja rápido (100-300ms) — un sonido sostenido tipo TV, música o charla no lo dispara porque no "baja" a tiempo. No es un modelo entrenado, así que un golpe seco y corto (un portazo) igual lo puede confundir con un aplauso; si da falsos positivos muy seguido, avisame y le subo el umbral.
+- **Decir "Jarvis"** (solo o en cualquier frase, ej. "hola Jarvis"): usa reconocimiento de voz del navegador — solo funciona en Chrome/Android, no en Safari/iPhone. Al ser un detector simple de palabra, también puede dispararse si alguien nombra "Jarvis" sin dirigirse al asistente (charlando de la película, por ejemplo) — es una limitación real, no hay forma de eliminarla del todo sin un modelo de wake-word entrenado.
+
+Notas generales:
+
+- **La primera vez hay que tocar el mic con la mano** — los navegadores no dejan pedir permiso de micrófono sin un click real; después de ese primer toque, queda escuchando en segundo plano el resto de la visita.
 - Por las políticas de autoplay de los navegadores, es posible que el audio de JARVIS no se escuche hasta que haya habido al menos un click real en la página en esa sesión — probalo y contame si pasa.
+- Si no hay actividad nueva por 90 segundos, la conversación se corta sola y JARVIS vuelve a esperar en silencio (no queda escuchando innecesariamente).
+- La activación (aplauso o palabra clave) **no da acceso a nada sensible por sí sola** — es solo el disparador para empezar a hablar. Cualquier herramienta que en el futuro toque datos sensibles (precios, financiación, datos personales) debería verificar que haya una sesión de panel iniciada en el dispositivo antes de ejecutar algo (`requiereSesionJarvis()` en `script.js`) — ojo, esto confirma que hay una sesión abierta en el dispositivo, **no quién está hablando**: no hay forma de verificar la identidad de una voz puntual con este stack.
 
 ### Cuidar el saldo de las APIs
 

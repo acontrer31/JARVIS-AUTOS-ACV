@@ -471,6 +471,29 @@ if (agentId) {
   // contra el resto del dashboard, y la burbuja terminaba tapada.
   document.body.appendChild(widgetEl);
 
+  // ============ Máquina de estados de activación ============
+  // STANDBY: solo escucha disparadores (aplauso / "jarvis"). ACTIVACIÓN: se
+  // detectó un disparador válido. CONVERSACIÓN: la llamada está en curso.
+  // FINALIZACIÓN: se corta sola por inactividad y vuelve a STANDBY.
+  // (La AUTENTICACIÓN no es un paso fijo de este flujo — se verifica puntual,
+  // por herramienta, solo cuando la acción lo requiere: ver requiereSesionJarvis
+  // más abajo. Activar la conversación NUNCA equivale a autorización total.)
+  const JARVIS_ESTADO = { STANDBY: "standby", ACTIVACION: "activacion", CONVERSACION: "conversacion", FINALIZACION: "finalizacion" };
+  let jarvisEstado = JARVIS_ESTADO.STANDBY;
+  let jarvisTimeoutInactividad = null;
+  const JARVIS_INACTIVIDAD_MS = 90000; // sin nueva actividad, vuelve sola a STANDBY
+
+  // Chequeo de autorización para herramientas sensibles (precios, datos
+  // personales, simulaciones financieras, etc.). OJO — límite real: esto NO
+  // verifica quién está hablando, no hay forma de identificar a la persona
+  // por su voz con este stack. Solo confirma que hay una sesión de panel
+  // (login) activa en este dispositivo/navegador. Cualquier herramienta nueva
+  // que toque algo sensible debe llamar esto primero y negarse si da false.
+  async function requiereSesionJarvis() {
+    if (!window.JARVIS_DB || !window.JARVIS_DB.supabaseHabilitado) return true;
+    return window.JARVIS_DB.sesionActiva();
+  }
+
   // "Herramienta" que el agente puede invocar para consultar el catálogo real
   // en el momento (stock, precio, km) en vez de responder en general. Hay que
   // definir una herramienta del lado de ElevenLabs con el mismo nombre
@@ -537,7 +560,40 @@ if (agentId) {
     return false;
   }
 
-  function activarJarvisPorVoz() {
+  // Mismo enfoque best-effort que iniciarLlamadaJarvis, para FINALIZACIÓN.
+  function finalizarLlamadaJarvis() {
+    try {
+      if (typeof widgetEl.endCall === "function") { widgetEl.endCall(); return true; }
+      if (typeof widgetEl.stopConversation === "function") { widgetEl.stopConversation(); return true; }
+      if (typeof widgetEl.disconnect === "function") { widgetEl.disconnect(); return true; }
+    } catch (err) {
+      console.warn("No se pudo finalizar la llamada de JARVIS automáticamente:", err);
+    }
+    return false;
+  }
+
+  function renovarInactividadJarvis() {
+    clearTimeout(jarvisTimeoutInactividad);
+    jarvisTimeoutInactividad = setTimeout(volverAStandbyJarvis, JARVIS_INACTIVIDAD_MS);
+  }
+
+  // FINALIZACIÓN → STANDBY: sin actividad nueva por un rato, corta sola.
+  function volverAStandbyJarvis() {
+    jarvisEstado = JARVIS_ESTADO.FINALIZACION;
+    clearTimeout(jarvisTimeoutInactividad);
+    finalizarLlamadaJarvis();
+    micBtn.classList.remove("listening");
+    jarvisEstado = JARVIS_ESTADO.STANDBY;
+  }
+
+  // STANDBY → ACTIVACIÓN → CONVERSACIÓN. Se llama desde el click manual, el
+  // aplauso, o la palabra clave — misma lógica para los tres orígenes.
+  function activarConversacionJarvis() {
+    if (jarvisEstado === JARVIS_ESTADO.CONVERSACION) {
+      renovarInactividadJarvis(); // ya está activo, solo renueva el tiempo antes de cortar sola
+      return;
+    }
+    jarvisEstado = JARVIS_ESTADO.ACTIVACION;
     micBtn.classList.add("listening");
     // Intento best-effort de arrancar sola (silencioso, no garantizado — ver
     // arriba). No hay forma confirmada de saber si realmente funcionó, así
@@ -546,10 +602,12 @@ if (agentId) {
     // hablarle a JARVIS. Se prioriza que siempre quede visible y accesible.
     iniciarLlamadaJarvis();
     widgetEl.scrollIntoView({ behavior: "smooth", block: "center" });
+    jarvisEstado = JARVIS_ESTADO.CONVERSACION;
+    renovarInactividadJarvis();
   }
 
   if (micBtn) {
-    micBtn.addEventListener("click", () => { activarJarvisPorVoz(); });
+    micBtn.addEventListener("click", () => { activarConversacionJarvis(); });
   }
 } else if (micBtn) {
   micBtn.addEventListener("click", () => {
@@ -558,9 +616,10 @@ if (agentId) {
   });
 }
 
-// ============ Activación por aplauso o diciendo "hola Jarvis" ============
-// Detecta un pico brusco de volumen (aplauso) o la frase "hola Jarvis" y
-// "clickea" el mic por vos — dispara la llamada sin tocar nada.
+// ============ Disparadores de STANDBY → ACTIVACIÓN: aplauso o "Jarvis" ============
+// Detecta un aplauso (pico de volumen breve, con caída rápida — no un ruido
+// sostenido tipo TV/música) o la palabra "Jarvis" dicha en cualquier frase
+// ("hola Jarvis", "Jarvis", etc.) y arranca la conversación.
 // La primera vez necesita que toques el mic una vez para dar permiso al micrófono
 // (los navegadores no dejan pedirlo sin un click real); después queda escuchando
 // en segundo plano el resto de la sesión.
@@ -572,7 +631,11 @@ if (agentId) {
   let ultimaPalabraClave = 0;
 
   // Reconocimiento de voz del navegador (Chrome/Android; no disponible en
-  // Safari/iOS) para detectar "hola jarvis" y activar la llamada sin aplaudir.
+  // Safari/iOS) para detectar la palabra "Jarvis" y activar sin aplaudir.
+  // OJO: "jarvis" como palabra suelta puede dispararse si alguien la nombra
+  // en una charla sin dirigirse al asistente (ej. hablando de la película) —
+  // es una limitación real de un detector de palabra clave simple sin
+  // entrenar, no hay forma de eliminarla del todo con este stack.
   function iniciarEscuchaPalabraClave() {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) return;
@@ -583,9 +646,9 @@ if (agentId) {
     rec.onresult = (e) => {
       const texto = Array.from(e.results).map((r) => r[0].transcript).join(" ").toLowerCase();
       const ahora = performance.now();
-      if (/hola\s*jarvis|ey\s*jarvis|che\s*jarvis/.test(texto) && ahora - ultimaPalabraClave > 4000) {
+      if (/\bjarvis\b/.test(texto) && ahora - ultimaPalabraClave > 4000) {
         ultimaPalabraClave = ahora;
-        micBtn.click();
+        activarConversacionJarvis();
       }
     };
     rec.onerror = () => {};
@@ -612,16 +675,28 @@ if (agentId) {
     source.connect(analyser);
     const datos = new Uint8Array(analyser.frequencyBinCount);
     let promedioAnterior = 0;
+    let picoPendienteDesde = null;
 
     function loop() {
       analyser.getByteFrequencyData(datos);
       const promedio = datos.reduce((a, b) => a + b, 0) / datos.length;
       const salto = promedio - promedioAnterior;
       const ahora = performance.now();
-      // Aplauso = subida muy brusca de volumen en un solo frame, con cooldown para no disparar seguido.
-      if (salto > 35 && promedio > 45 && ahora - ultimoAplauso > 1500) {
-        ultimoAplauso = ahora;
-        micBtn.click();
+      // Un aplauso sube brusco Y vuelve a bajar rápido (100-300ms). Un sonido
+      // sostenido (TV, música, charla, un golpe seco largo) sube pero se
+      // queda arriba, así que no se confirma y se descarta — reduce falsos
+      // positivos frente a la versión anterior (que disparaba con solo el pico).
+      if (!picoPendienteDesde && salto > 35 && promedio > 45) {
+        picoPendienteDesde = ahora;
+      } else if (picoPendienteDesde) {
+        const transcurrido = ahora - picoPendienteDesde;
+        if (transcurrido > 300) {
+          picoPendienteDesde = null; // no bajó a tiempo: no era un aplauso
+        } else if (transcurrido > 100 && promedio < 30 && ahora - ultimoAplauso > 1500) {
+          ultimoAplauso = ahora;
+          picoPendienteDesde = null;
+          activarConversacionJarvis();
+        }
       }
       promedioAnterior = promedio;
       requestAnimationFrame(loop);
