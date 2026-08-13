@@ -446,7 +446,6 @@ if (waveform) {
 // Botón de micrófono: activa/desactiva estado "escuchando" (mock, sin reconocimiento real)
 const micBtn = document.getElementById("micBtn");
 const voiceStatusEl = document.getElementById("voiceStatus");
-const elevenlabsSlot = document.getElementById("elevenlabsWidgetSlot");
 const agentId = window.JARVIS_CONFIG?.ELEVENLABS_AGENT_ID;
 
 if (agentId) {
@@ -466,7 +465,11 @@ if (agentId) {
 
   const widgetEl = document.createElement("elevenlabs-convai");
   widgetEl.setAttribute("agent-id", agentId);
-  elevenlabsSlot.appendChild(widgetEl);
+  // Se agrega directo al <body> (no dentro del sidebar): el sidebar tiene
+  // "position: sticky", que crea su propia capa de apilamiento — un z-index
+  // alto en un descendiente ahí adentro solo compite dentro de esa capa, no
+  // contra el resto del dashboard, y la burbuja terminaba tapada.
+  document.body.appendChild(widgetEl);
 
   // "Herramienta" que el agente puede invocar para consultar el catálogo real
   // en el momento (stock, precio, km) en vez de responder en general. Hay que
