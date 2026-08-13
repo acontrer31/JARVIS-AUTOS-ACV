@@ -93,6 +93,14 @@ as $$
   select agencia_id from public.perfiles where id = auth.uid()
 $$;
 
+-- Solo usuarios logueados pueden invocarla directo (el "Security Advisor" de
+-- Supabase marca como advertencia cualquier función security definer
+-- ejecutable por el público sin sesión). No cambia el comportamiento de las
+-- políticas RLS que la usan, solo cierra la posibilidad de invocarla como
+-- RPC suelta sin estar autenticado.
+revoke execute on function public.mi_agencia_id() from public;
+grant execute on function public.mi_agencia_id() to authenticated;
+
 -- ---------- RLS ----------
 
 alter table public.agencias enable row level security;
