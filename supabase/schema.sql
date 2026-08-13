@@ -139,7 +139,7 @@ declare
   aid uuid;
 begin
   insert into public.agencias (nombre, slug, ciudad, telefono_whatsapp, elevenlabs_agent_id)
-  values ('Agencia Alcover Automotores', 'alcover', 'Salta', '5493875105956', '8YF78LYHcMXQOWWqeipS')
+  values ('Agencia Alcover Automotores', 'alcover', 'Salta', '5493875105956', 'agent_0501kzs629c5fn8agsxf08v1nw4z')
   on conflict (slug) do update set nombre = excluded.nombre, elevenlabs_agent_id = excluded.elevenlabs_agent_id
   returning id into aid;
 
