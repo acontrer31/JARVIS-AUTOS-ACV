@@ -344,6 +344,18 @@ const SERVICIOS = {
         La conexión a Supabase, la voz (ElevenLabs) y el resto de la configuración avanzada
         se administran desde <code>config.js</code> y el <code>README</code> del proyecto.
       </p>
+    </div>
+    <div class="panel">
+      <div class="panel-header"><h2>ENLACES ÚTILES</h2></div>
+      <p class="muted" style="font-size:.72rem;line-height:1.6;margin-bottom:.75rem">
+        Para transferencias, valuaciones y financiación usamos siempre la fuente oficial —
+        JARVIS no calcula estos valores, te lleva directo al sitio correspondiente.
+      </p>
+      <div style="display:flex;flex-direction:column;gap:.625rem">
+        <a class="btn-outline full" style="text-decoration:none;display:block;text-align:center" target="_blank" rel="noopener" href="https://www.dnrpa.gov.ar/portal_dnrpa/">DNRPA — TRANSFERENCIAS</a>
+        <a class="btn-outline full" style="text-decoration:none;display:block;text-align:center" target="_blank" rel="noopener" href="https://www.infoauto.com.ar/">INFOAUTO — VALUACIONES</a>
+        <a class="btn-outline full" style="text-decoration:none;display:block;text-align:center" target="_blank" rel="noopener" href="https://web.agencias.mg-group.net.ar/signin">MG GROUP — FINANCIACIÓN</a>
+      </div>
     </div>`,
   },
 };
@@ -570,7 +582,7 @@ if (agentId) {
         // Simulación orientativa: precio dividido en cuotas, sin interés cargado
         // (no tenemos tasas ni condiciones bancarias reales) — se lo dejamos
         // clarísimo al agente para que no lo presente como una cotización oficial.
-        return `${nombreAuto(auto)} (${formatearMoneda(auto.precio)}) en ${cuotas} cuotas darían aproximadamente ${formatearMoneda(valorCuota)} por cuota, sin interés. Esto es orientativo, no una cotización oficial — la financiación real depende del banco o tarjeta y hay que confirmarla con el equipo de ventas.`;
+        return `${nombreAuto(auto)} (${formatearMoneda(auto.precio)}) en ${cuotas} cuotas darían aproximadamente ${formatearMoneda(valorCuota)} por cuota, sin interés. Esto es orientativo, no una cotización oficial — la tasa real hay que confirmarla en el portal de financiación de la agencia (MG Group) o con el equipo de ventas.`;
       },
     };
   });

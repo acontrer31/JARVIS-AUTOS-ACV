@@ -121,6 +121,16 @@ Configuración en ElevenLabs (mismo lugar que la anterior, pestaña **Herramient
 
 ⚠️ **Importante sobre "autorización" acá**: esto confirma que hay una sesión de panel abierta en ese dispositivo/navegador — no verifica quién está hablando. No existe forma de identificar a una persona por su voz puntual con este stack (ElevenLabs + navegador). Si en algún momento hace falta saber específicamente qué vendedor está usando JARVIS (no solo que "alguien" está logueado), hay que sumar login por PIN/voz de cada vendedor — no está construido todavía.
 
+### Transferencias, valuaciones y financiación reales (DNRPA / InfoAuto / MG Group)
+
+Para el costo real de transferencia (DNRPA), la valuación real de un vehículo (InfoAuto) y la tasa real de financiación (portal de MG Group), el panel **no calcula nada propio** — la sección **Configuración** tiene tres botones que abren cada sitio oficial en una pestaña nueva. Se decidió así (en vez de automatizar la consulta) porque:
+
+- Los tres piden login con usuario/contraseña — nunca hay que cargar esas credenciales en el código del sitio (es público), solo como secreto de un proceso de servidor si algún día se automatiza.
+- Ninguno de los tres es accesible desde este entorno de desarrollo, así que no se pudo construir ni probar una integración en vivo.
+- Es la opción más segura y siempre exacta: la fuente real, sin mantenimiento de nuestro lado.
+
+`simular_financiacion` (ver arriba) sigue dando un número orientativo rápido por voz, pero ahora aclara que la tasa real hay que confirmarla en el portal de MG Group.
+
 ### Captura automática de conversaciones de voz
 
 Cada charla por voz con JARVIS (ElevenLabs) se puede guardar sola en la memoria del negocio (`interacciones`, con `tipo = 'voz_jarvis'`), sin cargar nada a mano. Funciona con una Edge Function de Supabase (`supabase/functions/elevenlabs-webhook`) que ElevenLabs llama automáticamente cada vez que termina una conversación.
