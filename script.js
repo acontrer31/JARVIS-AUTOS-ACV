@@ -132,6 +132,21 @@ function formatearKm(auto) {
 function nombreAuto(auto) {
   return [auto.marca, auto.modelo].filter(Boolean).join(" ");
 }
+
+// Fórmula confirmada con 3 ejemplos reales del estimador oficial de DNRPA
+// (Ford Ka, VW Nivus, Fiat Cronos — importado y nacional dan la misma alícuota):
+// total = 1% del Valor Tabla + arancel fijo $1.300 (Res. 314/02). Expedición de
+// cédula/título siempre se cancelan al 100% con su bonificación vigente, así
+// que no se incluyen — no afectan el total en ninguno de los 3 casos reales.
+const DNRPA_DISCLAIMER =
+  "Al valor estimado pueden sumarse costos de: formularios de rentas, certificación de firmas, expedición de cédulas adicionales y moras de firma (20% del arancel si se excede el plazo de 90 días desde la certificación del formulario 08). Esto es una estimación, no un presupuesto oficial.";
+function calcularCostoTransferenciaDNRPA(valorTabla) {
+  const valor = Number(valorTabla);
+  if (!valor || valor <= 0) return null;
+  const arancel = valor * 0.01;
+  const fijo = 1300;
+  return { arancel, fijo, total: arancel + fijo };
+}
 const carIconSvg = `<svg viewBox="0 0 24 24"><path d="M3 12l1.5-4.5A2 2 0 0 1 6.4 6h11.2a2 2 0 0 1 1.9 1.5L21 12"/><rect x="2.5" y="12" width="19" height="5.5" rx="1.5"/><circle cx="7" cy="18.5" r="1.6"/><circle cx="17" cy="18.5" r="1.6"/></svg>`;
 
 function fotoUrl(auto, n) {
@@ -356,9 +371,56 @@ const SERVICIOS = {
         <a class="btn-outline full" style="text-decoration:none;display:block;text-align:center" target="_blank" rel="noopener" href="https://www.infoauto.com.ar/">INFOAUTO — VALUACIONES</a>
         <a class="btn-outline full" style="text-decoration:none;display:block;text-align:center" target="_blank" rel="noopener" href="https://web.agencias.mg-group.net.ar/signin">MG GROUP — FINANCIACIÓN</a>
       </div>
+    </div>
+    <div class="panel">
+      <div class="panel-header"><h2>ESTIMAR COSTO DE TRANSFERENCIA (DNRPA)</h2></div>
+      <p class="muted" style="font-size:.72rem;line-height:1.6;margin-bottom:.75rem">
+        Fórmula real: 1% del Valor Tabla DNRPA + arancel fijo $1.300. El Valor Tabla es un
+        valor de referencia oficial, distinto del precio de venta — hay que cargarlo por
+        auto (por SQL, ver README) para que aparezca acá.
+      </p>
+      <select id="dnrpaSelect" class="field-input full" style="margin-bottom:.625rem"></select>
+      <input id="dnrpaValorManual" type="number" min="0" step="1" placeholder="O ingresá un Valor Tabla manual"
+        class="field-input full" style="margin-bottom:.625rem" />
+      <button id="dnrpaCalcularBtn" class="btn-outline full" type="button">CALCULAR</button>
+      <div id="dnrpaResultado" style="margin-top:.75rem;font-size:.8rem;line-height:1.6"></div>
     </div>`,
   },
 };
+
+function bindDnrpaCalculadora() {
+  const select = document.getElementById("dnrpaSelect");
+  const inputManual = document.getElementById("dnrpaValorManual");
+  const btn = document.getElementById("dnrpaCalcularBtn");
+  const resultado = document.getElementById("dnrpaResultado");
+  if (!select || !inputManual || !btn || !resultado) return;
+  catalogoListo.then(() => {
+    select.innerHTML =
+      `<option value="">— Elegí un vehículo del stock (opcional) —</option>` +
+      catalogo
+        .map((a, i) => `<option value="${i}">${escapeHtml(nombreAuto(a))} ${escapeHtml(a.anio || "")}</option>`)
+        .join("");
+  });
+  select.addEventListener("change", () => {
+    const auto = catalogo[Number(select.value)];
+    inputManual.value = auto && auto.valor_tabla_dnrpa ? auto.valor_tabla_dnrpa : "";
+    if (auto && !auto.valor_tabla_dnrpa) {
+      resultado.innerHTML = `<span class="muted">${escapeHtml(nombreAuto(auto))} todavía no tiene Valor Tabla DNRPA cargado. Ingresalo a mano arriba, o cargalo por SQL para la próxima.</span>`;
+    }
+  });
+  btn.addEventListener("click", () => {
+    const calculo = calcularCostoTransferenciaDNRPA(inputManual.value);
+    if (!calculo) {
+      resultado.innerHTML = `<span class="muted">Ingresá un Valor Tabla válido (mayor a $0) para calcular.</span>`;
+      return;
+    }
+    resultado.innerHTML = `
+      <div>1% del Valor Tabla: <strong>${escapeHtml(formatearMoneda(calculo.arancel))}</strong></div>
+      <div>Arancel fijo (Res. 314/02): <strong>${escapeHtml(formatearMoneda(calculo.fijo))}</strong></div>
+      <div style="margin-top:.375rem">Total estimado: <strong>${escapeHtml(formatearMoneda(calculo.total))}</strong></div>
+      <p class="muted" style="font-size:.68rem;line-height:1.5;margin-top:.625rem">${escapeHtml(DNRPA_DISCLAIMER)}</p>`;
+  });
+}
 
 let focoMovidos = [];
 
@@ -405,6 +467,7 @@ function abrirFoco(view) {
     }
   } else if (servicio.html) {
     focoContent.innerHTML = servicio.html;
+    if (view === "configuracion") bindDnrpaCalculadora();
   }
   focoOverlay.classList.add("open");
   marcarNavActivo(view);
@@ -558,6 +621,24 @@ if (agentId) {
         return consulta
           ? `Encontré ${lista.length} coincidencia(s): ${resumen}.`
           : `Hay ${catalogo.length} vehículos en stock. Algunos ejemplos: ${resumen}.`;
+      },
+      // Información pública (costo estimado de trámite), no requiere sesión —
+      // mismo criterio que consultar_inventario. Fórmula real confirmada con
+      // 3 ejemplos del estimador oficial DNRPA (ver calcularCostoTransferenciaDNRPA).
+      // Define en ElevenLabs: nombre "estimar_transferencia_dnrpa", parámetro
+      // "modelo" (texto) — ver README.
+      estimar_transferencia_dnrpa: async (parametros) => {
+        await catalogoListo;
+        const consulta = String(parametros?.modelo || "").toLowerCase().trim();
+        const auto = catalogo.find((a) => `${a.marca} ${a.modelo} ${a.version || ""}`.toLowerCase().includes(consulta));
+        if (!auto) {
+          return `No encontré ningún vehículo que coincida con "${parametros?.modelo}" en el stock actual.`;
+        }
+        if (!auto.valor_tabla_dnrpa) {
+          return `${nombreAuto(auto)} todavía no tiene cargado el Valor Tabla de DNRPA, así que no puedo estimar el costo de transferencia. Hay que cargarlo primero.`;
+        }
+        const calculo = calcularCostoTransferenciaDNRPA(auto.valor_tabla_dnrpa);
+        return `Transferir ${nombreAuto(auto)} costaría aproximadamente ${formatearMoneda(calculo.total)} (1% del valor tabla más el arancel fijo). ${DNRPA_DISCLAIMER}`;
       },
       // Acción sensible (info financiera) — requiere sesión de panel activa,
       // mismo patrón que cualquier herramienta nueva que toque algo delicado.

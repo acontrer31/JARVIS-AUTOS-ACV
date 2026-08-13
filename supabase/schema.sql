@@ -46,9 +46,11 @@ create table if not exists public.vehiculos (
   destacado boolean not null default false,
   fotos int not null default 0,
   carroceria text,  -- 'pickup' | 'suv' | 'sedan' | 'hatch' (usado por el avatar reactivo de voz)
+  valor_tabla_dnrpa numeric,  -- valor de referencia DNRPA (distinto del precio de venta), carga manual por auto
   creado_en timestamptz not null default now()
 );
 alter table public.vehiculos add column if not exists carroceria text;
+alter table public.vehiculos add column if not exists valor_tabla_dnrpa numeric;
 
 -- "Memoria" del negocio: clientes y cada interacción/operación con ellos
 -- (llamada, WhatsApp, visita, venta, conversación con JARVIS, etc.), para que

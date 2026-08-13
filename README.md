@@ -121,6 +121,15 @@ Configuración en ElevenLabs (mismo lugar que la anterior, pestaña **Herramient
 
 ⚠️ **Importante sobre "autorización" acá**: esto confirma que hay una sesión de panel abierta en ese dispositivo/navegador — no verifica quién está hablando. No existe forma de identificar a una persona por su voz puntual con este stack (ElevenLabs + navegador). Si en algún momento hace falta saber específicamente qué vendedor está usando JARVIS (no solo que "alguien" está logueado), hay que sumar login por PIN/voz de cada vendedor — no está construido todavía.
 
+### Estimar costo de transferencia por voz
+
+El sitio también expone `estimar_transferencia_dnrpa` — información pública (no requiere sesión iniciada, mismo criterio que `consultar_inventario`). Ver el detalle de la fórmula y de cómo cargar el dato por vehículo en la sección "Estimador de costo de transferencia DNRPA" más abajo.
+
+Configuración en ElevenLabs:
+- **Nombre**: `estimar_transferencia_dnrpa` (exacto).
+- **Descripción**: "Estima el costo de transferencia de DNRPA para un vehículo del stock. Usar cuando pregunten cuánto sale transferir, patentar o pasar a nombre un auto."
+- **Parámetro**: `modelo` (texto) — "Auto a estimar, ej. 'Hilux'."
+
 ### Transferencias, valuaciones y financiación reales (DNRPA / InfoAuto / MG Group)
 
 Para el costo real de transferencia (DNRPA), la valuación real de un vehículo (InfoAuto) y la tasa real de financiación (portal de MG Group), el panel **no calcula nada propio** — la sección **Configuración** tiene tres botones que abren cada sitio oficial en una pestaña nueva. Se decidió así (en vez de automatizar la consulta) porque:
@@ -130,6 +139,26 @@ Para el costo real de transferencia (DNRPA), la valuación real de un vehículo 
 - Es la opción más segura y siempre exacta: la fuente real, sin mantenimiento de nuestro lado.
 
 `simular_financiacion` (ver arriba) sigue dando un número orientativo rápido por voz, pero ahora aclara que la tasa real hay que confirmarla en el portal de MG Group.
+
+#### Estimador de costo de transferencia DNRPA
+
+A diferencia de InfoAuto y MG Group, para DNRPA sí construimos un cálculo propio — la fórmula del arancel de transferencia es pública y no requiere login. Se armó y verificó con **3 ejemplos reales** del estimador oficial (`www2.jus.gov.ar/dnrpa-site`, provincia Salta): un Ford Ka importado, una VW Nivus importada y un Fiat Cronos nacional. En los tres casos:
+
+```
+Total = 1% del Valor Tabla + $1.300 (arancel fijo, Res. 314/02)
+```
+
+(La expedición de cédula y título siempre se cancelan al 100% con su bonificación vigente en los tres ejemplos, así que no suman al total. Nacional e importado dan la misma alícuota — no hay que distinguir origen en la fórmula.)
+
+El "Valor Tabla" es un valor de referencia oficial de DNRPA, **distinto del precio de venta**. No hay forma de consultarlo en vivo desde el sitio, así que se carga a mano por vehículo:
+
+```sql
+update public.vehiculos set valor_tabla_dnrpa = 18308800 where id = 'uuid-del-auto';
+```
+
+Con eso cargado, el estimador aparece en **Configuración → Estimar costo de transferencia (DNRPA)** (elegís el auto o escribís un valor manual) y también como herramienta de voz `estimar_transferencia_dnrpa` (parámetro `modelo`, sin necesidad de sesión iniciada — es información pública). Siempre muestra el disclaimer oficial: pueden sumarse formularios de rentas, certificación de firmas, cédulas adicionales o mora de firma (20% del arancel si se pasan los 90 días).
+
+⚠️ No cubre la **inscripción inicial de 0km** (es un trámite distinto, con otra fórmula) — no se armó porque no tenemos un ejemplo real confirmado todavía. Si hace falta, se agrega aparte con datos reales, no por extrapolación.
 
 ### Captura automática de conversaciones de voz
 

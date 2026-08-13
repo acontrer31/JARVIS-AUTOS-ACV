@@ -413,6 +413,14 @@ svg { width: 1em; height: 1em; fill: none; stroke: currentColor; stroke-width: 1
   &.full { width: 100%; }
 }
 
+.field-input {
+  width: 100%; background: #0d1b2b; border: 1px solid var(--border); border-radius: 0.5rem;
+  padding: 0.5625rem 0.75rem; color: var(--text); font-size: 0.8rem;
+
+  &:focus { outline: none; border-color: var(--accent); }
+  &.full { width: 100%; }
+}
+
 /* Car stage */
 .car-stage {
   display: flex; flex-direction: column; align-items: center; justify-content: center;
