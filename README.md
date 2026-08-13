@@ -95,7 +95,18 @@ El botón de micrófono del panel lateral puede conectarse a un agente conversac
    ```
 6. Subí el cambio (commit + push). El widget oficial de ElevenLabs se carga solo y aparece como burbuja flotante; el mic del panel lateral hace scroll hacia él.
 
-Por ahora el agente no tiene acceso a los datos reales del panel (stock, ventas, leads) — es conversación general. Darle acceso en vivo a esos datos (por ejemplo vía "tools" del agente contra la base de Supabase) es un paso futuro, una vez que Supabase esté activo.
+### Que JARVIS conozca el stock real (herramienta de inventario)
+
+El sitio ya expone una función (`consultar_inventario`) que el agente puede llamar para traer datos reales del catálogo (marca, modelo, precio, km, si está destacado) en vez de responder en general. Falta un paso de tu lado, en el dashboard de ElevenLabs:
+
+1. Entrá al agente → pestaña **Herramientas** (o "Tools").
+2. Creá una herramienta nueva de tipo **Cliente** ("Client tool"), con:
+   - **Nombre**: `consultar_inventario` (tiene que ser exactamente ese texto, sin espacios).
+   - **Descripción**: algo como "Consulta el stock real de vehículos de la agencia. Usarla siempre que pregunten por precio, disponibilidad o características de un auto puntual, o por el stock en general."
+   - **Parámetro**: `modelo` (tipo texto, opcional) — "Marca o modelo de auto a buscar, por ejemplo 'Hilux' o 'Amarok'. Dejar vacío para un resumen general del stock."
+3. Guardá y probá preguntándole a JARVIS por un auto del catálogo real (ej. "¿Tenés alguna Hilux?").
+
+⚠️ No pude verificar en vivo el nombre exacto del evento/API que usa el widget embebido para registrar herramientas del lado del cliente (sin acceso a la documentación de ElevenLabs esta sesión) — el código está armado con mi mejor entendimiento de cómo funciona. Si al preguntarle por un auto JARVIS no usa el dato real, avisame y lo revisamos con la consola del navegador, igual que hicimos con la voz.
 
 ### Captura automática de conversaciones de voz
 

@@ -468,6 +468,43 @@ if (agentId) {
   widgetEl.setAttribute("agent-id", agentId);
   elevenlabsSlot.appendChild(widgetEl);
 
+  // "Herramienta" que el agente puede invocar para consultar el catálogo real
+  // en el momento (stock, precio, km) en vez de responder en general. Hay que
+  // definir una herramienta del lado de ElevenLabs con el mismo nombre
+  // ("consultar_inventario", parámetro "modelo" de texto, opcional) — ver README.
+  // No verificado en vivo el nombre exacto del evento/API del widget para
+  // registrar herramientas cliente (sin acceso a la documentación de
+  // ElevenLabs esta sesión); si no llega a activarse, lo ajustamos juntos.
+  widgetEl.addEventListener("elevenlabs-convai:call", (event) => {
+    const config = event.detail?.config;
+    if (!config) return;
+    config.clientTools = {
+      ...(config.clientTools || {}),
+      consultar_inventario: async (parametros) => {
+        await catalogoListo;
+        const consulta = String(parametros?.modelo || "").toLowerCase().trim();
+        let lista = catalogo;
+        if (consulta) {
+          lista = catalogo.filter((a) =>
+            `${a.marca} ${a.modelo} ${a.version || ""}`.toLowerCase().includes(consulta)
+          );
+        }
+        if (!lista.length) {
+          return consulta
+            ? `No encontré ningún vehículo que coincida con "${parametros.modelo}" en el stock actual.`
+            : "El stock está vacío en este momento.";
+        }
+        const resumen = lista
+          .slice(0, 8)
+          .map((a) => `${nombreAuto(a)} ${a.anio || ""} — ${formatearKm(a)} — ${formatearMoneda(a.precio)}${a.destacado ? " (destacado)" : ""}`)
+          .join(". ");
+        return consulta
+          ? `Encontré ${lista.length} coincidencia(s): ${resumen}.`
+          : `Hay ${catalogo.length} vehículos en stock. Algunos ejemplos: ${resumen}.`;
+      },
+    };
+  });
+
   if (voiceStatusEl) {
     voiceStatusEl.textContent = "Voz activa (ElevenLabs) — tocá el ícono flotante para hablar con JARVIS.";
     voiceStatusEl.classList.add("active");

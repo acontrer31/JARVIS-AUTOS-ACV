@@ -516,6 +516,21 @@ svg { width: 1em; height: 1em; fill: none; stroke: currentColor; stroke-width: 1
 .galeria-nav.next { right: 0.875rem; }
 .galeria-nav:hover { background: var(--accent-soft); }
 
+/* Reposiciona la burbuja flotante del widget de ElevenLabs (por defecto va a una
+   esquina) al centro de la pantalla, como pidió el usuario. Best-effort: el widget
+   vive en su propio Shadow DOM, así que esto apunta al elemento contenedor
+   (host) desde afuera — si el widget fija su posición con más especificidad
+   internamente, puede no alcanzar y hay que ajustarlo probando en vivo. */
+elevenlabs-convai {
+  position: fixed !important;
+  top: 50% !important;
+  left: 50% !important;
+  right: auto !important;
+  bottom: auto !important;
+  transform: translate(-50%, -50%) !important;
+  z-index: 70 !important;
+}
+
 /* ============ FOCO CENTRAL (avatar grande + un servicio a la vez) ============ */
 .foco-overlay {
   display: none; position: fixed; inset: 0; background: #010409e6; backdrop-filter: blur(6px);
