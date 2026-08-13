@@ -517,11 +517,39 @@ if (agentId) {
       voiceStatusEl.classList.remove("active");
     }
   }, 8000);
-  if (micBtn) {
-    micBtn.addEventListener("click", () => {
-      micBtn.classList.toggle("listening");
+  // Intenta arrancar la llamada de voz sin que haga falta tocar el botón del
+  // widget (para el aplauso y la palabra de activación). No verificado en vivo
+  // qué método/selector expone realmente el widget para esto — se prueban
+  // varias formas plausibles en orden, y si ninguna funciona, se cae al
+  // comportamiento de siempre (scroll hacia la burbuja para tocarla a mano).
+  function iniciarLlamadaJarvis() {
+    try {
+      if (typeof widgetEl.startCall === "function") { widgetEl.startCall(); return true; }
+      if (typeof widgetEl.startConversation === "function") { widgetEl.startConversation(); return true; }
+      const botonInterno = widgetEl.shadowRoot?.querySelector("button");
+      if (botonInterno) { botonInterno.click(); return true; }
+    } catch (err) {
+      console.warn("No se pudo iniciar la llamada de JARVIS automáticamente:", err);
+    }
+    return false;
+  }
+
+  function activarJarvisPorVoz() {
+    micBtn.classList.add("listening");
+    const arrancoSola = iniciarLlamadaJarvis();
+    if (arrancoSola) {
+      // Se ocultA la burbuja (no display:none, por si el widget necesita
+      // seguir "visible" para procesar audio) — queda el avatar reactivo
+      // representando la conversación en su lugar.
+      widgetEl.classList.add("oculto-tras-activar");
+    } else {
+      widgetEl.classList.remove("oculto-tras-activar");
       widgetEl.scrollIntoView({ behavior: "smooth", block: "center" });
-    });
+    }
+  }
+
+  if (micBtn) {
+    micBtn.addEventListener("click", () => { activarJarvisPorVoz(); });
   }
 } else if (micBtn) {
   micBtn.addEventListener("click", () => {
@@ -530,16 +558,40 @@ if (agentId) {
   });
 }
 
-// ============ Activación por aplauso ============
-// Detecta un pico brusco de volumen (aplauso) y "clickea" el mic por vos.
+// ============ Activación por aplauso o diciendo "hola Jarvis" ============
+// Detecta un pico brusco de volumen (aplauso) o la frase "hola Jarvis" y
+// "clickea" el mic por vos — dispara la llamada sin tocar nada.
 // La primera vez necesita que toques el mic una vez para dar permiso al micrófono
-// (los navegadores no dejan pedirlo solo con un aplauso); después queda escuchando
-// aplausos en segundo plano el resto de la sesión.
+// (los navegadores no dejan pedirlo sin un click real); después queda escuchando
+// en segundo plano el resto de la sesión.
 (function activacionPorAplauso() {
   if (!agentId || !micBtn) return;
 
   let escuchando = false;
   let ultimoAplauso = 0;
+  let ultimaPalabraClave = 0;
+
+  // Reconocimiento de voz del navegador (Chrome/Android; no disponible en
+  // Safari/iOS) para detectar "hola jarvis" y activar la llamada sin aplaudir.
+  function iniciarEscuchaPalabraClave() {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) return;
+    const rec = new SR();
+    rec.lang = "es-AR";
+    rec.continuous = true;
+    rec.interimResults = false;
+    rec.onresult = (e) => {
+      const texto = Array.from(e.results).map((r) => r[0].transcript).join(" ").toLowerCase();
+      const ahora = performance.now();
+      if (/hola\s*jarvis|ey\s*jarvis|che\s*jarvis/.test(texto) && ahora - ultimaPalabraClave > 4000) {
+        ultimaPalabraClave = ahora;
+        micBtn.click();
+      }
+    };
+    rec.onerror = () => {};
+    rec.onend = () => { try { rec.start(); } catch (_) {} };
+    try { rec.start(); } catch (_) {}
+  }
 
   async function iniciarEscuchaAplausos() {
     if (escuchando) return;
@@ -547,6 +599,7 @@ if (agentId) {
     let stream;
     try {
       stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      iniciarEscuchaPalabraClave();
     } catch (err) {
       console.warn("No se pudo activar la detección de aplausos:", err);
       escuchando = false;
