@@ -1,26 +1,44 @@
 @import "tailwindcss";
 
 :root {
+  /* Identidad del core (isologo real: anillo dorado, relleno verde inglés,
+     texto crema) — fija, no cambia entre día y noche. Nunca negro. */
+  --dorado: #d4a72c;
+  --verde-core: #0e4d3c;
+  --core-text: #f5f0e6;
+
+  /* Tema de página: blanco de día por defecto (evita flash oscuro antes de
+     que el script inline de layout.tsx corrija según la hora real). */
   --background: #ffffff;
-  --foreground: #171717;
+  --foreground: #12241c;
+  --panel: #ffffffd9;
+  --border: #d8d2bd;
+  --muted: #5b6b63;
+}
+
+:root[data-tema="noche"] {
+  --background: #0a0a0a;
+  --foreground: #f5f0e6;
+  --panel: #141414d9;
+  --border: #2a2a2a;
+  --muted: #8a8a8a;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-dorado: var(--dorado);
+  --color-verde-core: var(--verde-core);
+  --color-core-text: var(--core-text);
+  --color-panel: var(--panel);
+  --color-border: var(--border);
+  --color-muted: var(--muted);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  transition: background-color 0.4s ease, color 0.4s ease;
 }
