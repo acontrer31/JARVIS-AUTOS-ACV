@@ -15,13 +15,11 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-// Fuente real del isologo (Plastik Italique, licencia GPL v2 vía Font
+// Fuente real del isologo (Plastik Regular, licencia GPL v2 vía Font
 // Library — ver app/fonts/LICENSE-Plastik.txt), usada solo en el "AA" del
 // core, no en el resto del sitio.
 const plastik = localFont({
-  src: [
-    { path: "./fonts/Plastik-Italique.woff", weight: "400", style: "italic" },
-  ],
+  src: [{ path: "./fonts/Plastik.ttf", weight: "400", style: "normal" }],
   variable: "--font-plastik",
   display: "swap",
 });

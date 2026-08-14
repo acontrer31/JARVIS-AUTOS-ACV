@@ -12,7 +12,7 @@ const ETIQUETA_ESTADO: Record<EstadoJarvis, string> = {
 };
 
 // Recreación del isologo real (círculo con anillo dorado, relleno verde
-// inglés oscuro, letras "AA" en Plastik Italique — la tipografía real del
+// inglés oscuro, letras "AA" en Plastik Regular — la tipografía real del
 // logo, licencia GPL v2, ver web/app/fonts/LICENSE-Plastik.txt) mientras el
 // usuario sube el archivo de imagen real del isologo completo — apenas lo
 // suba, este SVG se reemplaza por la imagen real en <img>, sin tocar el
@@ -31,7 +31,6 @@ function LogoCore() {
         strokeWidth="1.6"
         strokeLinejoin="round"
         fontFamily="var(--font-plastik, sans-serif)"
-        fontStyle="italic"
       >
         AA
       </text>
