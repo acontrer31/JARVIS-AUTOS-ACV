@@ -265,8 +265,8 @@ Ningún sitio es "inhackeable", pero esto es lo que está aplicado y por qué (y
 - **Recuperación de contraseña propia** (ver sección arriba) — nadie necesita compartir su contraseña ni depender de un reseteo manual.
 - **`rls_auto_enable()` revisada y cerrada**: es un event trigger que trae Supabase (no es una función de este proyecto) — se dispara solo al crear una tabla nueva en `public` y le prende RLS automáticamente, como red de seguridad extra. El Security Advisor la marcaba como "security definer ejecutable públicamente", pero al devolver `event_trigger` Postgres no permite invocarla directo como una función cualquiera. Igual, como buena práctica, se le sacó el permiso de ejecución público: `revoke execute on function public.rls_auto_enable() from public;` (ya corrido en el proyecto real).
 
-**Pendiente, requiere una acción tuya en el dashboard de Supabase (no se puede resolver por código):**
-- **"Protección de contraseña filtrada" desactivada**: activala en **Authentication → Settings** — es un toggle, no se puede prender por SQL/código.
+**No disponible en el plan actual de Supabase (no es un pendiente accionable, ni de código ni de configuración):**
+- **"Protección de contraseña filtrada" (leaked password protection)**: en **Authentication → Sign In/Providers → Email**, este switch está bloqueado — Supabase lo reserva para planes pagos (chequea contra la base de HaveIBeenPwned). No bloquea nada más: la recuperación de contraseña propia y el resto de la seguridad de Auth funcionan igual en el plan gratuito. Si en algún momento se pasa a un plan pago, es solo activar el switch.
 
 **Limitaciones conocidas (por ser un sitio 100% estático en GitHub Pages):**
 - No se puede fijar `X-Frame-Options` / `frame-ancestors` por header real (GitHub Pages no permite headers custom), así que la protección contra clickjacking vía header no está disponible — el CSP vía `<meta>` tampoco puede incluir `frame-ancestors` (el navegador lo ignora ahí). Si esto llegara a importar en producción, la solución es servir el sitio detrás de Cloudflare (gratis) que sí permite agregar headers.
