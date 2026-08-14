@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import JarvisCore, { type EstadoJarvis } from "@/components/JarvisCore";
+import JarvisCore from "@/components/JarvisCore";
 import ModuleWorkspace from "@/components/ModuleWorkspace";
 import type { ModuloId } from "@/lib/modules";
 
@@ -14,7 +14,6 @@ export default function Home() {
   const [cargando, setCargando] = useState(false);
   const [agencia, setAgencia] = useState<string | null>(null);
   const [moduloActivo, setModuloActivo] = useState<ModuloId | null>(null);
-  const [estado, setEstado] = useState<EstadoJarvis>("standby");
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(!!data.session));
@@ -41,17 +40,6 @@ export default function Home() {
     const { error: err } = await supabase.auth.signInWithPassword({ email, password });
     if (err) setError(err.message);
     setCargando(false);
-  }
-
-  function activarModulo(id: ModuloId) {
-    setEstado("activando");
-    setModuloActivo(id);
-    window.setTimeout(() => setEstado("trabajando"), 200);
-  }
-
-  function cerrarModulo() {
-    setModuloActivo(null);
-    setEstado("standby");
   }
 
   return (
@@ -108,13 +96,8 @@ export default function Home() {
               cerrar sesión
             </button>
           </div>
-          <JarvisCore
-            estado={estado}
-            moduloActivo={moduloActivo}
-            onActivarModulo={activarModulo}
-            onCambiarEstado={setEstado}
-          />
-          {moduloActivo && <ModuleWorkspace moduloId={moduloActivo} onCerrar={cerrarModulo} />}
+          <JarvisCore moduloActivo={moduloActivo} onActivarModulo={setModuloActivo} />
+          {moduloActivo && <ModuleWorkspace moduloId={moduloActivo} onCerrar={() => setModuloActivo(null)} />}
         </>
       )}
     </div>

@@ -1,8 +1,10 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useEffect, useState } from "react";
+import { ConversationProvider, useConversation } from "@elevenlabs/react";
 import { MODULOS, type ModuloId } from "@/lib/modules";
-import type { SpeechRecognitionInstance } from "@/lib/speech";
+import { cargarVehiculos, formatearMoneda, nombreVehiculo } from "@/lib/vehiculos";
+import { calcularCostoTransferenciaDNRPA, DNRPA_DISCLAIMER, simularCuotas } from "@/lib/financiacion";
 
 export type EstadoJarvis = "standby" | "escuchando" | "activando" | "trabajando" | "error";
 
@@ -10,9 +12,18 @@ const ETIQUETA_ESTADO: Record<EstadoJarvis, string> = {
   standby: "STANDBY",
   escuchando: "ESCUCHANDO",
   activando: "ACTIVANDO",
-  trabajando: "TRABAJANDO",
+  trabajando: "RESPONDIENDO",
   error: "ERROR",
 };
+
+const AGENT_ID = process.env.NEXT_PUBLIC_ELEVENLABS_AGENT_ID;
+
+function normalizar(texto: string): string {
+  return texto
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
 
 // Recreación del isologo real (círculo con anillo dorado, relleno verde
 // inglés oscuro, letras "AA" en Plastik Regular — la tipografía real del
@@ -41,99 +52,72 @@ function LogoCore() {
   );
 }
 
-function normalizar(texto: string): string {
-  return texto
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
-}
-
-// Frases genéricas que solo piden "mostrame las opciones" sin nombrar un
-// módulo puntual — revelan la grilla sin abrir nada.
-const FRASES_MOSTRAR = ["modulo", "modulos", "opcion", "opciones", "menu"];
-
-export default function JarvisCore({
-  estado,
+// Componente interno: vive dentro de <ConversationProvider>, que es donde
+// useConversation() puede usarse. No se pudo verificar en vivo esta versión
+// exacta del SDK contra el agente real en este entorno (sin acceso de red a
+// elevenlabs.io) — la forma de las herramientas cliente y de startSession()
+// está tomada de los tipos reales del paquete (@elevenlabs/react en
+// node_modules), no adivinada, pero probemos juntos la primera vez.
+function NucleoConversacional({
   moduloActivo,
+  modulosVisibles,
   onActivarModulo,
   onCambiarEstado,
 }: {
-  estado: EstadoJarvis;
   moduloActivo: ModuloId | null;
+  modulosVisibles: boolean;
   onActivarModulo: (id: ModuloId) => void;
   onCambiarEstado: (estado: EstadoJarvis) => void;
 }) {
-  const [modulosVisibles, setModulosVisibles] = useState(false);
-  const [avisoVoz, setAvisoVoz] = useState("");
-  const reconocedorRef = useRef<SpeechRecognitionInstance | null>(null);
+  const conversacion = useConversation();
+  const conectado = conversacion.status === "connected";
+  const estadoActual: EstadoJarvis =
+    conversacion.status === "error"
+      ? "error"
+      : conversacion.status === "connecting"
+        ? "activando"
+        : conectado
+          ? conversacion.mode === "speaking"
+            ? "trabajando"
+            : "escuchando"
+          : "standby";
 
-  const procesarTranscripcion = useCallback(
-    (textoOriginal: string) => {
-      const texto = normalizar(textoOriginal);
-      const modulo = MODULOS.find((m) => texto.includes(normalizar(m.label)));
-      if (modulo) {
-        setModulosVisibles(true);
-        onActivarModulo(modulo.id);
-        return;
-      }
-      if (FRASES_MOSTRAR.some((f) => texto.includes(f))) {
-        setModulosVisibles(true);
-        onCambiarEstado("standby");
-        return;
-      }
-      setAvisoVoz(`No reconocí ningún módulo en "${textoOriginal}". Decí el nombre de un módulo (ej. "Vehículos") o "mostrar módulos".`);
-      onCambiarEstado("standby");
-    },
-    [onActivarModulo, onCambiarEstado]
-  );
+  useEffect(() => {
+    onCambiarEstado(estadoActual);
+  }, [estadoActual, onCambiarEstado]);
 
-  function escuchar() {
-    const SpeechRecognition = window.SpeechRecognition ?? window.webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      setAvisoVoz("El reconocimiento de voz no está disponible en este navegador — probá con Chrome.");
+  async function alternarConversacion() {
+    if (!AGENT_ID) return;
+    if (conectado) {
+      conversacion.endSession();
       return;
     }
-    setAvisoVoz("");
-    const reconocedor = new SpeechRecognition();
-    reconocedor.lang = "es-AR";
-    reconocedor.interimResults = false;
-    reconocedor.maxAlternatives = 1;
-    reconocedor.onresult = (event) => {
-      const texto = event.results[0][0].transcript;
-      onCambiarEstado("activando");
-      procesarTranscripcion(texto);
-    };
-    reconocedor.onerror = () => {
-      setAvisoVoz("No te escuché bien, probá de nuevo.");
-      onCambiarEstado("standby");
-    };
-    reconocedor.onend = () => {
-      if (estado === "escuchando") onCambiarEstado("standby");
-    };
-    reconocedorRef.current = reconocedor;
-    onCambiarEstado("escuchando");
-    reconocedor.start();
+    try {
+      await navigator.mediaDevices.getUserMedia({ audio: true });
+      conversacion.startSession();
+    } catch {
+      onCambiarEstado("error");
+    }
   }
 
   return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-8 py-6">
+    <>
       <div
         className="relative flex items-center justify-center"
         style={{ width: "min(78vw, 60vh, 30rem)", height: "min(78vw, 60vh, 30rem)" }}
       >
-        {/* Anillo de estado: gira siempre despacio; más rápido mientras procesa. */}
         <div
           className="absolute inset-0 rounded-full border-2 border-dashed"
           style={{
             borderColor: "var(--dorado)",
             opacity: 0.55,
-            animation: `girar ${estado === "trabajando" || estado === "activando" ? 3 : 14}s linear infinite`,
+            animation: `girar ${conversacion.mode === "speaking" ? 3 : 14}s linear infinite`,
           }}
         />
         <div
           className="absolute inset-4 rounded-full"
           style={{
-            boxShadow: `0 0 60px 10px color-mix(in srgb, var(--dorado) ${estado === "escuchando" ? 55 : 35}%, transparent)`,
+            boxShadow: `0 0 60px 10px color-mix(in srgb, var(--dorado) ${conectado ? 55 : 35}%, transparent)`,
             transition: "box-shadow 0.4s ease",
           }}
         />
@@ -142,24 +126,19 @@ export default function JarvisCore({
         </div>
       </div>
 
-      <button
-        type="button"
-        onClick={escuchar}
-        disabled={estado === "escuchando" || estado === "activando"}
-        className="flex flex-col items-center gap-1 disabled:opacity-70"
-      >
+      <button type="button" onClick={alternarConversacion} className="flex flex-col items-center gap-1">
         <p className="text-xs tracking-[0.3em]" style={{ color: "var(--muted)" }}>
-          {ETIQUETA_ESTADO[estado]}
+          {ETIQUETA_ESTADO[estadoActual]}
         </p>
         <h1 className="text-4xl font-semibold tracking-[0.25em] sm:text-5xl">JARVIS</h1>
         <p className="mt-1 text-[0.65rem]" style={{ color: "var(--muted)" }}>
-          {modulosVisibles ? "tocá para volver a escuchar" : "tocá o decí un módulo (ej. \"Vehículos\")"}
+          {conectado ? "tocá para cortar" : "tocá para hablar con JARVIS"}
         </p>
       </button>
 
-      {avisoVoz && (
+      {conversacion.message && conversacion.status === "error" && (
         <p className="max-w-xs text-center text-xs" style={{ color: "var(--muted)" }}>
-          {avisoVoz}
+          {conversacion.message}
         </p>
       )}
 
@@ -188,7 +167,101 @@ export default function JarvisCore({
           })}
         </div>
       )}
+    </>
+  );
+}
 
+export default function JarvisCore({
+  moduloActivo,
+  onActivarModulo,
+  onCambiarEstado = () => {},
+}: {
+  moduloActivo: ModuloId | null;
+  onActivarModulo: (id: ModuloId) => void;
+  onCambiarEstado?: (estado: EstadoJarvis) => void;
+}) {
+  const [modulosVisibles, setModulosVisibles] = useState(false);
+
+  function abrirModulo(id: ModuloId) {
+    setModulosVisibles(true);
+    onActivarModulo(id);
+  }
+
+  // Herramientas reales que el agente puede invocar en la conversación —
+  // mismos datos y fórmulas ya probados en producción en script.js del
+  // sitio estático (consultar_inventario, simular_financiacion,
+  // estimar_transferencia_dnrpa), más una nueva (mostrar_modulo) para que
+  // la IA pueda abrir paneles de la UI cuando corresponda. Nunca inventan
+  // datos: si falta algo, lo dicen explícitamente.
+  const clientTools = {
+    consultar_inventario: async (parametros: { modelo?: string }) => {
+      const vehiculos = await cargarVehiculos();
+      const consulta = (parametros?.modelo || "").toLowerCase().trim();
+      const lista = consulta
+        ? vehiculos.filter((v) => nombreVehiculo(v).toLowerCase().includes(consulta))
+        : vehiculos;
+      if (!lista.length) {
+        return consulta
+          ? `No encontré ningún vehículo que coincida con "${parametros?.modelo}" en el stock actual.`
+          : "El stock está vacío en este momento.";
+      }
+      const resumen = lista
+        .slice(0, 8)
+        .map((v) => `${nombreVehiculo(v)} ${v.anio ?? ""} — ${formatearMoneda(v.precio)}`)
+        .join(". ");
+      return consulta
+        ? `Encontré ${lista.length} coincidencia(s): ${resumen}.`
+        : `Hay ${vehiculos.length} vehículos en stock. Algunos ejemplos: ${resumen}.`;
+    },
+    simular_financiacion: async (parametros: { modelo?: string; cuotas?: number }) => {
+      const vehiculos = await cargarVehiculos();
+      const consulta = (parametros?.modelo || "").toLowerCase().trim();
+      const auto = vehiculos.find((v) => nombreVehiculo(v).toLowerCase().includes(consulta));
+      if (!auto) return `No encontré ningún vehículo que coincida con "${parametros?.modelo}" en el stock actual.`;
+      const resultado = simularCuotas(auto.precio, Number(parametros?.cuotas) || 12);
+      if (!resultado) return `${nombreVehiculo(auto)} todavía no tiene precio cargado, no puedo simular la financiación.`;
+      return `${nombreVehiculo(auto)} (${formatearMoneda(auto.precio)}) en ${resultado.cuotas} cuotas darían aproximadamente ${formatearMoneda(resultado.valorCuota)} por cuota, sin interés. Es orientativo, no una cotización oficial.`;
+    },
+    estimar_transferencia_dnrpa: async (parametros: { modelo?: string }) => {
+      const vehiculos = await cargarVehiculos();
+      const consulta = (parametros?.modelo || "").toLowerCase().trim();
+      const auto = vehiculos.find((v) => nombreVehiculo(v).toLowerCase().includes(consulta));
+      if (!auto) return `No encontré ningún vehículo que coincida con "${parametros?.modelo}" en el stock actual.`;
+      const resultado = calcularCostoTransferenciaDNRPA(auto.valor_tabla_dnrpa);
+      if (!resultado) return `${nombreVehiculo(auto)} todavía no tiene el Valor Tabla de DNRPA cargado, no puedo estimar la transferencia.`;
+      return `Transferir ${nombreVehiculo(auto)} costaría aproximadamente ${formatearMoneda(resultado.total)}. ${DNRPA_DISCLAIMER}`;
+    },
+    mostrar_modulo: async (parametros: { modulo?: string }) => {
+      const nombre = normalizar(parametros?.modulo || "");
+      const modulo = MODULOS.find((m) => nombre.includes(normalizar(m.label)) || normalizar(m.label).includes(nombre));
+      if (!modulo) return `No reconozco un módulo llamado "${parametros?.modulo}".`;
+      abrirModulo(modulo.id);
+      return modulo.real
+        ? `Abriendo ${modulo.label}.`
+        : `${modulo.label} todavía no tiene datos reales conectados — lo abrí igual para que lo veas, pero está marcado como próximamente.`;
+    },
+  };
+
+  if (!AGENT_ID) {
+    return (
+      <div className="flex flex-1 flex-col items-center justify-center gap-4 py-6 text-center">
+        <p className="text-sm" style={{ color: "var(--muted)" }}>
+          Falta configurar NEXT_PUBLIC_ELEVENLABS_AGENT_ID para activar la voz de JARVIS.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-1 flex-col items-center justify-center gap-8 py-6">
+      <ConversationProvider agentId={AGENT_ID} connectionType="webrtc" clientTools={clientTools}>
+        <NucleoConversacional
+          moduloActivo={moduloActivo}
+          modulosVisibles={modulosVisibles}
+          onActivarModulo={abrirModulo}
+          onCambiarEstado={onCambiarEstado}
+        />
+      </ConversationProvider>
       <style>{`
         @keyframes girar { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
       `}</style>
