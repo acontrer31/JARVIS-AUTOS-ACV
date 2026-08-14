@@ -49,6 +49,32 @@ Por defecto el sitio funciona sin backend, con los datos de `data.js`. Para que 
 
 Los datos mostrados fuera del inventario (ventas, leads, análisis) siguen siendo de ejemplo.
 
+### Recuperación de contraseña
+
+Si alguien olvida su contraseña, ya no hace falta que se la resetees vos a mano desde el dashboard de
+Supabase: en `login.html` hay un link "¿Olvidaste tu contraseña?" que manda un email de recuperación
+(`supabase.auth.resetPasswordForEmail`). El link del mail lleva a `reset-password.html`, donde la
+persona elige una contraseña nueva y queda lista para entrar.
+
+⚠️ No se pudo probar el flujo completo en este entorno de desarrollo porque no tiene acceso de red al
+CDN de Supabase JS (`cdn.jsdelivr.net`) ni al proyecto real — se verificó sintaxis y estructura, pero
+probalo una vez en la práctica (pedí la recuperación con tu propio email) para confirmar que el link
+que llega funciona como se espera.
+
+### Backups y exportación de datos
+
+Supabase hace backups automáticos diarios en el plan gratuito (retenidos unos días; los planes pagos
+extienden la retención) — no hay nada que configurar de tu lado. Para un backup manual propio (por si
+querés guardar una copia aparte antes de un cambio grande):
+
+```bash
+# Necesita la Supabase CLI (npm install -g supabase) y estar logueado (supabase login)
+supabase db dump --db-url "postgresql://postgres:[tu-password-db]@[tu-host].supabase.co:5432/postgres" -f backup.sql
+```
+
+La "Connection string" completa está en **Project Settings → Database**. Guardá ese `backup.sql` en un
+lugar seguro (no en este repo — puede contener datos de clientes).
+
 ### Memoria de clientes y operaciones
 
 El esquema incluye `clientes` e `interacciones`: un historial único por cliente (llamadas, WhatsApp, visitas, ventas, conversaciones con JARVIS, lo que sea), opcionalmente vinculado a un vehículo del catálogo. Están con la misma seguridad por agencia que el resto. Ejemplo de carga manual desde el SQL Editor:
@@ -235,6 +261,12 @@ Ningún sitio es "inhackeable", pero esto es lo que está aplicado y por qué (y
 - **Ninguna clave secreta vive en el repo**: `SUPABASE_ANON_KEY` y `ELEVENLABS_AGENT_ID` son identificadores públicos pensados para exponerse en el cliente (la seguridad real la da RLS del lado de Supabase, no el secreto de esas claves). La clave `service_role` de Supabase, el token de acceso de Mercado Pago y el secreto de la App de Meta **nunca deben pegarse acá** — cuando se necesiten (fases futuras), van como secreto de una función servidor (Edge Function de Supabase), nunca en el código del sitio.
 - **Webhook de voz protegido**: `supabase/functions/elevenlabs-webhook` usa la clave `service_role` (que nunca sale de Supabase) y exige un secreto propio por query string (`WEBHOOK_SECRET`, configurado con `supabase secrets set`) para aceptar una conversación — sin ese secreto, cualquier llamada se rechaza con 401.
 - **HTTPS obligatorio**: GitHub Pages sirve todo por HTTPS automáticamente.
+- **Índices y restricciones en la base**: `vehiculos` y `clientes` tienen índice por `agencia_id` (las consultas más frecuentes), y `vehiculos` valida con `CHECK` que `precio`, `km` y `valor_tabla_dnrpa` nunca sean negativos — la base rechaza esos datos inválidos aunque un bug del frontend intente insertarlos.
+- **Recuperación de contraseña propia** (ver sección arriba) — nadie necesita compartir su contraseña ni depender de un reseteo manual.
+
+**Pendiente, requiere una acción tuya en el dashboard de Supabase (no se puede resolver por código):**
+- **`rls_auto_enable()`**: el Security Advisor de Supabase la marcó como función `security definer` de ejecución pública. No es una función de este proyecto (no está en `schema.sql`) — antes de decidir si restringirla o borrarla, compartime su definición completa desde **Database → Functions** en Supabase.
+- **"Protección de contraseña filtrada" desactivada**: activala en **Authentication → Settings** — es un toggle, no se puede prender por SQL/código.
 
 **Limitaciones conocidas (por ser un sitio 100% estático en GitHub Pages):**
 - No se puede fijar `X-Frame-Options` / `frame-ancestors` por header real (GitHub Pages no permite headers custom), así que la protección contra clickjacking vía header no está disponible — el CSP vía `<meta>` tampoco puede incluir `frame-ancestors` (el navegador lo ignora ahí). Si esto llegara a importar en producción, la solución es servir el sitio detrás de Cloudflare (gratis) que sí permite agregar headers.

@@ -51,4 +51,34 @@
 
     window.location.replace("index.html");
   });
+
+  const olvideBtn = document.getElementById("olvideBtn");
+  if (olvideBtn) {
+    olvideBtn.addEventListener("click", async (e) => {
+      e.preventDefault();
+      const email = document.getElementById("email").value.trim();
+      if (!email) {
+        errorEl.textContent = "Escribí tu email arriba primero, y volvé a tocar el link.";
+        return;
+      }
+      errorEl.style.color = "";
+      errorEl.textContent = "Enviando…";
+      const sbClient = window.JARVIS_DB.getClient();
+      if (!sbClient) {
+        errorEl.textContent = "No se pudo conectar con el servidor. Intentá de nuevo en un momento.";
+        return;
+      }
+      try {
+        const { error: err } = await sbClient.auth.resetPasswordForEmail(email, {
+          redirectTo: new URL("reset-password.html", window.location.href).toString(),
+        });
+        if (err) throw err;
+        errorEl.style.color = "var(--accent)";
+        errorEl.textContent = "Listo, revisá tu email para elegir una contraseña nueva.";
+      } catch (err) {
+        errorEl.style.color = "";
+        errorEl.textContent = "No se pudo enviar el email. Probá de nuevo en un momento.";
+      }
+    });
+  }
 })();

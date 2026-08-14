@@ -34,6 +34,7 @@
       destacado: row.destacado,
       fotos: row.fotos || 0,
       carroceria: row.carroceria,
+      valor_tabla_dnrpa: row.valor_tabla_dnrpa,
     };
   }
 

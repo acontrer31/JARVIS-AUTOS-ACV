@@ -51,6 +51,13 @@ create table if not exists public.vehiculos (
 );
 alter table public.vehiculos add column if not exists carroceria text;
 alter table public.vehiculos add column if not exists valor_tabla_dnrpa numeric;
+create index if not exists vehiculos_agencia_idx on public.vehiculos (agencia_id);
+alter table public.vehiculos drop constraint if exists vehiculos_precio_check;
+alter table public.vehiculos add constraint vehiculos_precio_check check (precio is null or precio >= 0);
+alter table public.vehiculos drop constraint if exists vehiculos_km_check;
+alter table public.vehiculos add constraint vehiculos_km_check check (km is null or km >= 0);
+alter table public.vehiculos drop constraint if exists vehiculos_valor_tabla_dnrpa_check;
+alter table public.vehiculos add constraint vehiculos_valor_tabla_dnrpa_check check (valor_tabla_dnrpa is null or valor_tabla_dnrpa >= 0);
 
 -- "Memoria" del negocio: clientes y cada interacción/operación con ellos
 -- (llamada, WhatsApp, visita, venta, conversación con JARVIS, etc.), para que
@@ -64,6 +71,7 @@ create table if not exists public.clientes (
   notas text,
   creado_en timestamptz not null default now()
 );
+create index if not exists clientes_agencia_idx on public.clientes (agencia_id);
 
 create table if not exists public.interacciones (
   id uuid primary key default gen_random_uuid(),
