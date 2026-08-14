@@ -1,0 +1,32 @@
+# Roadmap JARVIS AUTO — fases del prompt de visión vs. estado real
+
+Este documento mapea las 12 fases del prompt de largo plazo del usuario contra lo que **ya existe y
+funciona hoy** en el sitio actual (producción, Alcover Automotores), para no reconstruir de cero lo
+que ya está resuelto. Se actualiza al cerrar cada fase — ver también `docs/architecture/decisiones.md`
+para el porqué de cada decisión de stack.
+
+Convención de estado: ✅ operativo en producción · 🟡 parcialmente cubierto por el stack actual · ⬜
+no iniciado.
+
+| Fase (prompt del usuario) | Estado | Qué ya existe / qué falta |
+|---|---|---|
+| **Fase 0 — Fundación** | ✅ | Este documento + `docs/architecture/decisiones.md` + scaffold `/web` (Next.js + TypeScript + Tailwind, conectado al Supabase real, probado con build y login en vivo). |
+| **Fase 1 — JARVIS CORE** | ⬜ | El sitio actual tiene un dashboard con paneles fijos + un "panel de foco central" (`abrirFoco()` en `script.js`) que ya abre módulos como overlay dinámico — es un precedente conceptual del "core + módulos emergentes", pero no un JARVIS CORE visual real. Se migra a `/web` como próximo paso, una vez el usuario confirme arrancar esta fase. |
+| **Fase 2 — Fundación de datos** | 🟡 | El esquema de Supabase (`supabase/schema.sql`) ya cubre `agencias`, `perfiles` (con roles básicos), `vehiculos`, `clientes`, `interacciones` — todo con RLS multi-tenant por `agencia_id`, activo y probado. Faltan del listado del prompt: `VehicleMedia` (hoy las fotos son archivos estáticos en `/images/<dominio>/`, no una tabla), `Dealership`/`Salesperson` como entidades separadas de `perfiles`, `FinancialInstitution`/`FinancingProduct`/`FinancingSimulation` (hoy `simular_financiacion` calcula al vuelo, no persiste nada), `Operation`, `Lead` (hoy solo existe `interacciones` genérico), `Task`, `MarketingAsset`, `AuditLog`. |
+| **Fase 3 — Sistema de vehículos** | 🟡 | La tabla `vehiculos` ya tiene marca/modelo/versión/año/km/precio/condición/motor/caja/tracción/specs/fotos/destacado/carrocería/valor_tabla_dnrpa. Faltan: estados de ciclo de vida (`DRAFT/AVAILABLE/RESERVED/...` — hoy no hay campo de estado), costo interno separado del precio de venta, videos/documentos, notas, consignación. Sin CRUD desde la UI todavía (se carga por SQL). |
+| **Fase 4 — Motor de financiación** | 🟡 | Ya existen dos motores determinísticos reales, sin inventar números: `simular_financiacion` (precio ÷ cuotas, sin interés — deja explícito que no es cotización oficial) y `calcularCostoTransferenciaDNRPA` (1% del valor tabla + arancel fijo, verificado con 3 ejemplos reales de DNRPA). Falta: tasas/CFT reales por institución financiera (depende de datos reales de MG Group, todavía no provistos), configuración de productos de financiación, plazos habilitados por producto. |
+| **Fase 5 — Clientes y CRM** | 🟡 | Tabla `clientes` (nombre/teléfono/email/notas) + `interacciones` vinculadas. Falta: perfil unificado con interés en vehículo/presupuesto/preferencia de financiación/vendedor asignado/estado de lead, y la recuperación por lenguaje natural ("mostrame el perfil de Carlos") — hoy la voz solo tiene herramientas de inventario/financiación/DNRPA, no de clientes. |
+| **Fase 6 — Sistema de voz** | ✅ (con matices) | ElevenLabs Conversational AI ya operativo en producción, con máquina de estados de activación (STANDBY/ACTIVACIÓN/CONVERSACIÓN/FINALIZACIÓN), detección de aplauso y wake-word ("Jarvis"/"Hola Jarvis") client-side con Web Audio API + SpeechRecognition del navegador, y gate de autorización para acciones sensibles (`requiereSesionJarvis()` — deja explícito que NO es verificación de identidad por voz). No hay capa de abstracción de proveedor todavía (está acoplado a ElevenLabs directamente) ni STT local (Whisper/openWakeWord) — diferido, ver decisiones de arquitectura. |
+| **Fase 7 — Orquestación de herramientas** | 🟡 | 3 client tools reales registradas en el widget de ElevenLabs: `consultar_inventario`, `simular_financiacion`, `estimar_transferencia_dnrpa` — todas devuelven datos reales o avisan explícitamente cuando falta información, nunca inventan. Sin capa de confirmación explícita para acciones destructivas (no hay ninguna todavía, todas las herramientas actuales son de solo lectura/cálculo). |
+| **Fase 8 — Comunicaciones** | ⬜ | No iniciado. Mencionado por el usuario como objetivo futuro (WhatsApp multi-número, redes sociales) pero sin especificar en detalle todavía. |
+| **Fase 9 — Marketing** | ⬜ | No iniciado. |
+| **Fase 10 — Conocimiento** | ⬜ | No iniciado. Hoy la única "fuente de verdad" externa son los 3 links directos (DNRPA/InfoAuto/MG Group) en Configuración — sin ingesta ni indexación real. |
+| **Fase 11 — Automatización** | ⬜ | No iniciado. La única automatización real hoy es la Edge Function que captura conversaciones de voz automáticamente (`supabase/functions/elevenlabs-webhook`) — no hay n8n ni workflows configurables. |
+| **Fase 12 — Seguridad** | 🟡 | RLS multi-tenant activo y probado; `mi_agencia_id()` restringida a rol `authenticated`; secretos nunca commiteados (verificado explícitamente en cada fase). Faltan: RBAC más allá de "pertenece a una agencia" (sin roles admin/vendedor diferenciados), audit log real, rate limiting, y dos ítems ya detectados y pendientes de que el usuario resuelva: la función `rls_auto_enable()` marcada por el Security Advisor de Supabase (no autorada por este proyecto, pendiente de que el usuario comparta su definición) y el toggle de "protección de contraseña filtrada" (acción manual en el dashboard de Supabase). |
+
+## Próximo paso
+
+Con la Fase 0 cerrada, la Fase 1 (JARVIS CORE) es la siguiente candidata natural: es la que más
+impacto visual/UX tiene y la que habilita migrar de a poco el resto de pantallas. Se planifica aparte,
+como su propia fase, cuando el usuario confirme arrancarla — no se empieza automáticamente, siguiendo
+la regla acordada de "no pasar a la fase siguiente hasta cerrar la actual".
