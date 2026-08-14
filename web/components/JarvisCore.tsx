@@ -11,22 +11,29 @@ const ETIQUETA_ESTADO: Record<EstadoJarvis, string> = {
   error: "ERROR",
 };
 
-// Recreación fiel del isologo real (círculo con anillo dorado, relleno verde
+// Recreación del isologo real (círculo con anillo dorado, relleno verde
 // inglés oscuro, letras "AA" en blanco cálido) mientras el usuario sube el
 // archivo de imagen real — apenas lo suba, este SVG se reemplaza por la
 // imagen real en <img>, sin tocar el resto del componente.
+// Nota: no tengo la fuente exacta del logo original (solo vi la imagen, no
+// un archivo de fuente/vector), así que esto es una aproximación — cada "A"
+// bien gruesa (font-weight 900) e inclinada (skewX) para imitar el efecto
+// dinámico de las letras del original, no una réplica exacta del tipo.
 function LogoCore() {
   return (
     <svg viewBox="0 0 100 100" className="h-full w-full" role="img" aria-label="Isologo Alcover Automotores">
       <circle cx="50" cy="50" r="47" fill="var(--verde-core)" stroke="var(--dorado)" strokeWidth="4" />
       <text
         x="50"
-        y="58"
+        y="60"
         textAnchor="middle"
-        fontSize="34"
-        fontWeight="700"
+        fontSize="38"
+        fontWeight="900"
         fill="var(--core-text)"
         fontFamily="var(--font-sans, sans-serif)"
+        letterSpacing="-2"
+        transform="skewX(-10)"
+        style={{ transformOrigin: "50px 50px" }}
       >
         AA
       </text>
