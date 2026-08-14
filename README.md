@@ -263,9 +263,9 @@ Ningún sitio es "inhackeable", pero esto es lo que está aplicado y por qué (y
 - **HTTPS obligatorio**: GitHub Pages sirve todo por HTTPS automáticamente.
 - **Índices y restricciones en la base**: `vehiculos` y `clientes` tienen índice por `agencia_id` (las consultas más frecuentes), y `vehiculos` valida con `CHECK` que `precio`, `km` y `valor_tabla_dnrpa` nunca sean negativos — la base rechaza esos datos inválidos aunque un bug del frontend intente insertarlos.
 - **Recuperación de contraseña propia** (ver sección arriba) — nadie necesita compartir su contraseña ni depender de un reseteo manual.
+- **`rls_auto_enable()` revisada y cerrada**: es un event trigger que trae Supabase (no es una función de este proyecto) — se dispara solo al crear una tabla nueva en `public` y le prende RLS automáticamente, como red de seguridad extra. El Security Advisor la marcaba como "security definer ejecutable públicamente", pero al devolver `event_trigger` Postgres no permite invocarla directo como una función cualquiera. Igual, como buena práctica, se le sacó el permiso de ejecución público: `revoke execute on function public.rls_auto_enable() from public;` (ya corrido en el proyecto real).
 
 **Pendiente, requiere una acción tuya en el dashboard de Supabase (no se puede resolver por código):**
-- **`rls_auto_enable()`**: el Security Advisor de Supabase la marcó como función `security definer` de ejecución pública. No es una función de este proyecto (no está en `schema.sql`) — antes de decidir si restringirla o borrarla, compartime su definición completa desde **Database → Functions** en Supabase.
 - **"Protección de contraseña filtrada" desactivada**: activala en **Authentication → Settings** — es un toggle, no se puede prender por SQL/código.
 
 **Limitaciones conocidas (por ser un sitio 100% estático en GitHub Pages):**
