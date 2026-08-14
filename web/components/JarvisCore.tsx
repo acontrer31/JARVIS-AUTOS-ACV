@@ -33,7 +33,13 @@ function normalizar(texto: string): string {
 // resto del componente.
 function LogoCore() {
   return (
-    <svg viewBox="0 0 100 100" className="h-full w-full" role="img" aria-label="Isologo Alcover Automotores">
+    <svg
+      viewBox="0 0 100 100"
+      className="h-full w-full"
+      role="img"
+      aria-label="Isologo Alcover Automotores"
+      style={{ pointerEvents: "none", userSelect: "none" }}
+    >
       <circle cx="50" cy="50" r="47" fill="var(--verde-core)" stroke="var(--dorado)" strokeWidth="4" />
       <text
         x="50"
@@ -45,6 +51,7 @@ function LogoCore() {
         strokeWidth="1.6"
         strokeLinejoin="round"
         fontFamily="var(--font-plastik, sans-serif)"
+        style={{ userSelect: "none" }}
       >
         AA
       </text>
@@ -102,31 +109,36 @@ function NucleoConversacional({
 
   return (
     <>
-      <div
-        className="relative flex items-center justify-center"
-        style={{ width: "min(78vw, 60vh, 30rem)", height: "min(78vw, 60vh, 30rem)" }}
+      <button
+        type="button"
+        onClick={alternarConversacion}
+        className="flex flex-col items-center gap-1 select-none"
+        style={{ WebkitTouchCallout: "none", WebkitUserSelect: "none", userSelect: "none" }}
       >
         <div
-          className="absolute inset-0 rounded-full border-2 border-dashed"
-          style={{
-            borderColor: "var(--dorado)",
-            opacity: 0.55,
-            animation: `girar ${conversacion.mode === "speaking" ? 3 : 14}s linear infinite`,
-          }}
-        />
-        <div
-          className="absolute inset-4 rounded-full"
-          style={{
-            boxShadow: `0 0 60px 10px color-mix(in srgb, var(--dorado) ${conectado ? 55 : 35}%, transparent)`,
-            transition: "box-shadow 0.4s ease",
-          }}
-        />
-        <div className="absolute inset-8 animate-[girar_22s_linear_infinite_reverse]">
-          <LogoCore />
+          className="relative flex items-center justify-center"
+          style={{ width: "min(78vw, 60vh, 30rem)", height: "min(78vw, 60vh, 30rem)" }}
+        >
+          <div
+            className="absolute inset-0 rounded-full border-2 border-dashed"
+            style={{
+              borderColor: "var(--dorado)",
+              opacity: 0.55,
+              animation: `girar ${conversacion.mode === "speaking" ? 3 : 14}s linear infinite`,
+            }}
+          />
+          <div
+            className="absolute inset-4 rounded-full"
+            style={{
+              boxShadow: `0 0 60px 10px color-mix(in srgb, var(--dorado) ${conectado ? 55 : 35}%, transparent)`,
+              transition: "box-shadow 0.4s ease",
+            }}
+          />
+          <div className="absolute inset-8 animate-[girar_22s_linear_infinite_reverse]">
+            <LogoCore />
+          </div>
         </div>
-      </div>
 
-      <button type="button" onClick={alternarConversacion} className="flex flex-col items-center gap-1">
         <p className="text-xs tracking-[0.3em]" style={{ color: "var(--muted)" }}>
           {ETIQUETA_ESTADO[estadoActual]}
         </p>
