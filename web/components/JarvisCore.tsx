@@ -266,7 +266,7 @@ export default function JarvisCore({
 
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-8 py-6">
-      <ConversationProvider agentId={AGENT_ID} connectionType="webrtc" clientTools={clientTools}>
+      <ConversationProvider agentId={AGENT_ID} connectionType="websocket" clientTools={clientTools}>
         <NucleoConversacional
           moduloActivo={moduloActivo}
           modulosVisibles={modulosVisibles}
