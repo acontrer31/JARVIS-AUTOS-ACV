@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Script from "next/script";
+import localFont from "next/font/local";
 import { Geist, Geist_Mono } from "next/font/google";
 import TemaHorario from "@/components/TemaHorario";
 import "./globals.css";
@@ -12,6 +13,17 @@ const geistSans = Geist({
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+});
+
+// Fuente real del isologo (Plastik Italique, licencia GPL v2 vía Font
+// Library — ver app/fonts/LICENSE-Plastik.txt), usada solo en el "AA" del
+// core, no en el resto del sitio.
+const plastik = localFont({
+  src: [
+    { path: "./fonts/Plastik-Italique.woff", weight: "400", style: "italic" },
+  ],
+  variable: "--font-plastik",
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -41,7 +53,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="es"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${plastik.variable} h-full antialiased`}
       suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col font-sans">

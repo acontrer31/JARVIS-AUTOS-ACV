@@ -12,28 +12,26 @@ const ETIQUETA_ESTADO: Record<EstadoJarvis, string> = {
 };
 
 // Recreación del isologo real (círculo con anillo dorado, relleno verde
-// inglés oscuro, letras "AA" en blanco cálido) mientras el usuario sube el
-// archivo de imagen real — apenas lo suba, este SVG se reemplaza por la
-// imagen real en <img>, sin tocar el resto del componente.
-// Nota: no tengo la fuente exacta del logo original (solo vi la imagen, no
-// un archivo de fuente/vector), así que esto es una aproximación — cada "A"
-// bien gruesa (font-weight 900) e inclinada (skewX) para imitar el efecto
-// dinámico de las letras del original, no una réplica exacta del tipo.
+// inglés oscuro, letras "AA" en Plastik Italique — la tipografía real del
+// logo, licencia GPL v2, ver web/app/fonts/LICENSE-Plastik.txt) mientras el
+// usuario sube el archivo de imagen real del isologo completo — apenas lo
+// suba, este SVG se reemplaza por la imagen real en <img>, sin tocar el
+// resto del componente.
 function LogoCore() {
   return (
     <svg viewBox="0 0 100 100" className="h-full w-full" role="img" aria-label="Isologo Alcover Automotores">
       <circle cx="50" cy="50" r="47" fill="var(--verde-core)" stroke="var(--dorado)" strokeWidth="4" />
       <text
         x="50"
-        y="60"
+        y="61"
         textAnchor="middle"
-        fontSize="38"
-        fontWeight="900"
+        fontSize="40"
         fill="var(--core-text)"
-        fontFamily="var(--font-sans, sans-serif)"
-        letterSpacing="-2"
-        transform="skewX(-10)"
-        style={{ transformOrigin: "50px 50px" }}
+        stroke="var(--core-text)"
+        strokeWidth="1.6"
+        strokeLinejoin="round"
+        fontFamily="var(--font-plastik, sans-serif)"
+        fontStyle="italic"
       >
         AA
       </text>
