@@ -101,7 +101,17 @@ function NucleoConversacional({
     }
     try {
       await navigator.mediaDevices.getUserMedia({ audio: true });
-      conversacion.startSession();
+      // El agente exige autenticación para conectarse directo — pedimos una
+      // URL firmada de un solo uso al servidor (que sí tiene la clave
+      // secreta) en vez de conectar con el agentId público a secas.
+      const respuesta = await fetch("/api/elevenlabs-signed-url");
+      const datos = await respuesta.json();
+      if (!respuesta.ok || !datos.signedUrl) {
+        console.error("No se pudo obtener la URL firmada:", datos.error);
+        onCambiarEstado("error");
+        return;
+      }
+      conversacion.startSession({ signedUrl: datos.signedUrl });
     } catch {
       onCambiarEstado("error");
     }
