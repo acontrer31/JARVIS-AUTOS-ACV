@@ -11,7 +11,7 @@ no iniciado.
 | Fase (prompt del usuario) | Estado | Qué ya existe / qué falta |
 |---|---|---|
 | **Fase 0 — Fundación** | ✅ | Este documento + `docs/architecture/decisiones.md` + scaffold `/web` (Next.js + TypeScript + Tailwind, conectado al Supabase real, probado con build y login en vivo). |
-| **Fase 1 — JARVIS CORE** | ⬜ | El sitio actual tiene un dashboard con paneles fijos + un "panel de foco central" (`abrirFoco()` en `script.js`) que ya abre módulos como overlay dinámico — es un precedente conceptual del "core + módulos emergentes", pero no un JARVIS CORE visual real. Se migra a `/web` como próximo paso, una vez el usuario confirme arrancar esta fase. |
+| **Fase 1 — JARVIS CORE** | 🟡 en curso | Construido en `/web`: núcleo visual grande con el isologo real (colores + tipografía Plastik real, licencia GPL v2) girando en el centro, estados STANDBY/ESCUCHANDO/RESPONDIENDO/ERROR reales (no simulados), y los 13 módulos ocultos por defecto — solo aparecen si se piden por voz. La voz es **conversación real con ElevenLabs** (no reconocimiento de comandos simple), integrada vía `@elevenlabs/react` con URL de conexión firmada desde el servidor (`app/api/elevenlabs-signed-url`, usa `ELEVENLABS_API_KEY` server-only). Vehículos y Financiación abren workspace con datos reales de Supabase; el resto de módulos avisa "próximamente". Desplegado en Vercel. Falta: confirmar en vivo con el usuario que la conexión de voz firma y conecta bien (no se pudo probar el llamado real a la API de ElevenLabs desde este entorno de desarrollo, con acceso de red restringido); subir el archivo real del isologo (hoy es una recreación fiel en SVG); migrar el resto de pantallas (Clientes, Configuración, etc.) que siguen solo en el sitio estático. |
 | **Fase 2 — Fundación de datos** | 🟡 | El esquema de Supabase (`supabase/schema.sql`) ya cubre `agencias`, `perfiles` (con roles básicos), `vehiculos`, `clientes`, `interacciones` — todo con RLS multi-tenant por `agencia_id`, activo y probado. Faltan del listado del prompt: `VehicleMedia` (hoy las fotos son archivos estáticos en `/images/<dominio>/`, no una tabla), `Dealership`/`Salesperson` como entidades separadas de `perfiles`, `FinancialInstitution`/`FinancingProduct`/`FinancingSimulation` (hoy `simular_financiacion` calcula al vuelo, no persiste nada), `Operation`, `Lead` (hoy solo existe `interacciones` genérico), `Task`, `MarketingAsset`, `AuditLog`. |
 | **Fase 3 — Sistema de vehículos** | 🟡 | La tabla `vehiculos` ya tiene marca/modelo/versión/año/km/precio/condición/motor/caja/tracción/specs/fotos/destacado/carrocería/valor_tabla_dnrpa. Faltan: estados de ciclo de vida (`DRAFT/AVAILABLE/RESERVED/...` — hoy no hay campo de estado), costo interno separado del precio de venta, videos/documentos, notas, consignación. Sin CRUD desde la UI todavía (se carga por SQL). |
 | **Fase 4 — Motor de financiación** | 🟡 | Ya existen dos motores determinísticos reales, sin inventar números: `simular_financiacion` (precio ÷ cuotas, sin interés — deja explícito que no es cotización oficial) y `calcularCostoTransferenciaDNRPA` (1% del valor tabla + arancel fijo, verificado con 3 ejemplos reales de DNRPA). Falta: tasas/CFT reales por institución financiera (depende de datos reales de MG Group, todavía no provistos), configuración de productos de financiación, plazos habilitados por producto. |
@@ -26,7 +26,7 @@ no iniciado.
 
 ## Próximo paso
 
-Con la Fase 0 cerrada, la Fase 1 (JARVIS CORE) es la siguiente candidata natural: es la que más
-impacto visual/UX tiene y la que habilita migrar de a poco el resto de pantallas. Se planifica aparte,
-como su propia fase, cuando el usuario confirme arrancarla — no se empieza automáticamente, siguiendo
-la regla acordada de "no pasar a la fase siguiente hasta cerrar la actual".
+Fase 1 (JARVIS CORE) está en curso: falta confirmar en vivo con el usuario que la conversación de voz
+conecta bien en producción (Vercel), subir el isologo real, y decidir si se migran más pantallas del
+sitio estático a `/web` antes de dar la fase por cerrada — siguiendo la regla acordada de "no pasar a
+la fase siguiente hasta cerrar la actual".
