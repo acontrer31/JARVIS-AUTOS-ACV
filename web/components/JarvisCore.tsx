@@ -78,10 +78,18 @@ function NucleoConversacional({
 }) {
   const conversacion = useConversation();
   const conectado = conversacion.status === "connected";
+  // El SDK (conversacion.status) solo sabe de errores DESPUÉS de que
+  // startSession() arranca. Los pasos previos (permiso de micrófono, pedir
+  // la URL firmada) son nuestros y pueden fallar antes de eso — si no se
+  // reflejan acá, la pantalla se queda pegada en "STANDBY" sin avisar nada,
+  // que es exactamente el bug que reportó el usuario.
+  const [errorLocal, setErrorLocal] = useState<string | null>(null);
+  const [conectando, setConectando] = useState(false);
+
   const estadoActual: EstadoJarvis =
-    conversacion.status === "error"
+    errorLocal || conversacion.status === "error"
       ? "error"
-      : conversacion.status === "connecting"
+      : conectando || conversacion.status === "connecting"
         ? "activando"
         : conectado
           ? conversacion.mode === "speaking"
@@ -99,6 +107,8 @@ function NucleoConversacional({
       conversacion.endSession();
       return;
     }
+    setErrorLocal(null);
+    setConectando(true);
     try {
       await navigator.mediaDevices.getUserMedia({ audio: true });
       // El agente exige autenticación para conectarse directo — pedimos una
@@ -107,13 +117,18 @@ function NucleoConversacional({
       const respuesta = await fetch("/api/elevenlabs-signed-url");
       const datos = await respuesta.json();
       if (!respuesta.ok || !datos.signedUrl) {
-        console.error("No se pudo obtener la URL firmada:", datos.error);
-        onCambiarEstado("error");
+        setErrorLocal(datos.error || "No se pudo conectar con JARVIS. Probá de nuevo.");
         return;
       }
-      conversacion.startSession({ signedUrl: datos.signedUrl });
-    } catch {
-      onCambiarEstado("error");
+      await conversacion.startSession({ signedUrl: datos.signedUrl });
+    } catch (err) {
+      setErrorLocal(
+        err instanceof DOMException && err.name === "NotAllowedError"
+          ? "No se pudo usar el micrófono — revisá los permisos del navegador para este sitio."
+          : "No se pudo conectar con JARVIS. Probá de nuevo."
+      );
+    } finally {
+      setConectando(false);
     }
   }
 
@@ -158,9 +173,9 @@ function NucleoConversacional({
         </p>
       </button>
 
-      {conversacion.message && conversacion.status === "error" && (
+      {(errorLocal || (conversacion.message && conversacion.status === "error")) && (
         <p className="max-w-xs text-center text-xs" style={{ color: "var(--muted)" }}>
-          {conversacion.message}
+          {errorLocal || conversacion.message}
         </p>
       )}
 
