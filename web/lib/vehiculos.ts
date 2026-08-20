@@ -10,22 +10,116 @@ export interface Vehiculo {
   anio: number | null;
   km: number | null;
   es_cero: boolean;
+  dominio: string | null;
   precio: number | null;
   condicion: string | null;
+  motor: string | null;
+  caja: string | null;
+  traccion: string | null;
+  carroceria: string | null;
+  specs: string[];
   destacado: boolean;
+  estado: EstadoVehiculo;
+  costo_interno: number | null;
+  notas: string | null;
   valor_tabla_dnrpa: number | null;
 }
+
+// Mismos valores que el check `vehiculos_estado_check` en el esquema — si acá
+// hubiera uno de más, Postgres rechazaría el guardado.
+export const ESTADOS = ["borrador", "disponible", "reservado", "vendido", "no_disponible"] as const;
+export type EstadoVehiculo = (typeof ESTADOS)[number];
+
+export const ETIQUETA_ESTADO: Record<EstadoVehiculo, string> = {
+  borrador: "Borrador",
+  disponible: "Disponible",
+  reservado: "Reservado",
+  vendido: "Vendido",
+  no_disponible: "No disponible",
+};
+
+// Lo que se manda al insertar/actualizar: todo menos el id (que lo genera la
+// base) y la agencia (que se resuelve del perfil logueado, no la elige la UI).
+export type VehiculoInput = Omit<Vehiculo, "id">;
+
+const COLUMNAS =
+  "id, marca, modelo, version, anio, km, es_cero, dominio, precio, condicion, motor, caja, traccion, carroceria, specs, destacado, estado, costo_interno, notas, valor_tabla_dnrpa";
 
 export async function cargarVehiculos(): Promise<Vehiculo[]> {
   const { data, error } = await supabase
     .from("vehiculos")
-    .select("id, marca, modelo, version, anio, km, es_cero, precio, condicion, destacado, valor_tabla_dnrpa")
+    .select(COLUMNAS)
     .order("precio", { ascending: false });
   if (error) throw error;
-  return data ?? [];
+  return (data ?? []) as unknown as Vehiculo[];
 }
 
-export function nombreVehiculo(v: Vehiculo): string {
+// La agencia no se elige desde la UI: sale del perfil del usuario logueado.
+// La política RLS "editar vehiculos de mi agencia" exige que el agencia_id del
+// insert coincida con public.mi_agencia_id(), así que mandar otro valor no
+// abriría datos ajenos — la base lo rechazaría igual.
+export async function miAgenciaId(): Promise<string> {
+  const { data, error } = await supabase.from("perfiles").select("agencia_id").single();
+  if (error) throw error;
+  return data.agencia_id as string;
+}
+
+export async function crearVehiculo(datos: VehiculoInput): Promise<Vehiculo> {
+  const agencia_id = await miAgenciaId();
+  const { data, error } = await supabase
+    .from("vehiculos")
+    .insert({ ...datos, agencia_id })
+    .select(COLUMNAS)
+    .single();
+  if (error) throw error;
+  return data as unknown as Vehiculo;
+}
+
+export async function actualizarVehiculo(id: string, datos: Partial<VehiculoInput>): Promise<Vehiculo> {
+  const { data, error } = await supabase
+    .from("vehiculos")
+    .update(datos)
+    .eq("id", id)
+    .select(COLUMNAS)
+    .single();
+  if (error) throw error;
+  return data as unknown as Vehiculo;
+}
+
+export async function cambiarEstado(id: string, estado: EstadoVehiculo): Promise<Vehiculo> {
+  return actualizarVehiculo(id, { estado });
+}
+
+export async function eliminarVehiculo(id: string): Promise<void> {
+  const { error } = await supabase.from("vehiculos").delete().eq("id", id);
+  if (error) throw error;
+}
+
+export function vehiculoVacio(): VehiculoInput {
+  return {
+    marca: "",
+    modelo: "",
+    version: null,
+    anio: null,
+    km: null,
+    es_cero: false,
+    dominio: null,
+    precio: null,
+    condicion: null,
+    motor: null,
+    caja: null,
+    traccion: null,
+    carroceria: null,
+    specs: [],
+    destacado: false,
+    estado: "borrador",
+    costo_interno: null,
+    notas: null,
+    valor_tabla_dnrpa: null,
+  };
+}
+
+export function nombreVehiculo(v: Pick<Vehiculo, "marca" | "modelo" | "version">): string {
   return [v.marca, v.modelo, v.version].filter(Boolean).join(" ");
 }
 

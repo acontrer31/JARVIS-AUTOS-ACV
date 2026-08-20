@@ -149,6 +149,116 @@ create policy "interacciones de mi agencia" on public.interacciones
   for all using (agencia_id = public.mi_agencia_id())
   with check (agencia_id = public.mi_agencia_id());
 
+-- ============================================================
+-- Fase 2 · Ciclo de vida de vehículos, medios, leads y operaciones
+-- Agregado después de las tablas base: mismo patrón idempotente
+-- (add column if not exists / create table if not exists), misma
+-- estrategia de RLS por agencia_id vía public.mi_agencia_id().
+-- Se puede correr sobre una base que ya tiene datos: las columnas
+-- nuevas toman su default y no se pierde nada del stock cargado.
+-- ============================================================
+
+-- ---------- Vehículos: ciclo de vida, costo interno y notas ----------
+
+-- 'disponible' por default para que los vehículos ya cargados sigan
+-- apareciendo exactamente igual que hoy en el sitio estático en
+-- producción, sin necesidad de ninguna migración manual.
+alter table public.vehiculos add column if not exists estado text not null default 'disponible';
+-- Costo interno separado del precio de venta: lo que le costó a la
+-- agencia. Nunca se muestra al público, solo en la gestión interna.
+alter table public.vehiculos add column if not exists costo_interno numeric;
+alter table public.vehiculos add column if not exists notas text;
+
+alter table public.vehiculos drop constraint if exists vehiculos_estado_check;
+alter table public.vehiculos add constraint vehiculos_estado_check
+  check (estado in ('borrador', 'disponible', 'reservado', 'vendido', 'no_disponible'));
+alter table public.vehiculos drop constraint if exists vehiculos_costo_interno_check;
+alter table public.vehiculos add constraint vehiculos_costo_interno_check
+  check (costo_interno is null or costo_interno >= 0);
+
+create index if not exists vehiculos_estado_idx on public.vehiculos (agencia_id, estado);
+
+-- ---------- Medios por vehículo (fotos, videos, documentos) ----------
+
+-- Reemplaza a futuro el esquema actual de fotos: archivos estáticos en
+-- /images/<dominio>/ contados en la columna vehiculos.fotos. Esa columna
+-- NO se elimina todavía porque el sitio estático en producción la usa —
+-- la migración se hace cuando exista el bucket de Storage (ver
+-- docs/phases/pendientes.md, punto 7).
+create table if not exists public.vehiculo_media (
+  id uuid primary key default gen_random_uuid(),
+  agencia_id uuid not null references public.agencias (id) on delete cascade,
+  vehiculo_id uuid not null references public.vehiculos (id) on delete cascade,
+  tipo text not null default 'foto',  -- 'foto' | 'video' | 'documento'
+  url text not null,
+  orden int not null default 0,       -- para ordenar la galería
+  creado_en timestamptz not null default now()
+);
+alter table public.vehiculo_media drop constraint if exists vehiculo_media_tipo_check;
+alter table public.vehiculo_media add constraint vehiculo_media_tipo_check
+  check (tipo in ('foto', 'video', 'documento'));
+create index if not exists vehiculo_media_vehiculo_idx on public.vehiculo_media (vehiculo_id, orden);
+
+-- ---------- Clientes: campos de lead (Fase 5) ----------
+
+-- Nota: no existe una tabla `leads` separada a propósito. Un lead es un
+-- cliente en una etapa del embudo, no otra entidad — desdoblarlo obligaría
+-- a sincronizar dos tablas con los mismos datos. Se modela como estado
+-- sobre `clientes`, que ya tiene su historial en `interacciones`.
+alter table public.clientes add column if not exists estado_lead text not null default 'nuevo';
+alter table public.clientes add column if not exists vehiculo_interes_id uuid references public.vehiculos (id) on delete set null;
+alter table public.clientes add column if not exists presupuesto numeric;
+alter table public.clientes add column if not exists vendedor_id uuid references public.perfiles (id) on delete set null;
+
+alter table public.clientes drop constraint if exists clientes_estado_lead_check;
+alter table public.clientes add constraint clientes_estado_lead_check
+  check (estado_lead in ('nuevo', 'contactado', 'en_negociacion', 'ganado', 'perdido'));
+alter table public.clientes drop constraint if exists clientes_presupuesto_check;
+alter table public.clientes add constraint clientes_presupuesto_check
+  check (presupuesto is null or presupuesto >= 0);
+create index if not exists clientes_estado_lead_idx on public.clientes (agencia_id, estado_lead);
+
+-- ---------- Operaciones (venta / reserva / permuta / consignación) ----------
+
+create table if not exists public.operaciones (
+  id uuid primary key default gen_random_uuid(),
+  agencia_id uuid not null references public.agencias (id) on delete cascade,
+  vehiculo_id uuid references public.vehiculos (id) on delete set null,
+  cliente_id uuid references public.clientes (id) on delete set null,
+  vendedor_id uuid references public.perfiles (id) on delete set null,
+  tipo text not null default 'venta',      -- 'venta' | 'reserva' | 'permuta' | 'consignacion'
+  estado text not null default 'abierta',  -- 'abierta' | 'cerrada' | 'cancelada'
+  monto numeric,
+  notas text,
+  creado_en timestamptz not null default now()
+);
+alter table public.operaciones drop constraint if exists operaciones_tipo_check;
+alter table public.operaciones add constraint operaciones_tipo_check
+  check (tipo in ('venta', 'reserva', 'permuta', 'consignacion'));
+alter table public.operaciones drop constraint if exists operaciones_estado_check;
+alter table public.operaciones add constraint operaciones_estado_check
+  check (estado in ('abierta', 'cerrada', 'cancelada'));
+alter table public.operaciones drop constraint if exists operaciones_monto_check;
+alter table public.operaciones add constraint operaciones_monto_check
+  check (monto is null or monto >= 0);
+create index if not exists operaciones_agencia_idx on public.operaciones (agencia_id, creado_en desc);
+create index if not exists operaciones_vehiculo_idx on public.operaciones (vehiculo_id);
+
+-- ---------- RLS de las tablas nuevas ----------
+
+alter table public.vehiculo_media enable row level security;
+alter table public.operaciones enable row level security;
+
+drop policy if exists "media de mi agencia" on public.vehiculo_media;
+create policy "media de mi agencia" on public.vehiculo_media
+  for all using (agencia_id = public.mi_agencia_id())
+  with check (agencia_id = public.mi_agencia_id());
+
+drop policy if exists "operaciones de mi agencia" on public.operaciones;
+create policy "operaciones de mi agencia" on public.operaciones
+  for all using (agencia_id = public.mi_agencia_id())
+  with check (agencia_id = public.mi_agencia_id());
+
 -- ---------- Seed: Alcover Automotores + catálogo real de 32 vehículos ----------
 -- (Migrado desde data.js — ver commit "Actualiza catálogo con datos reales de la lista de precios")
 

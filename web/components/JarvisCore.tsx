@@ -299,6 +299,18 @@ export default function JarvisCore({
           onCambiarEstado={onCambiarEstado}
         />
       </ConversationProvider>
+      {/* Los módulos siguen ocultos por defecto (el core limpio es el estado
+          normal), pero abrirlos no puede depender SOLO de la voz: si el
+          proveedor de voz falla o se queda sin cuota, el sistema entero
+          quedaría inalcanzable. Este acceso discreto es la vía manual. */}
+      <button
+        type="button"
+        onClick={() => setModulosVisibles((v) => !v)}
+        className="text-[0.65rem] uppercase tracking-[0.3em] transition-opacity hover:opacity-100"
+        style={{ color: "var(--muted)", opacity: 0.55 }}
+      >
+        {modulosVisibles ? "ocultar módulos" : "módulos"}
+      </button>
       <style>{`
         @keyframes girar { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
       `}</style>
