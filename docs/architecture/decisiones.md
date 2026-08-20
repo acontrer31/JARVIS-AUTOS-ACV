@@ -47,6 +47,24 @@ monorepo.
 - `/web` todavía no tiene ninguna pantalla de producto — ver `docs/phases/roadmap.md` para el plan de
   qué se migra y cuándo.
 
+## Fuente de verdad del stock: Jarvis, no el sitio público
+
+La agencia tiene además un sitio público propio (`alcoverautomotores.com.ar`), separado de este repo, con
+su catálogo de vehículos.
+
+Decidido con el usuario en agosto de 2026: **la fuente de verdad es Supabase, a través del CRUD de Jarvis**
+(Fase 3). El sitio público se importa **una sola vez** para completar lo que falte en la base — vehículos
+no cargados, fotos, cuáles ya se vendieron — y de ahí en adelante el stock se carga y edita en Jarvis.
+
+Por qué no una sincronización permanente desde el sitio: sería invertir la dirección del proyecto. El
+usuario seguiría cargando en el sitio viejo, Jarvis solo copiaría, y **cada edición hecha en el CRUD se
+pisaría con la próxima importación** — el CRUD quedaría de adorno. Además obligaría a un servidor o cron
+que corra la sincronización, infraestructura que hoy no existe (ver la tabla de diferidos más arriba).
+
+Dirección de largo plazo: que el sitio público pase a leer de Supabase, como ya lo hace el dashboard
+estático de este repo vía `db.js`. Ahí el catálogo público se actualiza solo al cargar un auto en Jarvis,
+sin importaciones ni sincronizaciones de ningún tipo.
+
 ## Seguridad
 
 - Ningún secreto se commitea. `web/.env.local` (con las claves reales) está gitignoreado; solo

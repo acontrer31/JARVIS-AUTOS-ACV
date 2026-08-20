@@ -120,3 +120,31 @@ No es un bloqueo externo, es una decisión de diseño que queda anotada acá par
 
 Se crean cuando arranque su fase, con un consumidor real. Crearlas ahora sin nadie que las use contradice
 la regla de "no sobre-ingeniería" ya escrita en `docs/architecture/decisiones.md`.
+
+---
+
+## 9. Importación del sitio público — bloqueada por la política de red del entorno
+
+El usuario pidió traer los datos actualizados de vehículos (disponibles, vendidos, fotos, etc.) desde el
+sitio público de la agencia: **https://alcoverautomotores.com.ar/**
+
+**Decisión tomada** (ver `docs/architecture/decisiones.md` → "Fuente de verdad del stock"): es una
+importación **de una sola vez** para completar Supabase, no una sincronización permanente. Jarvis manda.
+
+**Bloqueo:** el entorno de ejecución tiene una política de red que bloquea todo salvo una lista blanca
+(npm, PyPI, GitHub, Anthropic). El dominio de la agencia responde `EGRESS_BLOCKED` desde el proxy, igual
+que Supabase y ElevenLabs. No se puede saltear desde la sesión.
+
+**Qué falta (lo hace el usuario):** editar el entorno para permitir ese dominio en la política de red
+(https://code.claude.com/docs/en/claude-code-on-the-web) y **abrir una sesión nueva** — el cambio de
+entorno no aplica a una sesión ya en curso.
+
+**Qué se hace cuando se destrabe:**
+1. Leer el catálogo del sitio y compararlo contra `vehiculos` en Supabase, usando el **dominio (patente)**
+   como clave de cruce.
+2. Reportar el diff antes de tocar nada: qué autos están en el sitio y no en la base, cuáles están en la
+   base y ya no en el sitio (candidatos a `vendido`), y qué precios difieren.
+3. Recién con el diff a la vista, aplicar los cambios.
+
+**Limitación conocida:** las fotos que se traigan no se van a poder guardar en `vehiculo_media` hasta que
+exista el bucket de Storage (pendiente #7 de este mismo documento). Los datos de texto y precio sí.
