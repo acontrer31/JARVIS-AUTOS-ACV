@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabase";
+import { miAgenciaId, supabase } from "@/lib/supabase";
 
 // Mismos campos que supabase/schema.sql -> public.vehiculos, sin inventar
 // columnas nuevas ni renombrarlas (para no divergir del esquema real).
@@ -52,16 +52,6 @@ export async function cargarVehiculos(): Promise<Vehiculo[]> {
     .order("precio", { ascending: false });
   if (error) throw error;
   return (data ?? []) as unknown as Vehiculo[];
-}
-
-// La agencia no se elige desde la UI: sale del perfil del usuario logueado.
-// La política RLS "editar vehiculos de mi agencia" exige que el agencia_id del
-// insert coincida con public.mi_agencia_id(), así que mandar otro valor no
-// abriría datos ajenos — la base lo rechazaría igual.
-export async function miAgenciaId(): Promise<string> {
-  const { data, error } = await supabase.from("perfiles").select("agencia_id").single();
-  if (error) throw error;
-  return data.agencia_id as string;
 }
 
 export async function crearVehiculo(datos: VehiculoInput): Promise<Vehiculo> {

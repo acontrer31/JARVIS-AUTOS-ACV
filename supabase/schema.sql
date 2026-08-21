@@ -259,6 +259,22 @@ create policy "operaciones de mi agencia" on public.operaciones
   for all using (agencia_id = public.mi_agencia_id())
   with check (agencia_id = public.mi_agencia_id());
 
+-- ---------- Fase 5: ver los perfiles de la propia agencia ----------
+
+-- La política "ver mi perfil" (más arriba) limita a cada usuario a su propia
+-- fila. Eso alcanzaba mientras `perfiles` solo servía para resolver a qué
+-- agencia pertenece el usuario logueado, pero rompe el CRM: el selector de
+-- "vendedor asignado" de un cliente mostraría únicamente al usuario logueado,
+-- y `clientes.vendedor_id` quedaría como una columna decorativa.
+--
+-- Esta política amplía SOLO la lectura, y solo dentro de la misma agencia —
+-- exactamente el mismo límite multi-tenant que ya rige `vehiculos`, `clientes`,
+-- `interacciones` y `operaciones`. Nadie puede ver perfiles de otra agencia, y
+-- la escritura no se toca: nadie puede modificar el perfil de otro.
+drop policy if exists "ver perfiles de mi agencia" on public.perfiles;
+create policy "ver perfiles de mi agencia" on public.perfiles
+  for select using (agencia_id = public.mi_agencia_id());
+
 -- ---------- Seed: Alcover Automotores + catálogo real de 32 vehículos ----------
 -- (Migrado desde data.js — ver commit "Actualiza catálogo con datos reales de la lista de precios")
 
