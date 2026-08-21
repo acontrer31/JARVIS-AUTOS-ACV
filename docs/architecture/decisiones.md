@@ -65,6 +65,50 @@ Dirección de largo plazo: que el sitio público pase a leer de Supabase, como y
 estático de este repo vía `db.js`. Ahí el catálogo público se actualiza solo al cargar un auto en Jarvis,
 sin importaciones ni sincronizaciones de ningún tipo.
 
+## ECC como plugin del entorno de desarrollo
+
+En agosto de 2026 el usuario pidió incorporar **ECC** (`affaan-m/ECC`, v2.2.0, licencia MIT) al proyecto:
+un plugin "harness-native" que aporta 68 agentes, 286 skills, 94 command shims y hooks reutilizables para
+Claude Code y otros entornos de agentes.
+
+**Qué es y qué no es.** ECC no es una dependencia del producto: no entra en ningún `package.json`, no lo
+ejecuta el navegador, y no cambia nada de lo que ve la agencia. Es una herramienta del *entorno de
+desarrollo* — cambia cómo se trabaja sobre este código, no qué hace el código.
+
+**Cómo está instalado.** Vía `.claude/settings.json` en la raíz del repo (`extraKnownMarketplaces` +
+`enabledPlugins`), que es el equivalente declarativo de los comandos `/plugin marketplace add` +
+`/plugin install ecc@ecc` documentados por ECC. Se eligió el archivo versionado en vez de la configuración
+personal de una máquina para que la decisión quede **visible en el diff y revisable**, en vez de escondida
+en el entorno de alguien.
+
+**Auditoría hecha antes de instalar** (sobre el volcado completo del repo, para no repetirla en el futuro):
+
+| Qué se revisó | Resultado |
+|---|---|
+| Red saliente en los 52 scripts de hooks | Ninguna llamada: ni `fetch`, ni `curl`, ni `axios`, ni DNS. El único match fue una URL dentro de un comentario. |
+| Escrituras fuera del proyecto | Solo `scripts/hooks/stop-format-typecheck.js` toca el directorio home. |
+| Hooks declarados | 23 comandos `node -e` en `PreToolUse`, `PostToolUse`, `SessionStart`, `SessionEnd`, `Stop` y `PreCompact`. |
+| Servidores MCP que agrega | `"mcpServers": {}` — ninguno. |
+| Interruptor de apagado | Sí: `hooks_enabled` (booleano) y `hook_profile` (`minimal`/`standard`/`strict`). |
+
+Que 52 scripts de terceros que corren en cada llamada a herramienta **no hagan ninguna conexión saliente**
+es el dato que hizo aceptable la instalación.
+
+**Perfil de hooks: `minimal`.** Varios hooks son opinionados y pueden chocar con el flujo de trabajo de
+este proyecto — `pre-bash-dev-server-block` (bloquea levantar servidores de desarrollo),
+`block-no-verify`, `quality-gate`, `post-edit-typecheck`. Se arranca en `minimal` y se sube solo si hace
+falta. El perfil se cambia con `/ecc:configure-ecc`, disponible después de instalar.
+
+**Los `rules` no se instalan.** Los plugins de Claude Code no pueden distribuirlos; van copiados a mano
+desde un clon del repo oficial. Se difiere hasta comprobar que ECC aporta valor real acá.
+
+**Cómo desinstalarlo:** borrar `.claude/settings.json` (o solo la entrada `enabledPlugins`). No deja nada
+más en el repo. Del lado de una instalación personal, ECC documenta `node scripts/ecc.js uninstall`.
+
+**Advertencia de escala, anotada a propósito:** 286 skills y 68 agentes es mucha maquinaria para un
+proyecto que hoy es un sitio estático más una app Next.js. Si en la práctica no se usa, sacarlo es un
+borrado de un archivo — no hay costo hundido.
+
 ## Seguridad
 
 - Ningún secreto se commitea. `web/.env.local` (con las claves reales) está gitignoreado; solo
