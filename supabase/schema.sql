@@ -275,6 +275,218 @@ drop policy if exists "ver perfiles de mi agencia" on public.perfiles;
 create policy "ver perfiles de mi agencia" on public.perfiles
   for select using (agencia_id = public.mi_agencia_id());
 
+-- ============================================================
+-- Fase 12 · RBAC (admin / vendedor) y registro de auditoría
+-- ============================================================
+
+-- ---------- Roles ----------
+
+-- `perfiles.rol` existía desde la Fase A con default 'admin', pero nunca se
+-- usó para nada: la única regla real era "pertenece a una agencia". Acá pasa a
+-- tener efecto.
+--
+-- La normalización previa evita que la restricción falle sobre datos ya
+-- cargados. Cualquier rol no reconocido se lleva a 'admin' a propósito: fallar
+-- al revés dejaría al dueño de la agencia sin permiso para administrar su
+-- propio stock, que es peor que ser permisivo con un dato viejo.
+update public.perfiles set rol = 'admin' where rol is null or rol not in ('admin', 'vendedor');
+alter table public.perfiles drop constraint if exists perfiles_rol_check;
+alter table public.perfiles add constraint perfiles_rol_check check (rol in ('admin', 'vendedor'));
+
+-- Mismo patrón que mi_agencia_id(): security definer para poder leer `perfiles`
+-- sin quedar atrapada en las propias políticas RLS de esa tabla (si no, una
+-- política sobre `perfiles` que llamara a esta función recursaría).
+create or replace function public.mi_rol()
+returns text
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select rol from public.perfiles where id = auth.uid()
+$$;
+
+revoke execute on function public.mi_rol() from public;
+grant execute on function public.mi_rol() to authenticated;
+
+-- ---------- Políticas diferenciadas por rol ----------
+
+-- Las políticas `for all` de arriba se reemplazan por políticas por comando:
+-- una sola `for all` no puede distinguir quién puede leer de quién puede
+-- borrar. IMPORTANTE: hay que borrarlas, porque varias políticas permisivas se
+-- suman entre sí (OR) — dejar la vieja anularía toda esta granularidad.
+
+-- Vehículos: todos ven y actualizan (un vendedor tiene que poder marcar un auto
+-- como reservado), pero solo un admin da de alta o elimina stock.
+drop policy if exists "editar vehiculos de mi agencia" on public.vehiculos;
+
+drop policy if exists "alta de vehiculos solo admin" on public.vehiculos;
+create policy "alta de vehiculos solo admin" on public.vehiculos
+  for insert with check (agencia_id = public.mi_agencia_id() and public.mi_rol() = 'admin');
+
+drop policy if exists "actualizar vehiculos de mi agencia" on public.vehiculos;
+create policy "actualizar vehiculos de mi agencia" on public.vehiculos
+  for update using (agencia_id = public.mi_agencia_id())
+  with check (agencia_id = public.mi_agencia_id());
+
+drop policy if exists "borrar vehiculos solo admin" on public.vehiculos;
+create policy "borrar vehiculos solo admin" on public.vehiculos
+  for delete using (agencia_id = public.mi_agencia_id() and public.mi_rol() = 'admin');
+
+-- Clientes: cualquiera de la agencia los carga y edita (es el trabajo diario de
+-- un vendedor); borrar un cliente, que se lleva puesto su historial, es de admin.
+drop policy if exists "clientes de mi agencia" on public.clientes;
+
+drop policy if exists "ver clientes de mi agencia" on public.clientes;
+create policy "ver clientes de mi agencia" on public.clientes
+  for select using (agencia_id = public.mi_agencia_id());
+
+drop policy if exists "alta de clientes de mi agencia" on public.clientes;
+create policy "alta de clientes de mi agencia" on public.clientes
+  for insert with check (agencia_id = public.mi_agencia_id());
+
+drop policy if exists "actualizar clientes de mi agencia" on public.clientes;
+create policy "actualizar clientes de mi agencia" on public.clientes
+  for update using (agencia_id = public.mi_agencia_id())
+  with check (agencia_id = public.mi_agencia_id());
+
+drop policy if exists "borrar clientes solo admin" on public.clientes;
+create policy "borrar clientes solo admin" on public.clientes
+  for delete using (agencia_id = public.mi_agencia_id() and public.mi_rol() = 'admin');
+
+-- Interacciones: son el historial del negocio. Se agregan libremente, pero
+-- editarlas o borrarlas es reescribir el pasado — queda para admin.
+drop policy if exists "interacciones de mi agencia" on public.interacciones;
+
+drop policy if exists "ver interacciones de mi agencia" on public.interacciones;
+create policy "ver interacciones de mi agencia" on public.interacciones
+  for select using (agencia_id = public.mi_agencia_id());
+
+drop policy if exists "alta de interacciones de mi agencia" on public.interacciones;
+create policy "alta de interacciones de mi agencia" on public.interacciones
+  for insert with check (agencia_id = public.mi_agencia_id());
+
+drop policy if exists "editar interacciones solo admin" on public.interacciones;
+create policy "editar interacciones solo admin" on public.interacciones
+  for update using (agencia_id = public.mi_agencia_id() and public.mi_rol() = 'admin')
+  with check (agencia_id = public.mi_agencia_id());
+
+drop policy if exists "borrar interacciones solo admin" on public.interacciones;
+create policy "borrar interacciones solo admin" on public.interacciones
+  for delete using (agencia_id = public.mi_agencia_id() and public.mi_rol() = 'admin');
+
+-- Operaciones: cargarlas y actualizarlas es trabajo de vendedor; borrar una
+-- venta registrada, no.
+drop policy if exists "operaciones de mi agencia" on public.operaciones;
+
+drop policy if exists "ver operaciones de mi agencia" on public.operaciones;
+create policy "ver operaciones de mi agencia" on public.operaciones
+  for select using (agencia_id = public.mi_agencia_id());
+
+drop policy if exists "alta de operaciones de mi agencia" on public.operaciones;
+create policy "alta de operaciones de mi agencia" on public.operaciones
+  for insert with check (agencia_id = public.mi_agencia_id());
+
+drop policy if exists "actualizar operaciones de mi agencia" on public.operaciones;
+create policy "actualizar operaciones de mi agencia" on public.operaciones
+  for update using (agencia_id = public.mi_agencia_id())
+  with check (agencia_id = public.mi_agencia_id());
+
+drop policy if exists "borrar operaciones solo admin" on public.operaciones;
+create policy "borrar operaciones solo admin" on public.operaciones
+  for delete using (agencia_id = public.mi_agencia_id() and public.mi_rol() = 'admin');
+
+-- Perfiles: un admin puede renombrar y cambiar el rol de la gente de SU agencia
+-- (es lo que hace falta para el módulo Administración). Un vendedor no puede
+-- tocar perfiles — ni el propio: si no, se auto-ascendería a admin y el rol no
+-- valdría nada.
+drop policy if exists "administrar perfiles de mi agencia" on public.perfiles;
+create policy "administrar perfiles de mi agencia" on public.perfiles
+  for update using (agencia_id = public.mi_agencia_id() and public.mi_rol() = 'admin')
+  with check (agencia_id = public.mi_agencia_id());
+
+-- ---------- Registro de auditoría ----------
+
+-- Quién cambió qué y cuándo. Deliberadamente NO tiene políticas de insert,
+-- update ni delete: desde el cliente solo se puede leer. Las filas las escribe
+-- el trigger de abajo, que es security definer y por eso puede insertar aunque
+-- el usuario no tenga permiso de escritura acá. Un log que el usuario auditado
+-- puede editar no sirve para nada.
+create table if not exists public.audit_log (
+  id bigint generated always as identity primary key,
+  agencia_id uuid not null references public.agencias (id) on delete cascade,
+  tabla text not null,
+  operacion text not null,  -- 'INSERT' | 'UPDATE' | 'DELETE'
+  registro_id uuid,
+  usuario_id uuid,          -- auth.uid() al momento del cambio (null si lo hizo un proceso)
+  datos_antes jsonb,
+  datos_despues jsonb,
+  creado_en timestamptz not null default now()
+);
+create index if not exists audit_log_agencia_idx on public.audit_log (agencia_id, creado_en desc);
+create index if not exists audit_log_registro_idx on public.audit_log (tabla, registro_id);
+
+create or replace function public.registrar_auditoria()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  antes jsonb;
+  despues jsonb;
+  agencia uuid;
+  registro uuid;
+begin
+  -- OLD y NEW no existen en todas las operaciones, así que se arma por rama en
+  -- vez de referenciarlos a ciegas.
+  if tg_op = 'INSERT' then
+    despues := to_jsonb(new);
+  elsif tg_op = 'UPDATE' then
+    antes := to_jsonb(old);
+    despues := to_jsonb(new);
+  else
+    antes := to_jsonb(old);
+  end if;
+
+  agencia := coalesce((despues ->> 'agencia_id')::uuid, (antes ->> 'agencia_id')::uuid);
+  registro := coalesce((despues ->> 'id')::uuid, (antes ->> 'id')::uuid);
+
+  insert into public.audit_log (agencia_id, tabla, operacion, registro_id, usuario_id, datos_antes, datos_despues)
+  values (agencia, tg_table_name, tg_op, registro, auth.uid(), antes, despues);
+
+  return null;  -- trigger AFTER: el valor de retorno se ignora
+end;
+$$;
+
+drop trigger if exists auditar_vehiculos on public.vehiculos;
+create trigger auditar_vehiculos
+  after insert or update or delete on public.vehiculos
+  for each row execute function public.registrar_auditoria();
+
+drop trigger if exists auditar_clientes on public.clientes;
+create trigger auditar_clientes
+  after insert or update or delete on public.clientes
+  for each row execute function public.registrar_auditoria();
+
+drop trigger if exists auditar_operaciones on public.operaciones;
+create trigger auditar_operaciones
+  after insert or update or delete on public.operaciones
+  for each row execute function public.registrar_auditoria();
+
+alter table public.audit_log enable row level security;
+
+-- Solo los admin de la agencia leen el registro. Un vendedor no tiene por qué
+-- ver el historial de cambios de toda la agencia.
+drop policy if exists "ver auditoria de mi agencia" on public.audit_log;
+create policy "ver auditoria de mi agencia" on public.audit_log
+  for select using (agencia_id = public.mi_agencia_id() and public.mi_rol() = 'admin');
+
+-- Explícito por si los privilegios por defecto del proyecto fueran más amplios:
+-- desde el cliente, el log es de solo lectura.
+revoke insert, update, delete on public.audit_log from anon, authenticated;
+grant select on public.audit_log to authenticated;
+
 -- ---------- Seed: Alcover Automotores + catálogo real de 32 vehículos ----------
 -- (Migrado desde data.js — ver commit "Actualiza catálogo con datos reales de la lista de precios")
 

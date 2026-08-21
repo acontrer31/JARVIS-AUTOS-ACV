@@ -25,7 +25,7 @@ lo destraba. Esa es la lista para ir bajando de a uno.
 | **Fase 9 — Marketing** | ⬜ | No iniciado. |
 | **Fase 10 — Conocimiento** | ⬜ | No iniciado. Hoy la única "fuente de verdad" externa son los 3 links directos (DNRPA/InfoAuto/MG Group) en Configuración — sin ingesta ni indexación real. |
 | **Fase 11 — Automatización** | 🔒 | No iniciado. n8n requiere servidor propio. La única automatización real hoy es la Edge Function que captura conversaciones de voz (`supabase/functions/elevenlabs-webhook`). |
-| **Fase 12 — Seguridad** | 🟡 | RLS multi-tenant activo y probado (incluidas las tablas nuevas de la Fase 2); `mi_agencia_id()` restringida a rol `authenticated`; secretos nunca commiteados. Faltan: RBAC más allá de "pertenece a una agencia", audit log real, rate limiting, y dos ítems 🔒 en manos del usuario — la función `rls_auto_enable()` marcada por el Security Advisor (pendientes.md #5) y el toggle de protección de contraseña filtrada (pendientes.md #6). |
+| **Fase 12 — Seguridad** | 🟡 casi | RLS multi-tenant activo y probado. **RBAC real**: `perfiles.rol` (`admin`/`vendedor`) pasó de decorativo a tener efecto, con `mi_rol()` (security definer, igual que `mi_agencia_id()`) y políticas **por comando** en lugar de las `for all` anteriores — un vendedor actualiza vehículos y carga clientes/operaciones, pero no da de alta ni elimina stock, no borra clientes ni reescribe interacciones, y no puede auto-ascenderse. **Audit log real**: tabla `audit_log` + trigger `registrar_auditoria()` sobre `vehiculos`, `clientes` y `operaciones`, que guarda quién cambió qué y cuándo (con `datos_antes`/`datos_despues`); es **inmutable desde el cliente** — no tiene políticas de escritura y los privilegios están revocados, así que ni un admin puede editarlo o borrarlo. Módulos **Seguridad** (registro de auditoría, solo admin) y **Administración** (usuarios y roles) construidos en `/web`. Todo verificado con dos usuarios reales de roles distintos contra Postgres 16. Falta: rate limiting, y dos ítems 🔒 en manos del usuario — la función `rls_auto_enable()` marcada por el Security Advisor (pendientes.md #5) y el toggle de protección de contraseña filtrada (pendientes.md #6). |
 
 ## Próximo paso
 
@@ -42,5 +42,10 @@ bloqueos de `pendientes.md`, para ir bajándolos de a uno:
 3. **Bucket de Storage** (#7) — habilita subir fotos desde el CRUD, lo último que le falta a la Fase 3.
 4. **Tasas reales de MG Group** (#4) — destraba la Fase 4.
 
-Lo único que sí se puede avanzar sin depender de nadie es la parte de **Fase 12** que no está bloqueada:
-RBAC (roles admin/vendedor diferenciados) y el `audit_log` con sus triggers.
+La parte no bloqueada de la **Fase 12** (RBAC + audit log + módulos Seguridad y Administración) ya está
+hecha. Con eso, **no queda nada más que se pueda avanzar sin destrabar alguno de los cuatro puntos de
+arriba**.
+
+Nota sobre el RBAC: hoy hay un solo usuario, y quedó como `admin` por el default de `perfiles.rol`, así
+que en la práctica nada cambia para el uso diario. El sistema de roles recién se nota cuando se sume un
+segundo usuario — se le asigna el rol desde el módulo Administración.
