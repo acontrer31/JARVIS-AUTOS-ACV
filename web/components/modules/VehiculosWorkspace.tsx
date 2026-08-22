@@ -6,10 +6,12 @@ import {
   ETIQUETA_ESTADO,
   actualizarVehiculo,
   cambiarEstado,
+  cargarCostos,
   cargarVehiculos,
   crearVehiculo,
   eliminarVehiculo,
   formatearMoneda,
+  guardarCosto,
   nombreVehiculo,
   vehiculoVacio,
   type EstadoVehiculo,
@@ -17,6 +19,7 @@ import {
   type VehiculoInput,
 } from "@/lib/vehiculos";
 import VehiculoForm from "@/components/modules/VehiculoForm";
+import { miPerfil } from "@/lib/seguridad";
 
 const COLOR_ESTADO: Record<EstadoVehiculo, string> = {
   borrador: "var(--muted)",
@@ -33,10 +36,19 @@ export default function VehiculosWorkspace() {
   const [filtroEstado, setFiltroEstado] = useState<EstadoVehiculo | "todos">("todos");
   // null = formulario cerrado · "nuevo" = alta · Vehiculo = edición
   const [editando, setEditando] = useState<Vehiculo | "nuevo" | null>(null);
+  // El costo interno solo lo ven los admin: vive en otra tabla, con su propia
+  // política RLS. Para un vendedor este objeto queda vacío.
+  const [esAdmin, setEsAdmin] = useState(false);
+  const [costos, setCostos] = useState<Record<string, number | null>>({});
 
   useEffect(() => {
     cargarVehiculos()
-      .then(setVehiculos)
+      .then(async (lista) => {
+        setVehiculos(lista);
+        const perfil = await miPerfil();
+        setEsAdmin(perfil.rol === "admin");
+        if (perfil.rol === "admin") setCostos(await cargarCostos());
+      })
       .catch((err) =>
         // Se muestra el motivo real (no un genérico): si falta correr la
         // migración de la Fase 2, Postgres responde "column ... does not
@@ -58,13 +70,24 @@ export default function VehiculosWorkspace() {
     });
   }, [vehiculos, filtro, filtroEstado]);
 
-  async function guardar(datos: VehiculoInput) {
+  async function guardar(datos: VehiculoInput, costo: number | null) {
+    let id: string;
     if (editando === "nuevo") {
       const creado = await crearVehiculo(datos);
       setVehiculos((prev) => [creado, ...(prev ?? [])]);
+      id = creado.id;
     } else if (editando) {
       const actualizado = await actualizarVehiculo(editando.id, datos);
       setVehiculos((prev) => (prev ?? []).map((v) => (v.id === actualizado.id ? actualizado : v)));
+      id = actualizado.id;
+    } else {
+      return;
+    }
+    // Segunda escritura, a otra tabla: si el usuario no es admin ni siquiera se
+    // intenta — la base la rechazaría igual.
+    if (esAdmin && costo !== (costos[id] ?? null)) {
+      await guardarCosto(id, costo);
+      setCostos((prev) => ({ ...prev, [id]: costo }));
     }
     setEditando(null);
   }
@@ -102,6 +125,8 @@ export default function VehiculosWorkspace() {
         </p>
         <VehiculoForm
           inicial={editando === "nuevo" ? vehiculoVacio() : editando}
+          costoInicial={editando === "nuevo" ? null : costos[editando.id] ?? null}
+          puedeVerCosto={esAdmin}
           onGuardar={guardar}
           onCancelar={() => setEditando(null)}
         />

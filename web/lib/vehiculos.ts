@@ -20,7 +20,6 @@ export interface Vehiculo {
   specs: string[];
   destacado: boolean;
   estado: EstadoVehiculo;
-  costo_interno: number | null;
   notas: string | null;
   valor_tabla_dnrpa: number | null;
 }
@@ -43,7 +42,7 @@ export const ETIQUETA_ESTADO: Record<EstadoVehiculo, string> = {
 export type VehiculoInput = Omit<Vehiculo, "id">;
 
 const COLUMNAS =
-  "id, marca, modelo, version, anio, km, es_cero, dominio, precio, condicion, motor, caja, traccion, carroceria, specs, destacado, estado, costo_interno, notas, valor_tabla_dnrpa";
+  "id, marca, modelo, version, anio, km, es_cero, dominio, precio, condicion, motor, caja, traccion, carroceria, specs, destacado, estado, notas, valor_tabla_dnrpa";
 
 export async function cargarVehiculos(): Promise<Vehiculo[]> {
   const { data, error } = await supabase
@@ -85,6 +84,26 @@ export async function eliminarVehiculo(id: string): Promise<void> {
   if (error) throw error;
 }
 
+// El costo interno vive en `vehiculo_costos`, no en `vehiculos`, y su política
+// RLS solo deja entrar a los admin. Para un vendedor esta consulta devuelve
+// vacío — no un error — así que la UI simplemente no muestra el dato.
+// Ver docs/architecture/decisiones.md ("Costo interno").
+export async function cargarCostos(): Promise<Record<string, number | null>> {
+  const { data, error } = await supabase.from("vehiculo_costos").select("vehiculo_id, costo_interno");
+  if (error) throw error;
+  const mapa: Record<string, number | null> = {};
+  for (const fila of data ?? []) mapa[fila.vehiculo_id as string] = fila.costo_interno as number | null;
+  return mapa;
+}
+
+export async function guardarCosto(vehiculoId: string, costo: number | null): Promise<void> {
+  const agencia_id = await miAgenciaId();
+  const { error } = await supabase
+    .from("vehiculo_costos")
+    .upsert({ vehiculo_id: vehiculoId, agencia_id, costo_interno: costo, actualizado_en: new Date().toISOString() });
+  if (error) throw error;
+}
+
 export function vehiculoVacio(): VehiculoInput {
   return {
     marca: "",
@@ -103,7 +122,6 @@ export function vehiculoVacio(): VehiculoInput {
     specs: [],
     destacado: false,
     estado: "borrador",
-    costo_interno: null,
     notas: null,
     valor_tabla_dnrpa: null,
   };

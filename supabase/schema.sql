@@ -164,17 +164,15 @@ create policy "interacciones de mi agencia" on public.interacciones
 -- apareciendo exactamente igual que hoy en el sitio estático en
 -- producción, sin necesidad de ninguna migración manual.
 alter table public.vehiculos add column if not exists estado text not null default 'disponible';
--- Costo interno separado del precio de venta: lo que le costó a la
--- agencia. Nunca se muestra al público, solo en la gestión interna.
-alter table public.vehiculos add column if not exists costo_interno numeric;
+-- El costo interno NO vive acá. Vivió en esta tabla brevemente y se movió a
+-- `vehiculo_costos` (más abajo, bloque de correcciones de seguridad) porque RLS
+-- es por fila y no por columna: mientras estuvo en `vehiculos`, cualquier
+-- vendedor de la agencia podía leerlo.
 alter table public.vehiculos add column if not exists notas text;
 
 alter table public.vehiculos drop constraint if exists vehiculos_estado_check;
 alter table public.vehiculos add constraint vehiculos_estado_check
   check (estado in ('borrador', 'disponible', 'reservado', 'vendido', 'no_disponible'));
-alter table public.vehiculos drop constraint if exists vehiculos_costo_interno_check;
-alter table public.vehiculos add constraint vehiculos_costo_interno_check
-  check (costo_interno is null or costo_interno >= 0);
 
 create index if not exists vehiculos_estado_idx on public.vehiculos (agencia_id, estado);
 
@@ -450,7 +448,12 @@ begin
   end if;
 
   agencia := coalesce((despues ->> 'agencia_id')::uuid, (antes ->> 'agencia_id')::uuid);
-  registro := coalesce((despues ->> 'id')::uuid, (antes ->> 'id')::uuid);
+  -- La mayoría de las tablas auditadas se identifican por `id`; vehiculo_costos
+  -- usa vehiculo_id como clave primaria, así que se contempla como alternativa.
+  registro := coalesce(
+    (despues ->> 'id')::uuid, (antes ->> 'id')::uuid,
+    (despues ->> 'vehiculo_id')::uuid, (antes ->> 'vehiculo_id')::uuid
+  );
 
   insert into public.audit_log (agencia_id, tabla, operacion, registro_id, usuario_id, datos_antes, datos_despues)
   values (agencia, tg_table_name, tg_op, registro, auth.uid(), antes, despues);
@@ -486,6 +489,70 @@ create policy "ver auditoria de mi agencia" on public.audit_log
 -- desde el cliente, el log es de solo lectura.
 revoke insert, update, delete on public.audit_log from anon, authenticated;
 grant select on public.audit_log to authenticated;
+
+-- ============================================================
+-- Correcciones de la revisión de seguridad
+-- ============================================================
+
+-- ---------- Auditar también los cambios de rol ----------
+
+-- El audit_log cubría vehiculos, clientes y operaciones, pero no `perfiles`.
+-- Ascender a alguien a administrador es la acción más sensible del sistema —
+-- es la que reparte los permisos — y no dejaba ningún rastro.
+drop trigger if exists auditar_perfiles on public.perfiles;
+create trigger auditar_perfiles
+  after insert or update or delete on public.perfiles
+  for each row execute function public.registrar_auditoria();
+
+-- ---------- Costo interno: tabla aparte, solo para admin ----------
+
+-- `costo_interno` vivía como columna de `vehiculos`. El problema: RLS es por
+-- FILA, no por columna. La política de lectura de vehículos no distingue roles,
+-- así que cualquier vendedor de la agencia podía leer lo que la agencia pagó por
+-- cada auto — y no solo en la interfaz: consultando la API directamente.
+--
+-- Esconderlo en el frontend no habría sido una corrección sino un disfraz. Al
+-- vivir en su propia tabla, el límite lo impone la base de datos.
+create table if not exists public.vehiculo_costos (
+  vehiculo_id uuid primary key references public.vehiculos (id) on delete cascade,
+  agencia_id uuid not null references public.agencias (id) on delete cascade,
+  costo_interno numeric,
+  actualizado_en timestamptz not null default now()
+);
+alter table public.vehiculo_costos drop constraint if exists vehiculo_costos_monto_check;
+alter table public.vehiculo_costos add constraint vehiculo_costos_monto_check
+  check (costo_interno is null or costo_interno >= 0);
+create index if not exists vehiculo_costos_agencia_idx on public.vehiculo_costos (agencia_id);
+
+-- Migración de los datos que ya estuvieran cargados en la columna vieja. El
+-- guard sobre information_schema la hace idempotente: en la segunda corrida la
+-- columna ya no existe y el bloque entero se saltea.
+do $$
+begin
+  if exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'vehiculos' and column_name = 'costo_interno'
+  ) then
+    insert into public.vehiculo_costos (vehiculo_id, agencia_id, costo_interno)
+    select id, agencia_id, costo_interno from public.vehiculos where costo_interno is not null
+    on conflict (vehiculo_id) do nothing;
+
+    alter table public.vehiculos drop constraint if exists vehiculos_costo_interno_check;
+    alter table public.vehiculos drop column costo_interno;
+  end if;
+end $$;
+
+alter table public.vehiculo_costos enable row level security;
+
+drop policy if exists "costos solo admin" on public.vehiculo_costos;
+create policy "costos solo admin" on public.vehiculo_costos
+  for all using (agencia_id = public.mi_agencia_id() and public.mi_rol() = 'admin')
+  with check (agencia_id = public.mi_agencia_id() and public.mi_rol() = 'admin');
+
+drop trigger if exists auditar_vehiculo_costos on public.vehiculo_costos;
+create trigger auditar_vehiculo_costos
+  after insert or update or delete on public.vehiculo_costos
+  for each row execute function public.registrar_auditoria();
 
 -- ---------- Seed: Alcover Automotores + catálogo real de 32 vehículos ----------
 -- (Migrado desde data.js — ver commit "Actualiza catálogo con datos reales de la lista de precios")

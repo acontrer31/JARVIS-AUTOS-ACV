@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { ConversationProvider, useConversation } from "@elevenlabs/react";
+import { supabase } from "@/lib/supabase";
 import { MODULOS, type ModuloId } from "@/lib/modules";
 import { cargarVehiculos, formatearMoneda, nombreVehiculo } from "@/lib/vehiculos";
 import { calcularCostoTransferenciaDNRPA, DNRPA_DISCLAIMER, simularCuotas } from "@/lib/financiacion";
@@ -114,7 +115,17 @@ function NucleoConversacional({
       // El agente exige autenticación para conectarse directo — pedimos una
       // URL firmada de un solo uso al servidor (que sí tiene la clave
       // secreta) en vez de conectar con el agentId público a secas.
-      const respuesta = await fetch("/api/elevenlabs-signed-url");
+      // El token de la sesión va en el header: el endpoint lo exige y lo
+      // valida contra Supabase antes de gastar cuota de ElevenLabs.
+      const { data: sesion } = await supabase.auth.getSession();
+      const token = sesion.session?.access_token;
+      if (!token) {
+        setErrorLocal("Tu sesión venció. Volvé a iniciar sesión para hablar con JARVIS.");
+        return;
+      }
+      const respuesta = await fetch("/api/elevenlabs-signed-url", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       const datos = await respuesta.json();
       if (!respuesta.ok || !datos.signedUrl) {
         setErrorLocal(datos.error || "No se pudo conectar con JARVIS. Probá de nuevo.");

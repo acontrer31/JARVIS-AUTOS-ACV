@@ -1,26 +1,45 @@
 import { NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
 
 // Corre en el servidor (nunca en el navegador) — es el único lugar que
 // puede usar ELEVENLABS_API_KEY (secreta). Le pide a ElevenLabs una URL de
 // conexión firmada y de un solo uso para el agente configurado, y devuelve
 // solo esa URL al cliente. Necesario porque este agente exige autenticación
-// para conectarse directo por SDK (a diferencia del widget embebido del
-// sitio estático, que resuelve esto de otra forma internamente).
+// para conectarse directo por SDK.
 //
-// Endpoint tomado del propio código del SDK instalado (@elevenlabs/client),
-// que usa el mismo prefijo /v1/convai/conversation/... para el flujo de
-// WebRTC — no se pudo confirmar en vivo contra la cuenta real porque este
-// entorno no tiene acceso de red a elevenlabs.io. Si devuelve un error acá,
-// avisale al usuario para revisarlo juntos.
-export async function GET() {
+// EXIGE SESIÓN. Antes no la pedía, y como la app está desplegada en un
+// dominio público, cualquiera que conociera la URL podía pedir URLs firmadas
+// — y cada una consume cuota de la cuenta de ElevenLabs. Ahora el cliente
+// manda su token de Supabase y acá se verifica contra el servidor de auth
+// antes de gastar un solo crédito.
+export async function GET(request: Request) {
   const apiKey = process.env.ELEVENLABS_API_KEY;
   const agentId = process.env.NEXT_PUBLIC_ELEVENLABS_AGENT_ID;
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-  if (!apiKey || !agentId) {
+  if (!apiKey || !agentId || !supabaseUrl || !anonKey) {
     return NextResponse.json(
-      { error: "Faltan ELEVENLABS_API_KEY o NEXT_PUBLIC_ELEVENLABS_AGENT_ID en el servidor." },
+      { error: "Faltan variables de entorno en el servidor (ver .env.example)." },
       { status: 500 }
     );
+  }
+
+  // El token viaja en el header, no en la URL: las URLs quedan en logs de
+  // servidor, historiales y referers; los headers no.
+  const encabezado = request.headers.get("authorization") ?? "";
+  const token = encabezado.startsWith("Bearer ") ? encabezado.slice(7) : "";
+  if (!token) {
+    return NextResponse.json({ error: "Hace falta iniciar sesión." }, { status: 401 });
+  }
+
+  // Se valida contra el servidor de auth de Supabase (getUser verifica la
+  // firma del lado del servidor); no alcanza con confiar en lo que diga el
+  // cliente. Si el token no es válido, se corta acá sin llamar a ElevenLabs.
+  const supabase = createClient(supabaseUrl, anonKey);
+  const { data: sesion, error: errorSesion } = await supabase.auth.getUser(token);
+  if (errorSesion || !sesion.user) {
+    return NextResponse.json({ error: "Sesión inválida o vencida." }, { status: 401 });
   }
 
   try {

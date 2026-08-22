@@ -109,6 +109,24 @@ más en el repo. Del lado de una instalación personal, ECC documenta `node scri
 proyecto que hoy es un sitio estático más una app Next.js. Si en la práctica no se usa, sacarlo es un
 borrado de un archivo — no hay costo hundido.
 
+## Costo interno: por qué vive en su propia tabla
+
+`vehiculo_costos` existe por una razón puntual y conviene dejarla escrita para que nadie la
+"simplifique" de vuelta a una columna de `vehiculos`.
+
+El costo interno nació como columna de `vehiculos`. Una revisión de seguridad mostró el problema: **RLS
+en Postgres es por fila, no por columna**. La política de lectura de vehículos no distingue roles, así
+que cualquier vendedor de la agencia podía leer lo que la agencia pagó por cada auto — y no solo en la
+interfaz, sino consultando la API directamente con su propia sesión.
+
+Esconder el campo en el frontend no habría sido una corrección sino un disfraz: el dato seguiría a un
+`fetch` de distancia. Al vivir en una tabla aparte con política `"costos solo admin"`, el límite lo impone
+la base de datos.
+
+Consecuencia práctica: guardar un vehículo con su costo son **dos escrituras a dos tablas**
+(`actualizarVehiculo` + `guardarCosto` en `web/lib/vehiculos.ts`). Ese costo de complejidad es
+deliberado.
+
 ## Seguridad
 
 - Ningún secreto se commitea. `web/.env.local` (con las claves reales) está gitignoreado; solo

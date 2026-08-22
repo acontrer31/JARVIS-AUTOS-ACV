@@ -19,7 +19,6 @@ function validar(v: VehiculoInput): string {
   const noNegativos: [string, number | null][] = [
     ["El precio", v.precio],
     ["Los km", v.km],
-    ["El costo interno", v.costo_interno],
     ["El valor de tabla DNRPA", v.valor_tabla_dnrpa],
   ];
   for (const [etiqueta, valor] of noNegativos) {
@@ -53,11 +52,17 @@ function Campo({
 
 export default function VehiculoForm({
   inicial,
+  costoInicial,
+  puedeVerCosto,
   onGuardar,
   onCancelar,
 }: {
   inicial: VehiculoInput | Vehiculo;
-  onGuardar: (datos: VehiculoInput) => Promise<void>;
+  // El costo interno viaja aparte del resto del vehículo porque vive en otra
+  // tabla (`vehiculo_costos`), con su propia política RLS solo para admin.
+  costoInicial: number | null;
+  puedeVerCosto: boolean;
+  onGuardar: (datos: VehiculoInput, costo: number | null) => Promise<void>;
   onCancelar: () => void;
 }) {
   const [v, setV] = useState<VehiculoInput>(() => {
@@ -65,6 +70,7 @@ export default function VehiculoForm({
     delete (resto as Partial<Vehiculo>).id;
     return resto as VehiculoInput;
   });
+  const [costo, setCosto] = useState<number | null>(costoInicial);
   const [error, setError] = useState("");
   const [guardando, setGuardando] = useState(false);
 
@@ -90,10 +96,14 @@ export default function VehiculoForm({
       setError(problema);
       return;
     }
+    if (costo != null && costo < 0) {
+      setError("El costo interno no puede ser negativo.");
+      return;
+    }
     setError("");
     setGuardando(true);
     try {
-      await onGuardar(v);
+      await onGuardar(v, puedeVerCosto ? costo : null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo guardar.");
     } finally {
@@ -127,9 +137,21 @@ export default function VehiculoForm({
         <Campo etiqueta="Precio de venta">
           <input type="number" min={0} className={input} style={estiloCampo} value={v.precio ?? ""} onChange={(e) => setNumero("precio", e.target.value)} />
         </Campo>
-        <Campo etiqueta="Costo interno (no se publica)">
-          <input type="number" min={0} className={input} style={estiloCampo} value={v.costo_interno ?? ""} onChange={(e) => setNumero("costo_interno", e.target.value)} />
-        </Campo>
+        {puedeVerCosto && (
+          <Campo etiqueta="Costo interno (solo administradores)">
+            <input
+              type="number"
+              min={0}
+              className={input}
+              style={estiloCampo}
+              value={costo ?? ""}
+              onChange={(e) => {
+                const t = e.target.value.trim();
+                setCosto(t === "" ? null : Number(t));
+              }}
+            />
+          </Campo>
+        )}
         <Campo etiqueta="Estado">
           <select
             className={input}
