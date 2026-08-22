@@ -125,6 +125,7 @@ export default function VehiculosWorkspace() {
         </p>
         <VehiculoForm
           inicial={editando === "nuevo" ? vehiculoVacio() : editando}
+          vehiculoId={editando === "nuevo" ? null : editando.id}
           costoInicial={editando === "nuevo" ? null : costos[editando.id] ?? null}
           puedeVerCosto={esAdmin}
           onGuardar={guardar}

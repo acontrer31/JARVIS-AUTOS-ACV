@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import FotosVehiculo from "@/components/modules/FotosVehiculo";
 import {
   ESTADOS,
   ETIQUETA_ESTADO,
@@ -52,12 +53,17 @@ function Campo({
 
 export default function VehiculoForm({
   inicial,
+  vehiculoId,
   costoInicial,
   puedeVerCosto,
   onGuardar,
   onCancelar,
 }: {
   inicial: VehiculoInput | Vehiculo;
+  // Solo existe al editar. En un alta todavía no hay id, y sin id no hay
+  // carpeta donde guardar las fotos — por eso la galería aparece recién
+  // después de guardar por primera vez.
+  vehiculoId: string | null;
   // El costo interno viaja aparte del resto del vehículo porque vive en otra
   // tabla (`vehiculo_costos`), con su propia política RLS solo para admin.
   costoInicial: number | null;
@@ -217,10 +223,13 @@ export default function VehiculoForm({
         </label>
       </div>
 
-      <p className="text-[0.7rem]" style={{ color: "var(--muted)" }}>
-        Las fotos todavía se cargan como archivos en <code>/images/&lt;dominio&gt;/</code> — subirlas desde
-        acá necesita un bucket de Storage (ver <code>docs/phases/pendientes.md</code>).
-      </p>
+      {vehiculoId ? (
+        <FotosVehiculo vehiculoId={vehiculoId} />
+      ) : (
+        <p className="text-[0.7rem]" style={{ color: "var(--muted)" }}>
+          Guardá el vehículo primero y vas a poder cargarle las fotos al volver a editarlo.
+        </p>
+      )}
 
       {error && <p className="text-sm text-red-400">{error}</p>}
 

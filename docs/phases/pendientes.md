@@ -96,20 +96,20 @@ Es un toggle del dashboard (Authentication → Policies), no algo que se configu
 
 ---
 
-## 7. Bucket de Supabase Storage para fotos — bloquea la subida de fotos desde la UI (Fase 3)
+## 7. ~~Bucket de Supabase Storage para fotos~~ — RESUELTO
 
-La Fase 3 dejó el CRUD de vehículos funcionando para todos los campos de texto, números y estado, y la
-tabla `vehiculo_media` ya existe en el esquema. Lo que **no** está es subir la foto desde el formulario:
-eso necesita un bucket de Storage con sus políticas.
+El usuario creó el bucket `vehiculos` (público para lectura) desde el dashboard de Supabase. Con eso se
+construyó la subida de fotos desde el formulario de vehículos: `web/lib/media.ts` +
+`web/components/modules/FotosVehiculo.tsx`, guardando en `vehiculos/<agencia_id>/<vehiculo_id>/` y
+registrando cada archivo en la tabla `vehiculo_media`.
 
-Mientras tanto las fotos siguen como estaban: archivos estáticos en `/images/<dominio>/`, contados en la
-columna `vehiculos.fotos` (esa columna **no se borra** todavía para no romper el sitio estático que la
-agencia usa hoy en producción).
+Las 4 policies que generó el asistente de Supabase daban escritura a **cualquier** usuario autenticado,
+sin distinguir agencia — el único rincón del sistema que quedaba fuera del modelo multi-tenant. Se
+reemplazaron por versiones acotadas en `supabase/storage-policies.sql`, que exigen que la primera carpeta
+de la ruta sea la agencia del usuario. **Pendiente de que el usuario corra ese archivo** en el SQL Editor.
 
-**Qué falta (lo hace el usuario):** crear el bucket en el dashboard de Supabase (Storage → New bucket) y
-avisar el nombre, para escribir las políticas de acceso por agencia y conectar la subida al formulario.
-
----
+Las fotos viejas siguen como archivos estáticos en `/images/<dominio>/`, contadas en `vehiculos.fotos`.
+Migrarlas al bucket es un paso aparte, todavía sin hacer.
 
 ## 8. Tablas diferidas a propósito — `marketing_assets` y `audit_log`
 

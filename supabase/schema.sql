@@ -195,6 +195,10 @@ create table if not exists public.vehiculo_media (
 alter table public.vehiculo_media drop constraint if exists vehiculo_media_tipo_check;
 alter table public.vehiculo_media add constraint vehiculo_media_tipo_check
   check (tipo in ('foto', 'video', 'documento'));
+-- Ruta dentro del bucket de Storage (`vehiculos/<agencia_id>/<vehiculo_id>/...`).
+-- Se guarda aparte de `url` porque para borrar el archivo del bucket hace falta
+-- la ruta, no la URL pública.
+alter table public.vehiculo_media add column if not exists ruta text;
 create index if not exists vehiculo_media_vehiculo_idx on public.vehiculo_media (vehiculo_id, orden);
 
 -- ---------- Clientes: campos de lead (Fase 5) ----------
