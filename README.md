@@ -2,6 +2,13 @@
 
 Panel de control JARVIS para agencias de autos — pensado para arrancar con Agencia Alcover Automotores y evolucionar a un producto multi-agencia por suscripción. HTML, CSS y JavaScript puro (sin build ni framework), instalable como PWA en celular y PC.
 
+## Dónde está corriendo
+
+- **App nueva (Next.js, JARVIS CORE)** — https://jarvis-autos-acv.vercel.app/ · código en `/web`, desplegada
+  en Vercel, se actualiza sola con cada push a `main`.
+- **Sitio original (estático, PWA)** — este mismo repo en la raíz, servido por GitHub Pages. Es lo que la
+  agencia usa día a día; las dos apps leen del **mismo** proyecto de Supabase.
+
 ## Uso
 
 Abrí `index.html` en el navegador, o serví la carpeta con cualquier servidor estático:
