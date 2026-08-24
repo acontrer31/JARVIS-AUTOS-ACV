@@ -19,6 +19,7 @@ import {
   type VehiculoInput,
 } from "@/lib/vehiculos";
 import VehiculoForm from "@/components/modules/VehiculoForm";
+import DetalleVehiculo from "@/components/modules/DetalleVehiculo";
 import { miPerfil } from "@/lib/seguridad";
 import { mensajeDeError } from "@/lib/errores";
 
@@ -37,6 +38,8 @@ export default function VehiculosWorkspace() {
   const [filtroEstado, setFiltroEstado] = useState<EstadoVehiculo | "todos">("todos");
   // null = formulario cerrado · "nuevo" = alta · Vehiculo = edición
   const [editando, setEditando] = useState<Vehiculo | "nuevo" | null>(null);
+  // Ficha de solo lectura que se abre al clickear un vehículo.
+  const [viendo, setViendo] = useState<Vehiculo | null>(null);
   // El costo interno solo lo ven los admin: vive en otra tabla, con su propia
   // política RLS. Para un vendedor este objeto queda vacío.
   const [esAdmin, setEsAdmin] = useState(false);
@@ -138,6 +141,20 @@ export default function VehiculosWorkspace() {
 
   return (
     <div className="flex flex-col gap-3">
+      {viendo && (
+        <DetalleVehiculo
+          vehiculo={viendo}
+          costo={costos[viendo.id] ?? null}
+          puedeVerCosto={esAdmin}
+          onEditar={() => {
+            const v = viendo;
+            setViendo(null);
+            setEditando(v);
+          }}
+          onCerrar={() => setViendo(null)}
+        />
+      )}
+
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs" style={{ color: "var(--muted)" }}>
           {filtrados.length} de {vehiculos.length} vehículos
@@ -183,8 +200,8 @@ export default function VehiculosWorkspace() {
             className="flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2 text-sm"
             style={{ borderColor: "var(--border)" }}
           >
-            <div className="min-w-0">
-              <p className="font-medium">
+            <button type="button" onClick={() => setViendo(v)} className="min-w-0 text-left">
+              <p className="font-medium underline decoration-dotted underline-offset-4">
                 {nombreVehiculo(v)} {v.anio ?? ""}
               </p>
               <p className="text-xs" style={{ color: "var(--muted)" }}>
@@ -192,7 +209,7 @@ export default function VehiculosWorkspace() {
                 {v.condicion ? ` · ${v.condicion}` : ""}
                 {v.dominio ? ` · ${v.dominio}` : ""}
               </p>
-            </div>
+            </button>
             <div className="flex items-center gap-2">
               <select
                 value={v.estado}
