@@ -93,13 +93,20 @@ export default function DetalleVehiculo({
             </p>
           </div>
           <div className="flex items-center gap-3">
+            {/* Por defecto es solo un punto dorado; al pasar el mouse por encima
+                se ensancha y muestra "Editar". En pantallas táctiles (sin hover)
+                el punto sigue siendo clickeable y edita igual. */}
             <button
               type="button"
               onClick={onEditar}
-              className="rounded-lg px-3 py-1.5 text-sm font-semibold"
+              title="Editar"
+              aria-label="Editar"
+              className="group flex h-6 w-6 items-center justify-center overflow-hidden whitespace-nowrap rounded-full text-sm font-semibold transition-all duration-200 hover:w-24"
               style={{ background: "var(--dorado)", color: "#0E4D3C" }}
             >
-              Editar
+              <span className="opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+                Editar
+              </span>
             </button>
             <button
               type="button"
