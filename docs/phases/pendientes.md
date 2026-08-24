@@ -148,3 +148,26 @@ entorno no aplica a una sesión ya en curso.
 
 **Limitación conocida:** las fotos que se traigan no se van a poder guardar en `vehiculo_media` hasta que
 exista el bucket de Storage (pendiente #7 de este mismo documento). Los datos de texto y precio sí.
+
+---
+
+## 10. Setup de WhatsApp Cloud API en Meta — para activar la recepción de mensajes
+
+El código para **recibir** WhatsApp ya está: la Edge Function `supabase/functions/whatsapp-webhook`,
+construida y con toda su lógica verificada (verificación GET de Meta, firma HMAC, mapeo a agencia,
+alta/búsqueda de cliente, inserción de la interacción). Está **inactiva** esperando el setup del usuario.
+
+**Por qué está frenado:** la app WhatsApp Business del celular no sirve para que un sistema reciba
+mensajes — hace falta la **WhatsApp Cloud API** de Meta, que es un producto aparte. Y hay una decisión
+con consecuencia: un número registrado en la Cloud API deja de funcionar en la app normal de WhatsApp, así
+que conviene usar un número nuevo dedicado.
+
+**Qué falta (lo hace el usuario), guía completa en el README (sección "WhatsApp: recibir mensajes"):**
+1. Crear la app en developers.facebook.com y agregar el producto WhatsApp.
+2. Cargar los secretos en Supabase (`WHATSAPP_VERIFY_TOKEN`, `WHATSAPP_APP_SECRET`) y desplegar la función.
+3. Asociar el Phone Number ID a la agencia por SQL (`update agencias set whatsapp_phone_number_id = ...`).
+4. Configurar el webhook en Meta apuntando a la URL de la función y suscribirse al campo `messages`.
+
+**Cuando se destrabe:** se manda un WhatsApp al número y se confirma que aparece como interacción en el
+perfil del cliente. Después arranca la **parte 2 — enviar** mensajes desde JARVIS (requiere plantillas
+aprobadas por Meta).

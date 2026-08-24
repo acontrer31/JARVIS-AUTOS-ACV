@@ -18,6 +18,8 @@ create table if not exists public.agencias (
   creado_en timestamptz not null default now()
 );
 alter table public.agencias add column if not exists elevenlabs_agent_id text;
+-- Número de la Cloud API de WhatsApp (Meta) → mapea cada mensaje entrante a su agencia.
+alter table public.agencias add column if not exists whatsapp_phone_number_id text;
 
 create table if not exists public.perfiles (
   id uuid primary key references auth.users (id) on delete cascade,

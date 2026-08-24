@@ -256,6 +256,51 @@ En vez de mostrar todo el dashboard mezclado, cada opción del menú (Inventario
 - Se cierra con la "×", tocando fuera del panel, con la tecla Escape, o pidiéndolo por voz.
 - "Dashboard" siempre vuelve a la vista normal completa (el estado de inicio).
 
+## WhatsApp: recibir mensajes en JARVIS
+
+Cuando un cliente le escribe al WhatsApp de la agencia, el mensaje queda guardado en JARVIS como una
+interacción del cliente (y si el número es nuevo, crea el cliente solo). Lo hace la Edge Function
+`supabase/functions/whatsapp-webhook`.
+
+> ⚠️ **La app WhatsApp Business del celular no alcanza para esto.** Esa app es solo para chatear a mano;
+> no deja que un sistema externo reciba los mensajes. Hace falta la **WhatsApp Cloud API** de Meta, que es
+> un producto aparte y gratuito para empezar.
+
+> ⚠️ **Sobre el número:** un número registrado en la Cloud API **deja de funcionar en la app normal de
+> WhatsApp**. Conviene usar un **número nuevo dedicado** para JARVIS y no perder tu WhatsApp actual. Meta
+> te da además un número de prueba gratis para probar todo antes de decidir.
+
+### Paso a paso (lo hace el usuario, una sola vez)
+
+1. Entrá a **developers.facebook.com** → *My Apps* → *Create App* → tipo **Business**.
+2. En la app, agregá el producto **WhatsApp**. Meta te da un **número de prueba** y un **token temporal**.
+3. Anotá el **Phone Number ID** (aparece en la pantalla de WhatsApp → API Setup).
+4. En **App Settings → Basic**, copiá el **App Secret**.
+5. Elegí vos una palabra secreta cualquiera como **Verify Token** (por ejemplo `jarvis-alcover-2026`).
+6. Cargá los secretos en Supabase y desplegá la función:
+   ```bash
+   supabase secrets set WHATSAPP_VERIFY_TOKEN="tu-palabra-secreta"
+   supabase secrets set WHATSAPP_APP_SECRET="el-app-secret-de-meta"
+   supabase functions deploy whatsapp-webhook --no-verify-jwt
+   ```
+   (`SUPABASE_URL` y `SUPABASE_SERVICE_ROLE_KEY` los pone Supabase solo.)
+7. Asociá el número a tu agencia, con el Phone Number ID del paso 3:
+   ```sql
+   update public.agencias set whatsapp_phone_number_id = 'EL-PHONE-NUMBER-ID'
+   where slug = 'alcover';
+   ```
+8. En Meta → WhatsApp → **Configuration → Webhook**, poné:
+   - **Callback URL**: `https://<tu-proyecto>.supabase.co/functions/v1/whatsapp-webhook`
+   - **Verify token**: la misma palabra secreta del paso 5.
+   - Suscribite al campo **messages**.
+9. Probá: mandale un WhatsApp al número desde otro teléfono. Debería aparecer como interacción en el
+   perfil de ese cliente en JARVIS.
+
+### Qué NO hace todavía
+
+Esta parte solo **recibe**. **Enviar** mensajes desde JARVIS (por ejemplo, avisar que llegó un auto)
+requiere plantillas aprobadas por Meta y es la parte 2, a construir cuando recibir ya funcione.
+
 ## Seguridad
 
 Ningún sitio es "inhackeable", pero esto es lo que está aplicado y por qué (y lo que queda pendiente):
