@@ -72,12 +72,12 @@ export default function DetalleVehiculo({
 
   return (
     <div
-      className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto p-3 sm:p-6"
+      className="fixed inset-0 z-[60] flex items-center justify-center p-3 sm:p-6"
       style={{ background: "color-mix(in srgb, var(--background) 92%, transparent)" }}
       onClick={onCerrar}
     >
       <div
-        className="mt-4 w-full max-w-5xl rounded-2xl border p-5 sm:p-7"
+        className="max-h-[92vh] w-full max-w-6xl overflow-y-auto rounded-2xl border p-5 sm:p-7"
         style={{ borderColor: "var(--dorado)", background: "var(--panel)" }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -118,14 +118,14 @@ export default function DetalleVehiculo({
           <div className="flex flex-col gap-2">
             {fotos === null ? (
               <div
-                className="flex h-64 items-center justify-center rounded-xl text-sm"
+                className="flex h-[28rem] items-center justify-center rounded-xl text-sm"
                 style={{ border: "1px solid var(--border)", color: "var(--muted)" }}
               >
                 Cargando fotos…
               </div>
             ) : fotos.length === 0 ? (
               <div
-                className="flex h-64 items-center justify-center rounded-xl text-sm"
+                className="flex h-[28rem] items-center justify-center rounded-xl text-sm"
                 style={{ border: "1px dashed var(--border)", color: "var(--muted)" }}
               >
                 Sin fotos cargadas en Supabase.
@@ -137,7 +137,7 @@ export default function DetalleVehiculo({
                 <img
                   src={fotos[principal]?.url}
                   alt={`Foto de ${nombreVehiculo(vehiculo)}`}
-                  className="h-72 w-full rounded-xl object-cover"
+                  className="h-[28rem] w-full rounded-xl object-cover"
                   style={{ border: "1px solid var(--border)" }}
                 />
                 {fotos.length > 1 && (
