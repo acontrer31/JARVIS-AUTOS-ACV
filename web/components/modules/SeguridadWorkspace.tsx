@@ -10,6 +10,7 @@ import {
   type EntradaAuditoria,
   type Usuario,
 } from "@/lib/seguridad";
+import { mensajeDeError } from "@/lib/errores";
 
 const ETIQUETA_OPERACION: Record<EntradaAuditoria["operacion"], string> = {
   INSERT: "Alta",
@@ -50,7 +51,7 @@ export default function SeguridadWorkspace() {
       .catch((err) =>
         setError(
           "No se pudo cargar el registro de auditoría: " +
-            (err instanceof Error ? err.message : String(err))
+            mensajeDeError(err)
         )
       );
   }, []);

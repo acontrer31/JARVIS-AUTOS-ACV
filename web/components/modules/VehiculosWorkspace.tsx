@@ -20,6 +20,7 @@ import {
 } from "@/lib/vehiculos";
 import VehiculoForm from "@/components/modules/VehiculoForm";
 import { miPerfil } from "@/lib/seguridad";
+import { mensajeDeError } from "@/lib/errores";
 
 const COLOR_ESTADO: Record<EstadoVehiculo, string> = {
   borrador: "var(--muted)",
@@ -55,7 +56,7 @@ export default function VehiculosWorkspace() {
         // exist" y así se ve de una en pantalla en vez de adivinar.
         setError(
           "No se pudo cargar el stock real desde Supabase: " +
-            (err instanceof Error ? err.message : String(err))
+            mensajeDeError(err)
         )
       );
   }, []);

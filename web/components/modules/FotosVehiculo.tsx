@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { cargarFotos, eliminarFoto, subirFoto, type Foto } from "@/lib/media";
+import { mensajeDeError } from "@/lib/errores";
 
 export default function FotosVehiculo({ vehiculoId }: { vehiculoId: string }) {
   const [fotos, setFotos] = useState<Foto[] | null>(null);
@@ -12,9 +13,12 @@ export default function FotosVehiculo({ vehiculoId }: { vehiculoId: string }) {
   useEffect(() => {
     cargarFotos(vehiculoId)
       .then(setFotos)
-      .catch((err) =>
-        setError("No se pudieron cargar las fotos: " + (err instanceof Error ? err.message : String(err)))
-      );
+      .catch((err) => {
+        setError("No se pudieron cargar las fotos: " + mensajeDeError(err));
+        // Sin esto la lista queda en null y el render lo interpreta como
+        // "todavía cargando", mostrando el error y "Cargando fotos…" a la vez.
+        setFotos([]);
+      });
   }, [vehiculoId]);
 
   async function elegir(e: React.ChangeEvent<HTMLInputElement>) {
@@ -30,7 +34,7 @@ export default function FotosVehiculo({ vehiculoId }: { vehiculoId: string }) {
         orden += 1;
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo subir la foto.");
+      setError(mensajeDeError(err));
     } finally {
       setSubiendo(false);
       // Se limpia el input para poder volver a elegir el mismo archivo si hizo falta reintentar.
@@ -44,7 +48,7 @@ export default function FotosVehiculo({ vehiculoId }: { vehiculoId: string }) {
       await eliminarFoto(foto);
       setFotos((prev) => (prev ?? []).filter((f) => f.id !== foto.id));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo eliminar la foto.");
+      setError(mensajeDeError(err));
     }
   }
 

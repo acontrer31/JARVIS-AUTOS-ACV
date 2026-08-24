@@ -14,6 +14,7 @@ import {
   type TipoInteraccion,
 } from "@/lib/interacciones";
 import { formatearMoneda } from "@/lib/vehiculos";
+import { mensajeDeError } from "@/lib/errores";
 
 function Dato({ etiqueta, valor }: { etiqueta: string; valor: string | null }) {
   return (
@@ -54,9 +55,12 @@ export default function PerfilCliente({
         setInteracciones(i);
         setOperaciones(o);
       })
-      .catch((err) =>
-        setError("No se pudo cargar el historial: " + (err instanceof Error ? err.message : String(err)))
-      );
+      .catch((err) => {
+        setError("No se pudo cargar el historial: " + mensajeDeError(err));
+        // Igual que en la galería de fotos: sin esto queda "Cargando historial…"
+        // para siempre, al lado del error.
+        setInteracciones([]);
+      });
   }, [cliente.id]);
 
   async function anotar(e: React.FormEvent) {
@@ -68,7 +72,7 @@ export default function PerfilCliente({
       setInteracciones((prev) => [nueva, ...(prev ?? [])]);
       setResumen("");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo registrar la interacción.");
+      setError(mensajeDeError(err));
     } finally {
       setGuardando(false);
     }

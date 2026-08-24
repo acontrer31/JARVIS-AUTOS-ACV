@@ -10,6 +10,7 @@ import {
   type Rol,
   type Usuario,
 } from "@/lib/seguridad";
+import { mensajeDeError } from "@/lib/errores";
 
 export default function AdministracionWorkspace() {
   const [usuarios, setUsuarios] = useState<Usuario[] | null>(null);
@@ -24,7 +25,7 @@ export default function AdministracionWorkspace() {
       })
       .catch((err) =>
         setError(
-          "No se pudieron cargar los usuarios: " + (err instanceof Error ? err.message : String(err))
+          "No se pudieron cargar los usuarios: " + mensajeDeError(err)
         )
       );
   }, []);

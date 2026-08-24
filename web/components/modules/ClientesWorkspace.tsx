@@ -19,6 +19,7 @@ import {
 import { cargarVehiculos, formatearMoneda, nombreVehiculo, type Vehiculo } from "@/lib/vehiculos";
 import ClienteForm from "@/components/modules/ClienteForm";
 import PerfilCliente from "@/components/modules/PerfilCliente";
+import { mensajeDeError } from "@/lib/errores";
 
 const COLOR_LEAD: Record<EstadoLead, string> = {
   nuevo: "var(--dorado)",
@@ -53,7 +54,7 @@ export default function ClientesWorkspace() {
         // Postgres responde "column ... does not exist" y se ve en pantalla.
         setError(
           "No se pudieron cargar los clientes desde Supabase: " +
-            (err instanceof Error ? err.message : String(err))
+            mensajeDeError(err)
         )
       );
   }, []);
