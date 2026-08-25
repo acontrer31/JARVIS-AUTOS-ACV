@@ -246,10 +246,22 @@ export default function FinanciacionWorkspace() {
               </div>
             )}
 
-            {totalOperacion != null && (!financia || prenda) && (
-              <div className="mt-3 flex items-baseline justify-between border-t pt-2" style={{ borderColor: "var(--dorado)" }}>
-                <span className="text-sm font-semibold tracking-wide">TOTAL OPERACIÓN</span>
-                <span className="text-xl font-bold" style={{ color: "var(--dorado)" }}>{formatearMoneda(totalOperacion)}</span>
+            {totalOperacion != null && transferencia && (!financia || prenda) && (
+              <div className="mt-3 flex flex-col gap-1 border-t pt-2" style={{ borderColor: "var(--dorado)" }}>
+                <div className="flex justify-between text-sm">
+                  <span style={{ color: "var(--muted)" }}>Costo de transferencia</span>
+                  <span>{formatearMoneda(transferencia.total)}</span>
+                </div>
+                {financia && prenda && (
+                  <div className="flex justify-between text-sm">
+                    <span style={{ color: "var(--muted)" }}>Costo de prenda</span>
+                    <span>{formatearMoneda(prenda.total)}</span>
+                  </div>
+                )}
+                <div className="mt-1 flex items-baseline justify-between border-t pt-2" style={{ borderColor: "var(--border)" }}>
+                  <span className="text-sm font-semibold tracking-wide">TOTAL OPERACIÓN</span>
+                  <span className="text-xl font-bold" style={{ color: "var(--dorado)" }}>{formatearMoneda(totalOperacion)}</span>
+                </div>
               </div>
             )}
 
