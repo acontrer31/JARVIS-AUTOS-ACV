@@ -35,8 +35,15 @@ export async function miPerfil(): Promise<Usuario> {
     .from("perfiles")
     .select("id, nombre, rol")
     .eq("id", sesion.user.id)
-    .single();
+    .maybeSingle();
   if (error) throw error;
+  if (!data) {
+    // El usuario existe en Auth pero no tiene perfil vinculado a una agencia.
+    // Sin eso no puede usar nada (todas las políticas RLS dependen del perfil).
+    throw new Error(
+      "Tu usuario no tiene un perfil vinculado a ninguna agencia. Hay que crearlo en Supabase (ver README, sección de Supabase)."
+    );
+  }
   return data as Usuario;
 }
 
