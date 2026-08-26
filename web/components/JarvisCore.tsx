@@ -129,6 +129,7 @@ function NucleoConversacional({
         modulos={modulos}
         moduloActivo={moduloActivo}
         onAbrir={onActivarModulo}
+        estado={ESTADO_VISUAL[estadoActual]}
         centro={
           <button
             type="button"
