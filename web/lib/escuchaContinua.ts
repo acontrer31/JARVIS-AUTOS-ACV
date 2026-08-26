@@ -24,7 +24,10 @@ interface Reconocedor {
   stop(): void;
   onresult: ((e: EventoResultado) => void) | null;
   onend: (() => void) | null;
-  onerror: (() => void) | null;
+  onerror: ((e: EventoError) => void) | null;
+}
+interface EventoError {
+  error?: string;
 }
 type CtorReconocedor = new () => Reconocedor;
 
@@ -91,9 +94,18 @@ export function useEscuchaContinua({
         } catch {}
       }
     };
-    // Errores no fatales (p. ej. "no-speech"): onend reanuda. Un "not-allowed"
-    // (permiso denegado) deja de reanudar para no insistir.
-    rec.onerror = () => {};
+    // La mayoría de los errores son no fatales (p. ej. "no-speech"): onend
+    // reanuda. Pero si el permiso de micrófono está denegado ("not-allowed" /
+    // "service-not-allowed"), hay que dejar de reanudar: si no, onend
+    // reintentaría en un loop infinito golpeando el permiso.
+    rec.onerror = (e) => {
+      if (e?.error === "not-allowed" || e?.error === "service-not-allowed") {
+        detenido = true;
+        try {
+          rec.stop();
+        } catch {}
+      }
+    };
 
     try {
       rec.start();
