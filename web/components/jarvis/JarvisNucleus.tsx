@@ -188,24 +188,33 @@ export default function JarvisNucleus({ estado }: { estado: EstadoVisual }) {
         ctx!.fill();
       }
 
-      if (!reduce) raf = requestAnimationFrame(pintar);
+      if (!reduce && !document.hidden) raf = requestAnimationFrame(pintar);
+    }
+
+    // Arranca el loop de forma idempotente: cancela cualquier rAF pendiente
+    // antes de agendar y no arranca si hay movimiento reducido o la pestaña
+    // está oculta. Así, si el componente monta con la pestaña oculta, no queda
+    // un rAF pendiente que —al volver a mostrarse— se duplique con el que
+    // agenda visibilitychange (dos loops corriendo a la vez).
+    function arrancar() {
+      if (reduce || document.hidden) return;
+      cancelAnimationFrame(raf);
+      ultimo = performance.now();
+      raf = requestAnimationFrame(pintar);
     }
 
     // Repintado puntual de un cuadro (se usa desde el efecto que observa el
     // estado, solo bajo movimiento reducido — pintar() no agenda rAF ahí).
     repintarRef.current = () => pintar(performance.now());
 
-    // Con movimiento reducido: un solo cuadro estático.
+    // Con movimiento reducido: un solo cuadro estático. Si no, arranca el loop
+    // (solo si la pestaña está visible).
     if (reduce) pintar(performance.now());
-    else raf = requestAnimationFrame(pintar);
+    else arrancar();
 
     function onVisibilidad() {
-      if (document.hidden) {
-        cancelAnimationFrame(raf);
-      } else if (!reduce) {
-        ultimo = performance.now();
-        raf = requestAnimationFrame(pintar);
-      }
+      if (document.hidden) cancelAnimationFrame(raf);
+      else arrancar();
     }
     document.addEventListener("visibilitychange", onVisibilidad);
 
