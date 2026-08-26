@@ -6,8 +6,20 @@ import { supabase } from "@/lib/supabase";
 import { MODULOS, type ModuloId } from "@/lib/modules";
 import { cargarVehiculos, formatearMoneda, nombreVehiculo } from "@/lib/vehiculos";
 import { calcularCostoTransferenciaDNRPA, DNRPA_DISCLAIMER, simularCuotas } from "@/lib/financiacion";
+import JarvisNucleus from "@/components/jarvis/JarvisNucleus";
+import type { EstadoVisual } from "@/lib/jarvis/tipos";
 
 export type EstadoJarvis = "standby" | "escuchando" | "activando" | "trabajando" | "error";
+
+// La máquina de estados real (arriba, atada al SDK de ElevenLabs) manda; el
+// núcleo del command center solo necesita una versión visual de cada estado.
+const ESTADO_VISUAL: Record<EstadoJarvis, EstadoVisual> = {
+  standby: "idle",
+  escuchando: "listening",
+  activando: "processing",
+  trabajando: "speaking",
+  error: "error",
+};
 
 const ETIQUETA_ESTADO: Record<EstadoJarvis, string> = {
   standby: "STANDBY",
@@ -24,40 +36,6 @@ function normalizar(texto: string): string {
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "");
-}
-
-// Recreación del isologo real (círculo con anillo dorado, relleno verde
-// inglés oscuro, letras "AA" en Plastik Regular — la tipografía real del
-// logo, licencia GPL v2, ver web/app/fonts/LICENSE-Plastik.txt) mientras el
-// usuario sube el archivo de imagen real del isologo completo — apenas lo
-// suba, este SVG se reemplaza por la imagen real en <img>, sin tocar el
-// resto del componente.
-function LogoCore() {
-  return (
-    <svg
-      viewBox="0 0 100 100"
-      className="h-full w-full"
-      role="img"
-      aria-label="Isologo Alcover Automotores"
-      style={{ pointerEvents: "none", userSelect: "none" }}
-    >
-      <circle cx="50" cy="50" r="47" fill="var(--verde-core)" stroke="var(--dorado)" strokeWidth="4" />
-      <text
-        x="50"
-        y="61"
-        textAnchor="middle"
-        fontSize="40"
-        fill="var(--core-text)"
-        stroke="var(--core-text)"
-        strokeWidth="1.6"
-        strokeLinejoin="round"
-        fontFamily="var(--font-plastik, sans-serif)"
-        style={{ userSelect: "none" }}
-      >
-        AA
-      </text>
-    </svg>
-  );
 }
 
 // Componente interno: vive dentro de <ConversationProvider>, que es donde
@@ -155,24 +133,7 @@ function NucleoConversacional({
           className="relative flex items-center justify-center"
           style={{ width: "min(78vw, 60vh, 30rem)", height: "min(78vw, 60vh, 30rem)" }}
         >
-          <div
-            className="absolute inset-0 rounded-full border-2 border-dashed"
-            style={{
-              borderColor: "var(--dorado)",
-              opacity: 0.55,
-              animation: `girar ${conversacion.mode === "speaking" ? 3 : 14}s linear infinite`,
-            }}
-          />
-          <div
-            className="absolute inset-4 rounded-full"
-            style={{
-              boxShadow: `0 0 60px 10px color-mix(in srgb, var(--dorado) ${conectado ? 55 : 35}%, transparent)`,
-              transition: "box-shadow 0.4s ease",
-            }}
-          />
-          <div className="absolute inset-8 animate-[girar_22s_linear_infinite_reverse]">
-            <LogoCore />
-          </div>
+          <JarvisNucleus estado={ESTADO_VISUAL[estadoActual]} />
         </div>
 
         <p className="text-xs tracking-[0.3em]" style={{ color: "var(--muted)" }}>
@@ -322,9 +283,6 @@ export default function JarvisCore({
       >
         {modulosVisibles ? "ocultar módulos" : "módulos"}
       </button>
-      <style>{`
-        @keyframes girar { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-      `}</style>
     </div>
   );
 }
