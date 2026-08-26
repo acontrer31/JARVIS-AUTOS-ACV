@@ -133,5 +133,7 @@ export function nombreVehiculo(v: Pick<Vehiculo, "marca" | "modelo" | "version">
 
 export function formatearMoneda(valor: number | null): string {
   if (!valor) return "Consultar precio";
-  return "$ " + valor.toLocaleString("es-AR");
+  // Redondeado a peso entero, sin centavos: los cálculos de financiación (2.5%,
+  // 1% de DNRPA) producen decimales, y la agencia trabaja en montos redondos.
+  return "$ " + Math.round(valor).toLocaleString("es-AR", { maximumFractionDigits: 0 });
 }
