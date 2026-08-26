@@ -9,6 +9,7 @@ import { calcularCostoTransferenciaDNRPA, DNRPA_DISCLAIMER, simularCuotas } from
 import JarvisNucleus from "@/components/jarvis/JarvisNucleus";
 import JarvisNetwork from "@/components/jarvis/JarvisNetwork";
 import { estadoDeModulo, type EstadoVisual, type JarvisModule } from "@/lib/jarvis/tipos";
+import { fijarTema, temaActual, type Tema } from "@/lib/tema";
 
 export type EstadoJarvis = "standby" | "escuchando" | "activando" | "trabajando" | "error";
 
@@ -252,6 +253,20 @@ export default function JarvisCore({
       return modulo.real
         ? `Abriendo ${modulo.label}.`
         : `${modulo.label} todavía no tiene datos reales conectados — lo abrí igual para que lo veas, pero está marcado como próximamente.`;
+    },
+    // Cambia entre modo día y noche por voz. Sin un modo explícito, alterna.
+    cambiar_tema: async (parametros: { modo?: string }) => {
+      const pedido = normalizar(parametros?.modo || "");
+      let tema: Tema;
+      if (pedido.includes("dia") || pedido.includes("claro") || pedido.includes("blanco")) {
+        tema = "dia";
+      } else if (pedido.includes("noche") || pedido.includes("oscuro") || pedido.includes("negro")) {
+        tema = "noche";
+      } else {
+        tema = temaActual() === "noche" ? "dia" : "noche";
+      }
+      fijarTema(tema);
+      return `Listo, cambié a modo ${tema}.`;
     },
   };
 

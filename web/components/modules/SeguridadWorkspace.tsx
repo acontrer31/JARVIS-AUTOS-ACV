@@ -11,6 +11,7 @@ import {
   type Usuario,
 } from "@/lib/seguridad";
 import { mensajeDeError } from "@/lib/errores";
+import TemaToggle from "@/components/TemaToggle";
 
 const ETIQUETA_OPERACION: Record<EntradaAuditoria["operacion"], string> = {
   INSERT: "Alta",
@@ -76,16 +77,22 @@ export default function SeguridadWorkspace() {
 
   // Un vendedor no recibe error: la política simplemente no le devuelve filas.
   // Sin este aviso vería una lista vacía y pensaría que no pasó nada nunca.
+  // El cambio de tema sí lo puede usar cualquiera (es una preferencia visual).
   if (!esAdmin) {
     return (
-      <p className="py-6 text-center text-sm" style={{ color: "var(--muted)" }}>
-        El registro de auditoría solo está disponible para administradores de la agencia.
-      </p>
+      <div className="flex flex-col gap-3">
+        <TemaToggle />
+        <p className="py-2 text-center text-sm" style={{ color: "var(--muted)" }}>
+          El registro de auditoría solo está disponible para administradores de la agencia.
+        </p>
+      </div>
     );
   }
 
   return (
     <div className="flex flex-col gap-3">
+      <TemaToggle />
+
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs" style={{ color: "var(--muted)" }}>
           Últimos {filtradas.length} cambios registrados
