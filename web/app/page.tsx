@@ -96,7 +96,7 @@ export default function Home() {
               cerrar sesión
             </button>
           </div>
-          <JarvisCore moduloActivo={moduloActivo} onActivarModulo={setModuloActivo} />
+          <JarvisCore moduloActivo={moduloActivo} onActivarModulo={setModuloActivo} agencia={agencia} />
           {moduloActivo && <ModuleWorkspace moduloId={moduloActivo} onCerrar={() => setModuloActivo(null)} />}
         </>
       )}

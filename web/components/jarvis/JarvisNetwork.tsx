@@ -33,12 +33,14 @@ export default function JarvisNetwork({
   onAbrir,
   centro,
   estado,
+  agencia,
 }: {
   modulos: JarvisModule[];
   moduloActivo: ModuloId | null;
   onAbrir: (id: ModuloId) => void;
   centro: ReactNode;
   estado: EstadoVisual;
+  agencia?: string | null;
 }) {
   const [resaltado, setResaltado] = useState<ModuloId | null>(null);
   const [seleccionado, setSeleccionado] = useState<ModuloId | null>(null);
@@ -47,7 +49,7 @@ export default function JarvisNetwork({
 
   return (
     <div className="flex flex-col items-center gap-3">
-      <JarvisStatus estado={estado} modulos={modulos} />
+      <JarvisStatus estado={estado} modulos={modulos} agencia={agencia} />
 
       <div className="relative" style={{ width: lado, height: lado }}>
         {/* Capa de conexiones, detrás de todo. */}

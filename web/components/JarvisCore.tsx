@@ -52,11 +52,13 @@ function NucleoConversacional({
   modulos,
   onActivarModulo,
   onCambiarEstado,
+  agencia,
 }: {
   moduloActivo: ModuloId | null;
   modulos: JarvisModule[];
   onActivarModulo: (id: ModuloId) => void;
   onCambiarEstado: (estado: EstadoJarvis) => void;
+  agencia?: string | null;
 }) {
   const conversacion = useConversation();
   const conectado = conversacion.status === "connected";
@@ -164,6 +166,7 @@ function NucleoConversacional({
         moduloActivo={moduloActivo}
         onAbrir={onActivarModulo}
         estado={ESTADO_VISUAL[estadoActual]}
+        agencia={agencia}
         centro={
           <button
             type="button"
@@ -225,10 +228,12 @@ export default function JarvisCore({
   moduloActivo,
   onActivarModulo,
   onCambiarEstado = () => {},
+  agencia,
 }: {
   moduloActivo: ModuloId | null;
   onActivarModulo: (id: ModuloId) => void;
   onCambiarEstado?: (estado: EstadoJarvis) => void;
+  agencia?: string | null;
 }) {
   // Métricas reales por módulo (solo las que existen; nunca se inventan). Se
   // leen con conteos livianos que respetan RLS: cada agencia ve solo lo suyo.
@@ -348,6 +353,7 @@ export default function JarvisCore({
           modulos={modulosRed}
           onActivarModulo={onActivarModulo}
           onCambiarEstado={onCambiarEstado}
+          agencia={agencia}
         />
       </ConversationProvider>
     </div>

@@ -13,15 +13,19 @@ const ETIQUETA: Record<EstadoVisual, string> = {
   offline: "Fuera de línea",
 };
 
-// Barra de estado del command center: un punto que late con el color del núcleo
-// y un resumen honesto de cuántos módulos tienen datos reales conectados. Sin
-// inventar métricas: cuenta los que están marcados como reales.
+// Barra de estado del command center: un punto que late con el color del núcleo,
+// la agencia (tenant) actual y un resumen honesto de cuántos módulos tienen
+// datos reales conectados. Sin inventar métricas: cuenta los que están marcados
+// como reales. El nombre de la agencia sale del perfil logueado (multi-tenant),
+// nunca hardcodeado.
 export default function JarvisStatus({
   estado,
   modulos,
+  agencia,
 }: {
   estado: EstadoVisual;
   modulos: JarvisModule[];
+  agencia?: string | null;
 }) {
   const operativos = modulos.filter((m) => m.real).length;
   const color = estado === "error" ? "#dc5046" : estado === "offline" ? "var(--muted)" : "var(--dorado)";
@@ -38,7 +42,15 @@ export default function JarvisStatus({
           animation: estado === "offline" ? undefined : "jarvis-latido 2.4s ease-in-out infinite",
         }}
       />
-      <span>JARVIS · {ETIQUETA[estado]}</span>
+      {agencia && (
+        <>
+          <span className="max-w-[10rem] truncate" style={{ color: "var(--dorado)" }}>
+            {agencia}
+          </span>
+          <span style={{ color: "var(--border)" }}>|</span>
+        </>
+      )}
+      <span>{ETIQUETA[estado]}</span>
       <span style={{ color: "var(--border)" }}>|</span>
       <span>
         {operativos}/{modulos.length} módulos activos
