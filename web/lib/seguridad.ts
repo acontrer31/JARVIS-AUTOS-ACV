@@ -54,6 +54,31 @@ export async function cambiarRol(id: string, rol: Rol): Promise<void> {
   if (error) throw error;
 }
 
+// Crea un usuario nuevo para la agencia del admin. El alta real la hace el
+// endpoint del servidor (app/api/crear-usuario), que es el único que puede usar
+// la clave de administración de Supabase; acá solo se le manda el token de la
+// sesión para que el servidor verifique que quien pide es admin.
+export async function crearUsuario(datos: {
+  nombre: string;
+  email: string;
+  password: string;
+  rol: Rol;
+}): Promise<Usuario> {
+  const { data: sesion, error: errorSesion } = await supabase.auth.getSession();
+  if (errorSesion) throw errorSesion;
+  const token = sesion.session?.access_token;
+  if (!token) throw new Error("Tu sesión venció. Volvé a iniciar sesión.");
+
+  const respuesta = await fetch("/api/crear-usuario", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify(datos),
+  });
+  const cuerpo = await respuesta.json();
+  if (!respuesta.ok) throw new Error(cuerpo.error ?? "No se pudo crear el usuario.");
+  return cuerpo as Usuario;
+}
+
 // El registro de auditoría es de solo lectura desde el cliente (no hay
 // políticas de insert/update/delete a propósito) y solo lo ven los admin.
 export async function cargarAuditoria(limite = 100): Promise<EntradaAuditoria[]> {

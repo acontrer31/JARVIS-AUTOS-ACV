@@ -256,6 +256,25 @@ En vez de mostrar todo el dashboard mezclado, cada opción del menú (Inventario
 - Se cierra con la "×", tocando fuera del panel, con la tecla Escape, o pidiéndolo por voz.
 - "Dashboard" siempre vuelve a la vista normal completa (el estado de inicio).
 
+## Dar de alta usuarios de la agencia
+
+Desde el módulo **Administración**, un admin puede crear usuarios de su agencia con "+ Nuevo usuario"
+(nombre, email, contraseña y rol). Quedan vinculados a la agencia del admin automáticamente.
+
+Esto necesita **una variable de entorno más** en el servidor (Vercel y `.env.local`), porque crear
+usuarios usa la clave de administración de Supabase, que nunca puede estar en el navegador:
+
+1. En Supabase → **Project Settings → API**, copiá la clave **`service_role`** (la secreta, no la `anon`).
+2. Agregala como variable de entorno **`SUPABASE_SERVICE_ROLE_KEY`**:
+   - En Vercel: Project → Settings → Environment Variables → agregar `SUPABASE_SERVICE_ROLE_KEY` con ese valor, y redeploy.
+   - Para correr local: en `web/.env.local`, `SUPABASE_SERVICE_ROLE_KEY="..."`.
+3. Listo: el botón "+ Nuevo usuario" ya funciona.
+
+> ⚠️ La `service_role` es la clave más sensible de Supabase — saltea todas las políticas RLS. Por eso vive
+> solo en el servidor (`app/api/crear-usuario/route.ts`) y nunca lleva prefijo `NEXT_PUBLIC_`. El endpoint
+> igual verifica, con el token de la sesión, que quien pide sea admin, y toma la agencia del propio admin
+> (no de lo que mande el cliente), así un admin no puede crear usuarios en otra agencia.
+
 ## WhatsApp: recibir mensajes en JARVIS
 
 Cuando un cliente le escribe al WhatsApp de la agencia, el mensaje queda guardado en JARVIS como una

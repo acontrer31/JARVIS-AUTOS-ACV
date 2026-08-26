@@ -6,6 +6,7 @@ import {
   ROLES,
   cambiarRol,
   cargarUsuarios,
+  crearUsuario,
   miPerfil,
   type Rol,
   type Usuario,
@@ -16,6 +17,14 @@ export default function AdministracionWorkspace() {
   const [usuarios, setUsuarios] = useState<Usuario[] | null>(null);
   const [yo, setYo] = useState<Usuario | null>(null);
   const [error, setError] = useState("");
+
+  // Formulario de alta de usuario (solo admin).
+  const [creando, setCreando] = useState(false);
+  const [nuevoNombre, setNuevoNombre] = useState("");
+  const [nuevoEmail, setNuevoEmail] = useState("");
+  const [nuevaPass, setNuevaPass] = useState("");
+  const [nuevoRol, setNuevoRol] = useState<Rol>("vendedor");
+  const [guardando, setGuardando] = useState(false);
 
   useEffect(() => {
     Promise.all([cargarUsuarios(), miPerfil()])
@@ -44,18 +53,85 @@ export default function AdministracionWorkspace() {
     }
   }
 
+  async function altaUsuario(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+    setGuardando(true);
+    try {
+      const creado = await crearUsuario({
+        nombre: nuevoNombre,
+        email: nuevoEmail,
+        password: nuevaPass,
+        rol: nuevoRol,
+      });
+      setUsuarios((prev) => [...(prev ?? []), creado]);
+      setNuevoNombre("");
+      setNuevoEmail("");
+      setNuevaPass("");
+      setNuevoRol("vendedor");
+      setCreando(false);
+    } catch (err) {
+      setError(mensajeDeError(err));
+    } finally {
+      setGuardando(false);
+    }
+  }
+
   if (error && !usuarios) return <p className="py-6 text-center text-sm text-red-400">{error}</p>;
   if (!usuarios || !yo) return <p className="py-6 text-center text-sm" style={{ color: "var(--muted)" }}>Cargando usuarios…</p>;
 
   const esAdmin = yo.rol === "admin";
+  const input = "rounded-lg border px-2 py-1.5 text-sm outline-none";
+  const estiloCampo = { borderColor: "var(--border)", background: "var(--background)" } as const;
 
   return (
     <div className="flex flex-col gap-3">
-      <p className="text-xs" style={{ color: "var(--muted)" }}>
-        {usuarios.length} {usuarios.length === 1 ? "usuario" : "usuarios"} en la agencia
-      </p>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs" style={{ color: "var(--muted)" }}>
+          {usuarios.length} {usuarios.length === 1 ? "usuario" : "usuarios"} en la agencia
+        </p>
+        {esAdmin && !creando && (
+          <button
+            type="button"
+            onClick={() => setCreando(true)}
+            className="rounded-lg px-3 py-1.5 text-sm font-semibold"
+            style={{ background: "var(--dorado)", color: "#0E4D3C" }}
+          >
+            + Nuevo usuario
+          </button>
+        )}
+      </div>
 
-      {error && <p className="text-sm text-red-400">{error}</p>}
+      {esAdmin && creando && (
+        <form onSubmit={altaUsuario} className="flex flex-col gap-2 rounded-lg border p-3" style={{ borderColor: "var(--dorado)" }}>
+          <p className="text-[0.65rem] uppercase tracking-wider" style={{ color: "var(--muted)" }}>Nuevo usuario</p>
+          <div className="grid grid-cols-2 gap-2">
+            <input className={input} style={estiloCampo} placeholder="Nombre" value={nuevoNombre} onChange={(e) => setNuevoNombre(e.target.value)} />
+            <select className={input} style={estiloCampo} value={nuevoRol} onChange={(e) => setNuevoRol(e.target.value as Rol)}>
+              {ROLES.map((r) => (
+                <option key={r} value={r}>{ETIQUETA_ROL[r]}</option>
+              ))}
+            </select>
+            <input type="email" className={input} style={estiloCampo} placeholder="Email" value={nuevoEmail} onChange={(e) => setNuevoEmail(e.target.value)} />
+            <input type="password" className={input} style={estiloCampo} placeholder="Contraseña (mín. 8)" value={nuevaPass} onChange={(e) => setNuevaPass(e.target.value)} />
+          </div>
+          <div className="flex justify-end gap-2">
+            <button type="button" onClick={() => setCreando(false)} className="rounded-lg border px-3 py-1.5 text-sm" style={{ borderColor: "var(--border)" }}>
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              disabled={guardando}
+              className="rounded-lg px-3 py-1.5 text-sm font-semibold disabled:opacity-50"
+              style={{ background: "var(--dorado)", color: "#0E4D3C" }}
+            >
+              {guardando ? "Creando…" : "Crear usuario"}
+            </button>
+          </div>
+        </form>
+      )}
+
+      {error && usuarios && <p className="text-sm text-red-400">{error}</p>}
 
       <div className="flex flex-col gap-2">
         {usuarios.map((u) => (
@@ -105,7 +181,8 @@ export default function AdministracionWorkspace() {
           pero sin dar de alta ni eliminar stock.
         </p>
         <p className="mt-1">
-          Los usuarios nuevos se crean desde Supabase (Authentication → Users); acá se les asigna el rol.
+          Con &quot;+ Nuevo usuario&quot; das de alta gente de tu agencia acá mismo. Quedan vinculados a tu
+          agencia automáticamente y entran con el email y la contraseña que les pongas.
         </p>
       </div>
     </div>
