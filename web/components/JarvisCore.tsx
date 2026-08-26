@@ -7,7 +7,8 @@ import { MODULOS, type ModuloId } from "@/lib/modules";
 import { cargarVehiculos, formatearMoneda, nombreVehiculo } from "@/lib/vehiculos";
 import { calcularCostoTransferenciaDNRPA, DNRPA_DISCLAIMER, simularCuotas } from "@/lib/financiacion";
 import JarvisNucleus from "@/components/jarvis/JarvisNucleus";
-import type { EstadoVisual } from "@/lib/jarvis/tipos";
+import JarvisNetwork from "@/components/jarvis/JarvisNetwork";
+import { estadoDeModulo, type EstadoVisual, type JarvisModule } from "@/lib/jarvis/tipos";
 
 export type EstadoJarvis = "standby" | "escuchando" | "activando" | "trabajando" | "error";
 
@@ -46,12 +47,12 @@ function normalizar(texto: string): string {
 // node_modules), no adivinada, pero probemos juntos la primera vez.
 function NucleoConversacional({
   moduloActivo,
-  modulosVisibles,
+  modulos,
   onActivarModulo,
   onCambiarEstado,
 }: {
   moduloActivo: ModuloId | null;
-  modulosVisibles: boolean;
+  modulos: JarvisModule[];
   onActivarModulo: (id: ModuloId) => void;
   onCambiarEstado: (estado: EstadoJarvis) => void;
 }) {
@@ -122,61 +123,39 @@ function NucleoConversacional({
   }
 
   return (
-    <>
-      <button
-        type="button"
-        onClick={alternarConversacion}
-        className="flex flex-col items-center gap-1 select-none"
-        style={{ WebkitTouchCallout: "none", WebkitUserSelect: "none", userSelect: "none" }}
-      >
-        <div
-          className="relative flex items-center justify-center"
-          style={{ width: "min(78vw, 60vh, 30rem)", height: "min(78vw, 60vh, 30rem)" }}
-        >
-          <JarvisNucleus estado={ESTADO_VISUAL[estadoActual]} />
-        </div>
+    <div className="flex flex-col items-center gap-2">
+      {/* Red de nodos con el núcleo (botón de voz) al centro. */}
+      <JarvisNetwork
+        modulos={modulos}
+        moduloActivo={moduloActivo}
+        onAbrir={onActivarModulo}
+        centro={
+          <button
+            type="button"
+            onClick={alternarConversacion}
+            aria-label={conectado ? "Cortar la conversación con JARVIS" : "Hablar con JARVIS"}
+            className="relative h-full w-full select-none"
+            style={{ WebkitTouchCallout: "none", WebkitUserSelect: "none", userSelect: "none" }}
+          >
+            <JarvisNucleus estado={ESTADO_VISUAL[estadoActual]} />
+          </button>
+        }
+      />
 
-        <p className="text-xs tracking-[0.3em]" style={{ color: "var(--muted)" }}>
-          {ETIQUETA_ESTADO[estadoActual]}
-        </p>
-        <h1 className="text-4xl font-semibold tracking-[0.25em] sm:text-5xl">JARVIS</h1>
-        <p className="mt-1 text-[0.65rem]" style={{ color: "var(--muted)" }}>
-          {conectado ? "tocá para cortar" : "tocá para hablar con JARVIS"}
-        </p>
-      </button>
+      <p className="text-xs tracking-[0.3em]" style={{ color: "var(--muted)" }}>
+        {ETIQUETA_ESTADO[estadoActual]}
+      </p>
+      <h1 className="text-4xl font-semibold tracking-[0.25em] sm:text-5xl">JARVIS</h1>
+      <p className="text-[0.65rem]" style={{ color: "var(--muted)" }}>
+        {conectado ? "tocá el núcleo para cortar" : "tocá el núcleo para hablar · tocá un nodo para abrir su módulo"}
+      </p>
 
       {(errorLocal || (conversacion.message && conversacion.status === "error")) && (
         <p className="max-w-xs text-center text-xs" style={{ color: "var(--muted)" }}>
           {errorLocal || conversacion.message}
         </p>
       )}
-
-      {modulosVisibles && (
-        <div className="grid w-full max-w-3xl grid-cols-3 gap-3 px-4 sm:grid-cols-4 md:grid-cols-5">
-          {MODULOS.map((modulo) => {
-            const activo = moduloActivo === modulo.id;
-            return (
-              <button
-                key={modulo.id}
-                type="button"
-                onClick={() => onActivarModulo(modulo.id)}
-                className="flex flex-col items-center gap-1 rounded-xl border px-2 py-3 text-center transition"
-                style={{
-                  borderColor: activo ? "var(--dorado)" : "var(--border)",
-                  background: activo ? "color-mix(in srgb, var(--dorado) 12%, transparent)" : "var(--panel)",
-                }}
-              >
-                <span
-                  className="h-2 w-2 rounded-full"
-                  style={{ background: modulo.real ? "var(--dorado)" : "var(--muted)" }}
-                />
-                <span className="text-[0.7rem] font-medium">{modulo.label}</span>
-              </button>
-            );
-          })}
-        </div>
-      )}
-    </>
+    </div>
   );
 }
 
@@ -189,12 +168,36 @@ export default function JarvisCore({
   onActivarModulo: (id: ModuloId) => void;
   onCambiarEstado?: (estado: EstadoJarvis) => void;
 }) {
-  const [modulosVisibles, setModulosVisibles] = useState(false);
+  // Métricas reales por módulo (solo las que existen; nunca se inventan). Se
+  // leen con conteos livianos que respetan RLS: cada agencia ve solo lo suyo.
+  // Si algo falla (sin perfil, sin red), quedan vacías y el nodo no muestra
+  // métrica — fail-closed, no rompe la red.
+  const [metricas, setMetricas] = useState<Partial<Record<ModuloId, string>>>({});
 
-  function abrirModulo(id: ModuloId) {
-    setModulosVisibles(true);
-    onActivarModulo(id);
-  }
+  useEffect(() => {
+    let vivo = true;
+    (async () => {
+      const nuevas: Partial<Record<ModuloId, string>> = {};
+      try {
+        const { count } = await supabase.from("vehiculos").select("*", { count: "exact", head: true });
+        if (typeof count === "number") nuevas.vehiculos = `${count} en stock`;
+      } catch {}
+      try {
+        const { count } = await supabase.from("clientes").select("*", { count: "exact", head: true });
+        if (typeof count === "number") nuevas.clientes = count === 1 ? "1 cliente" : `${count} clientes`;
+      } catch {}
+      if (vivo) setMetricas(nuevas);
+    })();
+    return () => {
+      vivo = false;
+    };
+  }, []);
+
+  const modulosRed: JarvisModule[] = MODULOS.map((m) => ({
+    ...m,
+    status: estadoDeModulo(m),
+    metrica: metricas[m.id],
+  }));
 
   // Herramientas reales que el agente puede invocar en la conversación —
   // mismos datos y fórmulas ya probados en producción en script.js del
@@ -244,7 +247,7 @@ export default function JarvisCore({
       const nombre = normalizar(parametros?.modulo || "");
       const modulo = MODULOS.find((m) => nombre.includes(normalizar(m.label)) || normalizar(m.label).includes(nombre));
       if (!modulo) return `No reconozco un módulo llamado "${parametros?.modulo}".`;
-      abrirModulo(modulo.id);
+      onActivarModulo(modulo.id);
       return modulo.real
         ? `Abriendo ${modulo.label}.`
         : `${modulo.label} todavía no tiene datos reales conectados — lo abrí igual para que lo veas, pero está marcado como próximamente.`;
@@ -262,27 +265,15 @@ export default function JarvisCore({
   }
 
   return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-8 py-6">
+    <div className="flex flex-1 flex-col items-center justify-center gap-6 py-6">
       <ConversationProvider agentId={AGENT_ID} connectionType="websocket" clientTools={clientTools}>
         <NucleoConversacional
           moduloActivo={moduloActivo}
-          modulosVisibles={modulosVisibles}
-          onActivarModulo={abrirModulo}
+          modulos={modulosRed}
+          onActivarModulo={onActivarModulo}
           onCambiarEstado={onCambiarEstado}
         />
       </ConversationProvider>
-      {/* Los módulos siguen ocultos por defecto (el core limpio es el estado
-          normal), pero abrirlos no puede depender SOLO de la voz: si el
-          proveedor de voz falla o se queda sin cuota, el sistema entero
-          quedaría inalcanzable. Este acceso discreto es la vía manual. */}
-      <button
-        type="button"
-        onClick={() => setModulosVisibles((v) => !v)}
-        className="text-[0.65rem] uppercase tracking-[0.3em] transition-opacity hover:opacity-100"
-        style={{ color: "var(--muted)", opacity: 0.55 }}
-      >
-        {modulosVisibles ? "ocultar módulos" : "módulos"}
-      </button>
     </div>
   );
 }
