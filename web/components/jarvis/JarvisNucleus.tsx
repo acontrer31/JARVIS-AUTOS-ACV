@@ -66,10 +66,23 @@ export default function JarvisNucleus({ estado }: { estado: EstadoVisual }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const contenedorRef = useRef<HTMLDivElement | null>(null);
   const estadoRef = useRef<EstadoVisual>(estado);
+  // Repinta un solo cuadro bajo prefers-reduced-motion (donde no hay loop de
+  // animación): así el canvas refleja el nuevo estado en vez de quedar
+  // congelado en el primero.
+  const repintarRef = useRef<(() => void) | null>(null);
 
   // El loop lee el estado más nuevo por ref, sin reiniciarse en cada cambio.
   useEffect(() => {
     estadoRef.current = estado;
+  }, [estado]);
+
+  // Bajo movimiento reducido no corre el loop de animación, así que hay que
+  // repintar el canvas a mano cuando cambia el estado (si no, quedaría
+  // congelado en el primer cuadro). Solo entra en ese caso.
+  useEffect(() => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      repintarRef.current?.();
+    }
   }, [estado]);
 
   useEffect(() => {
@@ -113,10 +126,15 @@ export default function JarvisNucleus({ estado }: { estado: EstadoVisual }) {
     }
     medir();
 
-    const ro = new ResizeObserver(medir);
-    ro.observe(contenedor);
-
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    // Con movimiento reducido no hay loop, así que un resize también tiene que
+    // repintar el cuadro estático.
+    const ro = new ResizeObserver(() => {
+      medir();
+      if (reduce) pintar(performance.now());
+    });
+    ro.observe(contenedor);
 
     let raf = 0;
     let ultimo = performance.now();
@@ -173,6 +191,10 @@ export default function JarvisNucleus({ estado }: { estado: EstadoVisual }) {
       if (!reduce) raf = requestAnimationFrame(pintar);
     }
 
+    // Repintado puntual de un cuadro (se usa desde el efecto que observa el
+    // estado, solo bajo movimiento reducido — pintar() no agenda rAF ahí).
+    repintarRef.current = () => pintar(performance.now());
+
     // Con movimiento reducido: un solo cuadro estático.
     if (reduce) pintar(performance.now());
     else raf = requestAnimationFrame(pintar);
@@ -195,6 +217,12 @@ export default function JarvisNucleus({ estado }: { estado: EstadoVisual }) {
   }, []);
 
   const ritmo = RITMO[estado];
+
+  // El isologo gira como una moneda cuando JARVIS está activo (al tocar/hablar):
+  // rápido al hablar, algo más lento mientras escucha o conecta; quieto en
+  // reposo, error u offline.
+  const giroMoneda =
+    estado === "speaking" ? 1.6 : estado === "listening" || estado === "processing" ? 2.6 : 0;
 
   return (
     <div ref={contenedorRef} className="absolute inset-0">
@@ -239,8 +267,18 @@ export default function JarvisNucleus({ estado }: { estado: EstadoVisual }) {
           letras "AA" en crema (Plastik). Recreado en SVG con las CSS vars de
           identidad — nunca colores fuera del verde/dorado. Cuando el usuario
           suba el archivo real del isologo, se cambia solo esta parte. */}
-      <div className="absolute inset-[33%] flex items-center justify-center">
-        <svg viewBox="0 0 100 100" className="h-full w-full" role="img" aria-label="Isologo">
+      <div className="absolute inset-[33%] flex items-center justify-center" style={{ perspective: "600px" }}>
+        <svg
+          viewBox="0 0 100 100"
+          className="h-full w-full"
+          role="img"
+          aria-label="Isologo"
+          style={
+            giroMoneda
+              ? { animation: `jarvis-moneda ${giroMoneda}s linear infinite`, transformStyle: "preserve-3d" }
+              : undefined
+          }
+        >
           <defs>
             <radialGradient id="jarvis-nucleo-relleno" cx="50%" cy="42%" r="65%">
               <stop offset="0%" stopColor="color-mix(in srgb, var(--verde-core) 78%, #000)" />

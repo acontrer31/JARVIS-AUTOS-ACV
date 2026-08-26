@@ -63,9 +63,18 @@ body {
   }
 }
 
+/* El isologo gira sobre su eje vertical como una moneda cuando JARVIS está
+   activo (al tocar o hablar). */
+@keyframes jarvis-moneda {
+  to {
+    transform: rotateY(360deg);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   [style*="jarvis-girar"],
-  [style*="jarvis-latido"] {
+  [style*="jarvis-latido"],
+  [style*="jarvis-moneda"] {
     animation: none !important;
   }
 }
