@@ -10,6 +10,7 @@ import JarvisNucleus from "@/components/jarvis/JarvisNucleus";
 import JarvisNetwork from "@/components/jarvis/JarvisNetwork";
 import { estadoDeModulo, type EstadoVisual, type JarvisModule } from "@/lib/jarvis/tipos";
 import { fijarTema, temaActual, type Tema } from "@/lib/tema";
+import { soportaEscucha, useEscuchaContinua } from "@/lib/escuchaContinua";
 
 export type EstadoJarvis = "standby" | "escuchando" | "activando" | "trabajando" | "error";
 
@@ -67,6 +68,18 @@ function NucleoConversacional({
   const [errorLocal, setErrorLocal] = useState<string | null>(null);
   const [conectando, setConectando] = useState(false);
 
+  // Escucha continua ("manos libres"): si el navegador la soporta y el usuario
+  // la activa, JARVIS escucha la palabra "Jarvis" y arranca la conversación
+  // solo. El click sigue funcionando igual. La preferencia se recuerda.
+  const [soportaManos] = useState(soportaEscucha);
+  const [manosLibres, setManosLibres] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem("jarvis-manos-libres") === "1";
+    } catch {
+      return false;
+    }
+  });
+
   const estadoActual: EstadoJarvis =
     errorLocal || conversacion.status === "error"
       ? "error"
@@ -123,6 +136,26 @@ function NucleoConversacional({
     }
   }
 
+  // Mientras "manos libres" esté activo y no haya conversación en curso, el
+  // navegador escucha la palabra de activación y arranca la charla solo.
+  useEscuchaContinua({
+    activa: manosLibres && soportaManos,
+    pausada: conectado || conectando,
+    onWake: () => {
+      if (!conectado && !conectando) void alternarConversacion();
+    },
+  });
+
+  function alternarManos() {
+    setManosLibres((v) => {
+      const nuevo = !v;
+      try {
+        localStorage.setItem("jarvis-manos-libres", nuevo ? "1" : "0");
+      } catch {}
+      return nuevo;
+    });
+  }
+
   return (
     <div className="flex flex-col items-center gap-2">
       {/* Red de nodos con el núcleo (botón de voz) al centro. */}
@@ -149,8 +182,35 @@ function NucleoConversacional({
       </p>
       <h1 className="text-4xl font-semibold tracking-[0.25em] sm:text-5xl">JARVIS</h1>
       <p className="text-[0.65rem]" style={{ color: "var(--muted)" }}>
-        {conectado ? "tocá el núcleo para cortar" : "tocá el núcleo para hablar · tocá un nodo para abrir su módulo"}
+        {conectado
+          ? "tocá el núcleo para cortar"
+          : manosLibres && soportaManos
+            ? 'escuchando… decí «JARVIS» para activar · o tocá el núcleo'
+            : "tocá el núcleo para hablar · tocá un nodo para abrir su módulo"}
       </p>
+
+      {soportaManos && (
+        <button
+          type="button"
+          onClick={alternarManos}
+          aria-pressed={manosLibres}
+          className="flex items-center gap-2 rounded-full border px-3 py-1 text-[0.65rem] uppercase tracking-[0.2em] transition"
+          style={{
+            borderColor: manosLibres ? "var(--dorado)" : "var(--border)",
+            color: manosLibres ? "var(--dorado)" : "var(--muted)",
+            background: manosLibres ? "color-mix(in srgb, var(--dorado) 10%, transparent)" : "transparent",
+          }}
+        >
+          <span
+            className="h-1.5 w-1.5 rounded-full"
+            style={{
+              background: manosLibres ? "var(--dorado)" : "var(--muted)",
+              animation: manosLibres && !conectado ? "jarvis-latido 2s ease-in-out infinite" : undefined,
+            }}
+          />
+          Manos libres {manosLibres ? "activado" : "desactivado"}
+        </button>
+      )}
 
       {(errorLocal || (conversacion.message && conversacion.status === "error")) && (
         <p className="max-w-xs text-center text-xs" style={{ color: "var(--muted)" }}>
