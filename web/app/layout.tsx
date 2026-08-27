@@ -36,6 +36,12 @@ export const metadata: Metadata = {
 const SCRIPT_TEMA_INICIAL = `
 (function () {
   try {
+    var manual = null;
+    try { manual = localStorage.getItem('jarvis-tema'); } catch (e) {}
+    if (manual === 'dia' || manual === 'noche') {
+      document.documentElement.dataset.tema = manual;
+      return;
+    }
     var hora = new Intl.DateTimeFormat('en-US', {
       timeZone: 'America/Argentina/Buenos_Aires',
       hour: 'numeric',

@@ -26,6 +26,11 @@ export default function AdministracionWorkspace() {
   const [nuevoRol, setNuevoRol] = useState<Rol>("vendedor");
   const [guardando, setGuardando] = useState(false);
 
+  // El recuadro de ayuda de roles arranca colapsado como un botón "Info": se
+  // abre al pasar el cursor (group-hover) y, para pantallas táctiles sin hover,
+  // también al tocarlo (infoAbierta).
+  const [infoAbierta, setInfoAbierta] = useState(false);
+
   useEffect(() => {
     Promise.all([cargarUsuarios(), miPerfil()])
       .then(([gente, perfil]) => {
@@ -91,13 +96,22 @@ export default function AdministracionWorkspace() {
           {usuarios.length} {usuarios.length === 1 ? "usuario" : "usuarios"} en la agencia
         </p>
         {esAdmin && !creando && (
+          // Por defecto es solo un botón redondo con "+"; al pasar el cursor se
+          // ensancha y aparece "Nuevo usuario". Mismo patrón que el botón
+          // Editar de la ficha del vehículo. En pantallas táctiles (sin hover)
+          // el "+" sigue siendo clickeable.
           <button
             type="button"
             onClick={() => setCreando(true)}
-            className="rounded-lg px-3 py-1.5 text-sm font-semibold"
-            style={{ background: "var(--dorado)", color: "#0E4D3C" }}
+            title="Nuevo usuario"
+            aria-label="Nuevo usuario"
+            className="group flex h-8 w-8 items-center justify-center gap-1 overflow-hidden whitespace-nowrap rounded-full text-sm font-semibold transition-all duration-200 hover:w-40"
+            style={{ background: "var(--dorado)", color: "var(--verde-core)" }}
           >
-            + Nuevo usuario
+            <span className="text-base leading-none">+</span>
+            <span className="opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+              Nuevo usuario
+            </span>
           </button>
         )}
       </div>
@@ -169,21 +183,38 @@ export default function AdministracionWorkspace() {
         ))}
       </div>
 
-      <div className="rounded-lg border p-3 text-[0.7rem]" style={{ borderColor: "var(--border)", color: "var(--muted)" }}>
-        <p className="mb-1">Qué puede hacer cada rol:</p>
-        <p>
-          <strong>Administrador</strong>: todo — dar de alta y eliminar vehículos, borrar clientes y
-          operaciones, cambiar roles y ver el registro de auditoría.
-        </p>
-        <p>
-          <strong>Vendedor</strong>: trabajar el día a día — cargar y editar clientes, registrar
-          interacciones y operaciones, y actualizar vehículos (por ejemplo marcarlos como reservados),
-          pero sin dar de alta ni eliminar stock.
-        </p>
-        <p className="mt-1">
-          Con &quot;+ Nuevo usuario&quot; das de alta gente de tu agencia acá mismo. Quedan vinculados a tu
-          agencia automáticamente y entran con el email y la contraseña que les pongas.
-        </p>
+      {/* La ayuda de roles queda colapsada tras un botón "Info" (colores
+          invertidos: fondo verde, letras doradas). Se despliega al pasar el
+          cursor, y al tocarlo en pantallas táctiles. */}
+      <div className="group relative self-start">
+        <button
+          type="button"
+          onClick={() => setInfoAbierta((v) => !v)}
+          aria-expanded={infoAbierta}
+          className="rounded-lg px-3 py-1.5 text-xs font-semibold"
+          style={{ background: "var(--verde-core)", color: "var(--dorado)" }}
+        >
+          Info
+        </button>
+        <div
+          className={`${infoAbierta ? "block" : "hidden group-hover:block"} absolute bottom-full left-0 z-10 mb-2 w-80 max-w-[85vw] rounded-lg border p-3 text-[0.7rem] shadow-lg`}
+          style={{ borderColor: "var(--border)", background: "var(--panel)", color: "var(--muted)" }}
+        >
+          <p className="mb-1">Qué puede hacer cada rol:</p>
+          <p>
+            <strong>Administrador</strong>: todo — dar de alta y eliminar vehículos, borrar clientes y
+            operaciones, cambiar roles y ver el registro de auditoría.
+          </p>
+          <p>
+            <strong>Vendedor</strong>: trabajar el día a día — cargar y editar clientes, registrar
+            interacciones y operaciones, y actualizar vehículos (por ejemplo marcarlos como reservados),
+            pero sin dar de alta ni eliminar stock.
+          </p>
+          <p className="mt-1">
+            Con &quot;+ Nuevo usuario&quot; das de alta gente de tu agencia acá mismo. Quedan vinculados a tu
+            agencia automáticamente y entran con el email y la contraseña que les pongas.
+          </p>
+        </div>
       </div>
     </div>
   );

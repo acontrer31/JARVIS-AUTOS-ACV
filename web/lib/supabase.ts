@@ -30,7 +30,16 @@ export async function miAgenciaId(): Promise<string> {
     .from("perfiles")
     .select("agencia_id")
     .eq("id", sesion.user.id)
-    .single();
+    .maybeSingle();
   if (error) throw error;
+  if (!data) {
+    // El usuario existe en Auth pero no tiene perfil vinculado a una agencia.
+    // Sin esa fila ninguna política RLS funciona. Mismo mensaje accionable que
+    // miPerfil() en lib/seguridad.ts, para no dejar el error críptico de
+    // PostgREST ("Cannot coerce the result to a single JSON object").
+    throw new Error(
+      "Tu usuario no tiene un perfil vinculado a ninguna agencia. Hay que crearlo en Supabase (ver README, sección de Supabase)."
+    );
+  }
   return data.agencia_id as string;
 }

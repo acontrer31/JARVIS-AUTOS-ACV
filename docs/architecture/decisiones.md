@@ -133,3 +133,49 @@ deliberado.
   `web/.env.example` (sin valores) viaja al repo.
 - El `ANON_KEY` de Supabase es público por diseño (seguro de exponer client-side) — la seguridad real
   la dan las políticas RLS en Postgres, ya activas y probadas en el sitio actual.
+
+## JARVIS Command Center (capa visual del núcleo)
+
+La pantalla principal evolucionó de un núcleo con grilla de módulos a un "command center":
+un núcleo central animado rodeado de una red de nodos (uno por módulo), con conexiones,
+partículas y microinteracciones. Decisiones de fondo:
+
+- **Render sin dependencias nuevas: Canvas 2D + SVG + CSS, sin WebGL.** La identidad es 2D/plana
+  (aro dorado, verde inglés) y mobile es objetivo. Three.js/R3F habría sumado peso y riesgo sin
+  aportar a esta estética. Las partículas del núcleo van en `<canvas>` (cap de `devicePixelRatio`,
+  `requestAnimationFrame`, pausa con la pestaña oculta, y cuadro estático bajo
+  `prefers-reduced-motion`); anillos, nodos y conexiones en SVG; glow/pulsos/giro en CSS. El bundle
+  no cambió.
+- **La lógica no se tocó, solo la presentación.** `components/JarvisCore.tsx` sigue siendo el
+  controlador (voz ElevenLabs + máquina de estados + despacho de módulos). Lo visual se factoriza en
+  `components/jarvis/*` (`JarvisNucleus`, `JarvisNetwork`, `JarvisNode`, `JarvisConnection`,
+  `JarvisNodePanel`, `JarvisStatus`) y tipos en `lib/jarvis/tipos.ts`. Los nodos abren el mismo
+  `ModuleWorkspace` de siempre.
+- **El núcleo es el botón de voz** (unifica "núcleo IA" + "Voz"). El isologo de marca se recrea en
+  SVG con las CSS vars de identidad (verde/dorado); no se usó el `icon-512.png` del sitio viejo
+  porque resultó ser un ícono celeste fuera de marca.
+- **Nada inventado ("no fake buttons").** Los nodos muestran métrica real solo cuando existe
+  (conteos de vehículos/clientes vía `count` con RLS, fail-closed a "sin métrica"); un módulo sin
+  datos se marca "sin datos aún", no como operativo.
+
+## Tema día/noche manual
+
+El tema era 100% automático por la hora en Argentina. Ahora el usuario puede fijarlo a mano (toggle en
+Seguridad o por voz con la tool `cambiar_tema`). La elección se guarda en `localStorage` (`jarvis-tema`)
+y gana sobre el automático; si no hay elección, sigue por hora. El script inline de `layout.tsx` lee esa
+preferencia antes de hidratar para no mostrar un flash del tema equivocado.
+
+## Escucha continua ("manos libres")
+
+Activación de la voz sin click, opcional y recordada. Se hace con la Web Speech API del navegador
+(`lib/escuchaContinua.ts`): escucha **localmente** la palabra "Jarvis" y recién ahí arranca la
+conversación con ElevenLabs — así **no se gasta cuota de ElevenLabs mientras hay silencio**, que
+importa por los topes de cuota ya vistos. Se pausa durante la conversación (mismo micrófono) y degrada
+elegante si el navegador no la soporta (queda solo el click). Es best-effort y anda mejor en Chrome.
+
+## Preparación multi-tenant (SaaS)
+
+La interfaz ya no hardcodea la concesionaria: el nombre de la agencia sale del perfil logueado y se
+muestra en el HUD (`JarvisStatus`). Los colores son CSS vars, así que un tema por tenant podría
+sobrescribir `--dorado`/`--verde-core` a futuro sin tocar componentes. Los tipos de `lib/jarvis/tipos.ts`
+(`JarvisTenant`) dejan lugar para organización/tenant cuando el modelo exista en la base.

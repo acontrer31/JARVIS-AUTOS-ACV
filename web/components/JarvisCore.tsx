@@ -6,8 +6,23 @@ import { supabase } from "@/lib/supabase";
 import { MODULOS, type ModuloId } from "@/lib/modules";
 import { cargarVehiculos, formatearMoneda, nombreVehiculo } from "@/lib/vehiculos";
 import { calcularCostoTransferenciaDNRPA, DNRPA_DISCLAIMER, simularCuotas } from "@/lib/financiacion";
+import JarvisNucleus from "@/components/jarvis/JarvisNucleus";
+import JarvisNetwork from "@/components/jarvis/JarvisNetwork";
+import { estadoDeModulo, type EstadoVisual, type JarvisModule } from "@/lib/jarvis/tipos";
+import { fijarTema, temaActual, type Tema } from "@/lib/tema";
+import { soportaEscucha, useEscuchaContinua } from "@/lib/escuchaContinua";
 
 export type EstadoJarvis = "standby" | "escuchando" | "activando" | "trabajando" | "error";
+
+// La máquina de estados real (arriba, atada al SDK de ElevenLabs) manda; el
+// núcleo del command center solo necesita una versión visual de cada estado.
+const ESTADO_VISUAL: Record<EstadoJarvis, EstadoVisual> = {
+  standby: "idle",
+  escuchando: "listening",
+  activando: "processing",
+  trabajando: "speaking",
+  error: "error",
+};
 
 const ETIQUETA_ESTADO: Record<EstadoJarvis, string> = {
   standby: "STANDBY",
@@ -26,40 +41,6 @@ function normalizar(texto: string): string {
     .replace(/[\u0300-\u036f]/g, "");
 }
 
-// Recreación del isologo real (círculo con anillo dorado, relleno verde
-// inglés oscuro, letras "AA" en Plastik Regular — la tipografía real del
-// logo, licencia GPL v2, ver web/app/fonts/LICENSE-Plastik.txt) mientras el
-// usuario sube el archivo de imagen real del isologo completo — apenas lo
-// suba, este SVG se reemplaza por la imagen real en <img>, sin tocar el
-// resto del componente.
-function LogoCore() {
-  return (
-    <svg
-      viewBox="0 0 100 100"
-      className="h-full w-full"
-      role="img"
-      aria-label="Isologo Alcover Automotores"
-      style={{ pointerEvents: "none", userSelect: "none" }}
-    >
-      <circle cx="50" cy="50" r="47" fill="var(--verde-core)" stroke="var(--dorado)" strokeWidth="4" />
-      <text
-        x="50"
-        y="61"
-        textAnchor="middle"
-        fontSize="40"
-        fill="var(--core-text)"
-        stroke="var(--core-text)"
-        strokeWidth="1.6"
-        strokeLinejoin="round"
-        fontFamily="var(--font-plastik, sans-serif)"
-        style={{ userSelect: "none" }}
-      >
-        AA
-      </text>
-    </svg>
-  );
-}
-
 // Componente interno: vive dentro de <ConversationProvider>, que es donde
 // useConversation() puede usarse. No se pudo verificar en vivo esta versión
 // exacta del SDK contra el agente real en este entorno (sin acceso de red a
@@ -68,14 +49,16 @@ function LogoCore() {
 // node_modules), no adivinada, pero probemos juntos la primera vez.
 function NucleoConversacional({
   moduloActivo,
-  modulosVisibles,
+  modulos,
   onActivarModulo,
   onCambiarEstado,
+  agencia,
 }: {
   moduloActivo: ModuloId | null;
-  modulosVisibles: boolean;
+  modulos: JarvisModule[];
   onActivarModulo: (id: ModuloId) => void;
   onCambiarEstado: (estado: EstadoJarvis) => void;
+  agencia?: string | null;
 }) {
   const conversacion = useConversation();
   const conectado = conversacion.status === "connected";
@@ -86,6 +69,18 @@ function NucleoConversacional({
   // que es exactamente el bug que reportó el usuario.
   const [errorLocal, setErrorLocal] = useState<string | null>(null);
   const [conectando, setConectando] = useState(false);
+
+  // Escucha continua ("manos libres"): si el navegador la soporta y el usuario
+  // la activa, JARVIS escucha la palabra "Jarvis" y arranca la conversación
+  // solo. El click sigue funcionando igual. La preferencia se recuerda.
+  const [soportaManos] = useState(soportaEscucha);
+  const [manosLibres, setManosLibres] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem("jarvis-manos-libres") === "1";
+    } catch {
+      return false;
+    }
+  });
 
   const estadoActual: EstadoJarvis =
     errorLocal || conversacion.status === "error"
@@ -143,79 +138,89 @@ function NucleoConversacional({
     }
   }
 
-  return (
-    <>
-      <button
-        type="button"
-        onClick={alternarConversacion}
-        className="flex flex-col items-center gap-1 select-none"
-        style={{ WebkitTouchCallout: "none", WebkitUserSelect: "none", userSelect: "none" }}
-      >
-        <div
-          className="relative flex items-center justify-center"
-          style={{ width: "min(78vw, 60vh, 30rem)", height: "min(78vw, 60vh, 30rem)" }}
-        >
-          <div
-            className="absolute inset-0 rounded-full border-2 border-dashed"
-            style={{
-              borderColor: "var(--dorado)",
-              opacity: 0.55,
-              animation: `girar ${conversacion.mode === "speaking" ? 3 : 14}s linear infinite`,
-            }}
-          />
-          <div
-            className="absolute inset-4 rounded-full"
-            style={{
-              boxShadow: `0 0 60px 10px color-mix(in srgb, var(--dorado) ${conectado ? 55 : 35}%, transparent)`,
-              transition: "box-shadow 0.4s ease",
-            }}
-          />
-          <div className="absolute inset-8 animate-[girar_22s_linear_infinite_reverse]">
-            <LogoCore />
-          </div>
-        </div>
+  // Mientras "manos libres" esté activo y no haya conversación en curso, el
+  // navegador escucha la palabra de activación y arranca la charla solo.
+  useEscuchaContinua({
+    activa: manosLibres && soportaManos,
+    pausada: conectado || conectando,
+    onWake: () => {
+      if (!conectado && !conectando) void alternarConversacion();
+    },
+  });
 
-        <p className="text-xs tracking-[0.3em]" style={{ color: "var(--muted)" }}>
-          {ETIQUETA_ESTADO[estadoActual]}
-        </p>
-        <h1 className="text-4xl font-semibold tracking-[0.25em] sm:text-5xl">JARVIS</h1>
-        <p className="mt-1 text-[0.65rem]" style={{ color: "var(--muted)" }}>
-          {conectado ? "tocá para cortar" : "tocá para hablar con JARVIS"}
-        </p>
-      </button>
+  function alternarManos() {
+    setManosLibres((v) => {
+      const nuevo = !v;
+      try {
+        localStorage.setItem("jarvis-manos-libres", nuevo ? "1" : "0");
+      } catch {}
+      return nuevo;
+    });
+  }
+
+  return (
+    <div className="flex flex-col items-center gap-2">
+      {/* Red de nodos con el núcleo (botón de voz) al centro. */}
+      <JarvisNetwork
+        modulos={modulos}
+        moduloActivo={moduloActivo}
+        onAbrir={onActivarModulo}
+        estado={ESTADO_VISUAL[estadoActual]}
+        agencia={agencia}
+        centro={
+          <button
+            type="button"
+            onClick={alternarConversacion}
+            aria-label={conectado ? "Cortar la conversación con JARVIS" : "Hablar con JARVIS"}
+            className="relative h-full w-full select-none"
+            style={{ WebkitTouchCallout: "none", WebkitUserSelect: "none", userSelect: "none" }}
+          >
+            <JarvisNucleus estado={ESTADO_VISUAL[estadoActual]} />
+          </button>
+        }
+      />
+
+      <p className="text-xs tracking-[0.3em]" style={{ color: "var(--muted)" }}>
+        {ETIQUETA_ESTADO[estadoActual]}
+      </p>
+      <h1 className="text-4xl font-semibold tracking-[0.25em] sm:text-5xl">JARVIS</h1>
+      <p className="text-[0.65rem]" style={{ color: "var(--muted)" }}>
+        {conectado
+          ? "tocá el núcleo para cortar"
+          : manosLibres && soportaManos
+            ? 'escuchando… decí «JARVIS» para activar · o tocá el núcleo'
+            : "tocá el núcleo para hablar · tocá un nodo para abrir su módulo"}
+      </p>
+
+      {soportaManos && (
+        <button
+          type="button"
+          onClick={alternarManos}
+          aria-pressed={manosLibres}
+          className="flex items-center gap-2 rounded-full border px-3 py-1 text-[0.65rem] uppercase tracking-[0.2em] transition"
+          style={{
+            borderColor: manosLibres ? "var(--dorado)" : "var(--border)",
+            color: manosLibres ? "var(--dorado)" : "var(--muted)",
+            background: manosLibres ? "color-mix(in srgb, var(--dorado) 10%, transparent)" : "transparent",
+          }}
+        >
+          <span
+            className="h-1.5 w-1.5 rounded-full"
+            style={{
+              background: manosLibres ? "var(--dorado)" : "var(--muted)",
+              animation: manosLibres && !conectado ? "jarvis-latido 2s ease-in-out infinite" : undefined,
+            }}
+          />
+          Manos libres {manosLibres ? "activado" : "desactivado"}
+        </button>
+      )}
 
       {(errorLocal || (conversacion.message && conversacion.status === "error")) && (
         <p className="max-w-xs text-center text-xs" style={{ color: "var(--muted)" }}>
           {errorLocal || conversacion.message}
         </p>
       )}
-
-      {modulosVisibles && (
-        <div className="grid w-full max-w-3xl grid-cols-3 gap-3 px-4 sm:grid-cols-4 md:grid-cols-5">
-          {MODULOS.map((modulo) => {
-            const activo = moduloActivo === modulo.id;
-            return (
-              <button
-                key={modulo.id}
-                type="button"
-                onClick={() => onActivarModulo(modulo.id)}
-                className="flex flex-col items-center gap-1 rounded-xl border px-2 py-3 text-center transition"
-                style={{
-                  borderColor: activo ? "var(--dorado)" : "var(--border)",
-                  background: activo ? "color-mix(in srgb, var(--dorado) 12%, transparent)" : "var(--panel)",
-                }}
-              >
-                <span
-                  className="h-2 w-2 rounded-full"
-                  style={{ background: modulo.real ? "var(--dorado)" : "var(--muted)" }}
-                />
-                <span className="text-[0.7rem] font-medium">{modulo.label}</span>
-              </button>
-            );
-          })}
-        </div>
-      )}
-    </>
+    </div>
   );
 }
 
@@ -223,17 +228,43 @@ export default function JarvisCore({
   moduloActivo,
   onActivarModulo,
   onCambiarEstado = () => {},
+  agencia,
 }: {
   moduloActivo: ModuloId | null;
   onActivarModulo: (id: ModuloId) => void;
   onCambiarEstado?: (estado: EstadoJarvis) => void;
+  agencia?: string | null;
 }) {
-  const [modulosVisibles, setModulosVisibles] = useState(false);
+  // Métricas reales por módulo (solo las que existen; nunca se inventan). Se
+  // leen con conteos livianos que respetan RLS: cada agencia ve solo lo suyo.
+  // Si algo falla (sin perfil, sin red), quedan vacías y el nodo no muestra
+  // métrica — fail-closed, no rompe la red.
+  const [metricas, setMetricas] = useState<Partial<Record<ModuloId, string>>>({});
 
-  function abrirModulo(id: ModuloId) {
-    setModulosVisibles(true);
-    onActivarModulo(id);
-  }
+  useEffect(() => {
+    let vivo = true;
+    (async () => {
+      const nuevas: Partial<Record<ModuloId, string>> = {};
+      try {
+        const { count } = await supabase.from("vehiculos").select("*", { count: "exact", head: true });
+        if (typeof count === "number") nuevas.vehiculos = `${count} en stock`;
+      } catch {}
+      try {
+        const { count } = await supabase.from("clientes").select("*", { count: "exact", head: true });
+        if (typeof count === "number") nuevas.clientes = count === 1 ? "1 cliente" : `${count} clientes`;
+      } catch {}
+      if (vivo) setMetricas(nuevas);
+    })();
+    return () => {
+      vivo = false;
+    };
+  }, []);
+
+  const modulosRed: JarvisModule[] = MODULOS.map((m) => ({
+    ...m,
+    status: estadoDeModulo(m),
+    metrica: metricas[m.id],
+  }));
 
   // Herramientas reales que el agente puede invocar en la conversación —
   // mismos datos y fórmulas ya probados en producción en script.js del
@@ -283,10 +314,24 @@ export default function JarvisCore({
       const nombre = normalizar(parametros?.modulo || "");
       const modulo = MODULOS.find((m) => nombre.includes(normalizar(m.label)) || normalizar(m.label).includes(nombre));
       if (!modulo) return `No reconozco un módulo llamado "${parametros?.modulo}".`;
-      abrirModulo(modulo.id);
+      onActivarModulo(modulo.id);
       return modulo.real
         ? `Abriendo ${modulo.label}.`
         : `${modulo.label} todavía no tiene datos reales conectados — lo abrí igual para que lo veas, pero está marcado como próximamente.`;
+    },
+    // Cambia entre modo día y noche por voz. Sin un modo explícito, alterna.
+    cambiar_tema: async (parametros: { modo?: string }) => {
+      const pedido = normalizar(parametros?.modo || "");
+      let tema: Tema;
+      if (pedido.includes("dia") || pedido.includes("claro") || pedido.includes("blanco")) {
+        tema = "dia";
+      } else if (pedido.includes("noche") || pedido.includes("oscuro") || pedido.includes("negro")) {
+        tema = "noche";
+      } else {
+        tema = temaActual() === "noche" ? "dia" : "noche";
+      }
+      fijarTema(tema);
+      return `Listo, cambié a modo ${tema}.`;
     },
   };
 
@@ -301,30 +346,16 @@ export default function JarvisCore({
   }
 
   return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-8 py-6">
+    <div className="flex flex-1 flex-col items-center justify-center gap-6 py-6">
       <ConversationProvider agentId={AGENT_ID} connectionType="websocket" clientTools={clientTools}>
         <NucleoConversacional
           moduloActivo={moduloActivo}
-          modulosVisibles={modulosVisibles}
-          onActivarModulo={abrirModulo}
+          modulos={modulosRed}
+          onActivarModulo={onActivarModulo}
           onCambiarEstado={onCambiarEstado}
+          agencia={agencia}
         />
       </ConversationProvider>
-      {/* Los módulos siguen ocultos por defecto (el core limpio es el estado
-          normal), pero abrirlos no puede depender SOLO de la voz: si el
-          proveedor de voz falla o se queda sin cuota, el sistema entero
-          quedaría inalcanzable. Este acceso discreto es la vía manual. */}
-      <button
-        type="button"
-        onClick={() => setModulosVisibles((v) => !v)}
-        className="text-[0.65rem] uppercase tracking-[0.3em] transition-opacity hover:opacity-100"
-        style={{ color: "var(--muted)", opacity: 0.55 }}
-      >
-        {modulosVisibles ? "ocultar módulos" : "módulos"}
-      </button>
-      <style>{`
-        @keyframes girar { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-      `}</style>
     </div>
   );
 }
