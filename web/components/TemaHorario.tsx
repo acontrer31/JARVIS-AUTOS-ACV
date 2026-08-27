@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { esDeDia, temaGuardado } from "@/lib/tema";
+import { esDeDia, EVENTO_TEMA, temaGuardado } from "@/lib/tema";
 
 // Solo efecto secundario: mantiene document.documentElement.dataset.tema
 // sincronizado con la hora real en Argentina mientras la pestaña sigue
@@ -15,7 +15,13 @@ export default function TemaHorario() {
   useEffect(() => {
     function aplicar() {
       const manual = temaGuardado();
-      document.documentElement.dataset.tema = manual ?? (esDeDia() ? "dia" : "noche");
+      const nuevo = manual ?? (esDeDia() ? "dia" : "noche");
+      if (document.documentElement.dataset.tema !== nuevo) {
+        document.documentElement.dataset.tema = nuevo;
+        // Avisar a los suscriptores (el toggle de Seguridad) para que reflejen
+        // el cambio automático por hora, no solo los manuales.
+        window.dispatchEvent(new CustomEvent(EVENTO_TEMA, { detail: nuevo }));
+      }
     }
     aplicar();
     const id = setInterval(aplicar, 60_000);

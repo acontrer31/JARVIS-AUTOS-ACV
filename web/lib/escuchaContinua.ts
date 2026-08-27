@@ -74,6 +74,11 @@ export function useEscuchaContinua({
     let detenido = false;
 
     rec.onresult = (e) => {
+      // El reconocedor emite varios resultados (interinos); una vez detectada la
+      // palabra ya se llamó a stop(), pero stop() es asíncrono y podría entrar
+      // otro onresult antes de frenar. El guard evita disparar onWake dos veces
+      // (dos conversaciones).
+      if (detenido) return;
       for (let i = e.resultIndex; i < e.results.length; i++) {
         const texto = (e.results[i][0]?.transcript || "").toLowerCase();
         if (FRASES_ACTIVACION.some((f) => texto.includes(f))) {
