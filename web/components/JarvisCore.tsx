@@ -11,6 +11,7 @@ import JarvisNetwork from "@/components/jarvis/JarvisNetwork";
 import { estadoDeModulo, type EstadoVisual, type JarvisModule } from "@/lib/jarvis/tipos";
 import { fijarTema, temaActual, type Tema } from "@/lib/tema";
 import { soportaEscucha, useEscuchaContinua } from "@/lib/escuchaContinua";
+import { consultarClima } from "@/lib/clima";
 
 export type EstadoJarvis = "standby" | "escuchando" | "activando" | "trabajando" | "error";
 
@@ -332,6 +333,11 @@ export default function JarvisCore({
       }
       fijarTema(tema);
       return `Listo, cambié a modo ${tema}.`;
+    },
+    // Clima actual de una ciudad (Open-Meteo, sin API key). Si no se dice la
+    // ciudad, JARVIS la pregunta.
+    consultar_clima: async (parametros: { ciudad?: string }) => {
+      return await consultarClima(parametros?.ciudad || "");
     },
   };
 
