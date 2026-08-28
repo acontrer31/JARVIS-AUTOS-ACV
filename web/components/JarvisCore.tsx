@@ -12,6 +12,7 @@ import { estadoDeModulo, type EstadoVisual, type JarvisModule } from "@/lib/jarv
 import { fijarTema, temaActual, type Tema } from "@/lib/tema";
 import { soportaEscucha, useEscuchaContinua } from "@/lib/escuchaContinua";
 import { consultarClima } from "@/lib/clima";
+import { cargarTareas, crearTarea } from "@/lib/tareas";
 
 export type EstadoJarvis = "standby" | "escuchando" | "activando" | "trabajando" | "error";
 
@@ -338,6 +339,31 @@ export default function JarvisCore({
     // ciudad, JARVIS la pregunta.
     consultar_clima: async (parametros: { ciudad?: string }) => {
       return await consultarClima(parametros?.ciudad || "");
+    },
+    // Tareas pendientes del usuario (las lee de su lista en JARVIS; la RLS ya
+    // limita a las propias).
+    mis_tareas: async () => {
+      try {
+        const tareas = await cargarTareas(true);
+        if (!tareas.length) return "No tenés tareas pendientes, todo al día.";
+        const lista = tareas.slice(0, 10).map((t) => t.titulo).join("; ");
+        return tareas.length === 1
+          ? `Tenés una tarea pendiente: ${lista}.`
+          : `Tenés ${tareas.length} tareas pendientes: ${lista}.`;
+      } catch {
+        return "No pude leer tus tareas ahora mismo. Probá de nuevo.";
+      }
+    },
+    // Agrega una tarea nueva por voz.
+    agregar_tarea: async (parametros: { titulo?: string }) => {
+      const titulo = (parametros?.titulo || "").trim();
+      if (!titulo) return "¿Qué tarea querés que agregue?";
+      try {
+        await crearTarea(titulo);
+        return `Listo, agregué la tarea: ${titulo}.`;
+      } catch {
+        return "No pude agregar la tarea ahora mismo. Probá de nuevo.";
+      }
     },
   };
 

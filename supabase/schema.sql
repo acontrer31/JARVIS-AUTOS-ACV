@@ -624,3 +624,28 @@ end $$;
 -- 3. En Project Settings → API, copiá "Project URL" y la clave "anon public"
 --    y completalas en config.js del sitio.
 -- ============================================================
+
+-- ============================================================
+-- Tareas del día (asistente JARVIS)
+-- Cada usuario ve y gestiona SOLO sus propias tareas, dentro de su agencia.
+-- Se corre igual que el resto: es idempotente (create ... if not exists +
+-- drop policy if exists antes del create policy).
+-- ============================================================
+create table if not exists public.tareas (
+  id uuid primary key default gen_random_uuid(),
+  agencia_id uuid not null references public.agencias (id) on delete cascade,
+  usuario_id uuid not null references public.perfiles (id) on delete cascade,
+  titulo text not null,
+  hecha boolean not null default false,
+  vence date,
+  creado_en timestamptz not null default now()
+);
+create index if not exists tareas_usuario_idx on public.tareas (usuario_id, hecha, vence);
+
+alter table public.tareas enable row level security;
+
+-- El límite lo pone la base: agencia del usuario Y que sea su propia tarea.
+drop policy if exists "mis tareas" on public.tareas;
+create policy "mis tareas" on public.tareas
+  for all using (agencia_id = public.mi_agencia_id() and usuario_id = auth.uid())
+  with check (agencia_id = public.mi_agencia_id() and usuario_id = auth.uid());

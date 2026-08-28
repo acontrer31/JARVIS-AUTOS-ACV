@@ -8,6 +8,7 @@ export type ModuloId =
   | "vehiculos"
   | "clientes"
   | "financiacion"
+  | "tareas"
   | "operaciones"
   | "crm"
   | "comunicaciones"
@@ -30,6 +31,7 @@ export const MODULOS: Modulo[] = [
   { id: "vehiculos", label: "Vehículos", descripcion: "Stock real de la agencia", real: true },
   { id: "financiacion", label: "Financiación", descripcion: "Simulación de cuotas y transferencia DNRPA", real: true },
   { id: "clientes", label: "Clientes", descripcion: "Perfiles, embudo de leads e historial", real: true },
+  { id: "tareas", label: "Tareas", descripcion: "Tus tareas del día — pendientes y hechas", real: true },
   { id: "operaciones", label: "Operaciones", descripcion: "Ventas y trámites en curso", real: false },
   { id: "crm", label: "CRM", descripcion: "Leads y seguimiento comercial", real: false },
   { id: "comunicaciones", label: "Comunicaciones", descripcion: "WhatsApp, redes, email", real: false },
