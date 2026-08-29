@@ -5,6 +5,7 @@ import VehiculosWorkspace from "@/components/modules/VehiculosWorkspace";
 import FinanciacionWorkspace from "@/components/modules/FinanciacionWorkspace";
 import ClientesWorkspace from "@/components/modules/ClientesWorkspace";
 import TareasWorkspace from "@/components/modules/TareasWorkspace";
+import OperacionesWorkspace from "@/components/modules/OperacionesWorkspace";
 import SeguridadWorkspace from "@/components/modules/SeguridadWorkspace";
 import AdministracionWorkspace from "@/components/modules/AdministracionWorkspace";
 import PlaceholderWorkspace from "@/components/modules/PlaceholderWorkspace";
@@ -47,6 +48,7 @@ export default function ModuleWorkspace({
         {modulo.id === "financiacion" && <FinanciacionWorkspace />}
         {modulo.id === "clientes" && <ClientesWorkspace />}
         {modulo.id === "tareas" && <TareasWorkspace />}
+        {modulo.id === "operaciones" && <OperacionesWorkspace />}
         {modulo.id === "seguridad" && <SeguridadWorkspace />}
         {modulo.id === "administracion" && <AdministracionWorkspace />}
         {!modulo.real && <PlaceholderWorkspace modulo={modulo} />}

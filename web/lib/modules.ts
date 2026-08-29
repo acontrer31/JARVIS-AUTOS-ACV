@@ -32,7 +32,7 @@ export const MODULOS: Modulo[] = [
   { id: "financiacion", label: "Financiación", descripcion: "Simulación de cuotas y transferencia DNRPA", real: true },
   { id: "clientes", label: "Clientes", descripcion: "Perfiles, embudo de leads e historial", real: true },
   { id: "tareas", label: "Tareas", descripcion: "Tus tareas del día — pendientes y hechas", real: true },
-  { id: "operaciones", label: "Operaciones", descripcion: "Ventas y trámites en curso", real: false },
+  { id: "operaciones", label: "Operaciones", descripcion: "Ventas y trámites: stock + cliente + dinero", real: true },
   { id: "crm", label: "CRM", descripcion: "Leads y seguimiento comercial", real: false },
   { id: "comunicaciones", label: "Comunicaciones", descripcion: "WhatsApp, redes, email", real: false },
   { id: "marketing", label: "Marketing", descripcion: "Piezas y campañas por vehículo", real: false },

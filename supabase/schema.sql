@@ -649,3 +649,29 @@ drop policy if exists "mis tareas" on public.tareas;
 create policy "mis tareas" on public.tareas
   for all using (agencia_id = public.mi_agencia_id() and usuario_id = auth.uid())
   with check (agencia_id = public.mi_agencia_id() and usuario_id = auth.uid());
+
+-- ============================================================
+-- ERP · Ventas / Operaciones (ampliación de public.operaciones)
+-- La tabla ya existía (Fase 2). Se le suman los campos de una venta real y se
+-- refina el flujo de estados: abierta -> senada -> entregada (o cancelada).
+-- Idempotente. La RLS "operaciones de mi agencia" ya está definida más arriba.
+-- ============================================================
+alter table public.operaciones add column if not exists forma_pago text;  -- 'contado' | 'financiado' | 'permuta' | 'mixto'
+alter table public.operaciones add column if not exists sena numeric;      -- seña / anticipo entregado
+alter table public.operaciones add column if not exists comision numeric;  -- comisión del vendedor
+
+alter table public.operaciones drop constraint if exists operaciones_estado_check;
+alter table public.operaciones add constraint operaciones_estado_check
+  check (estado in ('abierta', 'senada', 'entregada', 'cancelada'));
+
+alter table public.operaciones drop constraint if exists operaciones_forma_pago_check;
+alter table public.operaciones add constraint operaciones_forma_pago_check
+  check (forma_pago is null or forma_pago in ('contado', 'financiado', 'permuta', 'mixto'));
+
+alter table public.operaciones drop constraint if exists operaciones_sena_check;
+alter table public.operaciones add constraint operaciones_sena_check
+  check (sena is null or sena >= 0);
+
+alter table public.operaciones drop constraint if exists operaciones_comision_check;
+alter table public.operaciones add constraint operaciones_comision_check
+  check (comision is null or comision >= 0);
