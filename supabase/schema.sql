@@ -675,3 +675,38 @@ alter table public.operaciones add constraint operaciones_sena_check
 alter table public.operaciones drop constraint if exists operaciones_comision_check;
 alter table public.operaciones add constraint operaciones_comision_check
   check (comision is null or comision >= 0);
+
+-- ============================================================
+-- ERP · Caja / movimientos de dinero
+-- Ingresos y egresos del día a día. Puede quedar ligado a una operación (el
+-- cobro de una venta) o ser suelto (un gasto). RLS por agencia. Idempotente.
+-- ============================================================
+create table if not exists public.movimientos_caja (
+  id uuid primary key default gen_random_uuid(),
+  agencia_id uuid not null references public.agencias (id) on delete cascade,
+  operacion_id uuid references public.operaciones (id) on delete set null,
+  creado_por uuid references public.perfiles (id) on delete set null,
+  tipo text not null,               -- 'ingreso' | 'egreso'
+  concepto text not null,
+  monto numeric not null,
+  forma_pago text,                  -- 'efectivo' | 'transferencia' | 'cheque' | 'tarjeta' | 'otro'
+  fecha date not null default current_date,
+  creado_en timestamptz not null default now()
+);
+create index if not exists movimientos_caja_agencia_idx on public.movimientos_caja (agencia_id, fecha desc, creado_en desc);
+
+alter table public.movimientos_caja drop constraint if exists movimientos_caja_tipo_check;
+alter table public.movimientos_caja add constraint movimientos_caja_tipo_check
+  check (tipo in ('ingreso', 'egreso'));
+alter table public.movimientos_caja drop constraint if exists movimientos_caja_monto_check;
+alter table public.movimientos_caja add constraint movimientos_caja_monto_check
+  check (monto > 0);
+alter table public.movimientos_caja drop constraint if exists movimientos_caja_forma_pago_check;
+alter table public.movimientos_caja add constraint movimientos_caja_forma_pago_check
+  check (forma_pago is null or forma_pago in ('efectivo', 'transferencia', 'cheque', 'tarjeta', 'otro'));
+
+alter table public.movimientos_caja enable row level security;
+drop policy if exists "caja de mi agencia" on public.movimientos_caja;
+create policy "caja de mi agencia" on public.movimientos_caja
+  for all using (agencia_id = public.mi_agencia_id())
+  with check (agencia_id = public.mi_agencia_id());
