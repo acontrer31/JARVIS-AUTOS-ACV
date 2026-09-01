@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import JarvisCore from "@/components/JarvisCore";
 import ModuleWorkspace from "@/components/ModuleWorkspace";
+import RelojClima from "@/components/RelojClima";
 import type { ModuloId } from "@/lib/modules";
 
 export default function Home() {
@@ -90,6 +91,7 @@ export default function Home() {
 
       {session === true && (
         <>
+          <RelojClima />
           <div className="flex w-full max-w-3xl items-center justify-between text-xs" style={{ color: "var(--muted)" }}>
             <span>{agencia ?? "…"}</span>
             <button onClick={() => supabase.auth.signOut()} className="underline">

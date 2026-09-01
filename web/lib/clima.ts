@@ -51,6 +51,37 @@ interface ClimaActual {
   wind_speed_10m: number;
 }
 
+// --- Clima puntual para el widget del dashboard ---------------------------
+// El reloj/clima de la esquina siempre muestra Salta capital, así que usamos
+// coordenadas fijas y evitamos el paso de geocodificación (más rápido y sin
+// depender de que el buscador acierte el nombre).
+const SALTA = { lat: -24.7859, lon: -65.4117 };
+
+export interface ClimaResumen {
+  temperatura: number; // °C redondeada
+  descripcion: string; // texto en español
+  codigo: number; // weather_code WMO (para elegir el ícono)
+}
+
+export async function climaSaltaActual(): Promise<ClimaResumen | null> {
+  try {
+    const resp = await fetch(
+      `https://api.open-meteo.com/v1/forecast?latitude=${SALTA.lat}&longitude=${SALTA.lon}` +
+        `&current=temperature_2m,weather_code&timezone=America%2FArgentina%2FSalta`
+    );
+    const data = (await resp.json()) as { current?: { temperature_2m: number; weather_code: number } };
+    const c = data.current;
+    if (!c) return null;
+    return {
+      temperatura: Math.round(c.temperature_2m),
+      descripcion: CODIGOS_CLIMA[c.weather_code] ?? "condiciones variables",
+      codigo: c.weather_code,
+    };
+  } catch {
+    return null;
+  }
+}
+
 // Devuelve una frase lista para que JARVIS la lea. `ciudad` es lo que dijo el
 // usuario ("Córdoba", "Buenos Aires", "Rosario", …).
 export async function consultarClima(ciudad: string): Promise<string> {
