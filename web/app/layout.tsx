@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Script from "next/script";
 import localFont from "next/font/local";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, Orbitron } from "next/font/google";
 import TemaHorario from "@/components/TemaHorario";
 import "./globals.css";
 
@@ -13,6 +13,13 @@ const geistSans = Geist({
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+});
+
+// Fuente "digital" (tablero LED) para el reloj del dashboard.
+const orbitron = Orbitron({
+  variable: "--font-orbitron",
+  subsets: ["latin"],
+  weight: ["500", "600", "700"],
 });
 
 // Fuente real del isologo (Plastik Regular, licencia GPL v2 vía Font
@@ -57,7 +64,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="es"
-      className={`${geistSans.variable} ${geistMono.variable} ${plastik.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${plastik.variable} ${orbitron.variable} h-full antialiased`}
       suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col font-sans">

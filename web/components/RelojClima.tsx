@@ -74,40 +74,39 @@ export default function RelojClima() {
   // "lunes 01 de septiembre" con la primera letra en mayúscula.
   const fechaTitulo = fecha.charAt(0).toUpperCase() + fecha.slice(1);
 
+  // Números en fuente digital (Orbitron), sin recuadro ni borde: flotan sobre
+  // la escena. El brillo dorado + una sombra sutil los despegan del fondo tanto
+  // de día como de noche.
+  const digital = {
+    fontFamily: "var(--font-orbitron), ui-monospace, monospace",
+    color: "var(--dorado)",
+    textShadow: "0 0 16px color-mix(in srgb, var(--dorado) 55%, transparent), 0 1px 3px rgba(0,0,0,.45)",
+  } as const;
+
   return (
     <div
-      className="pointer-events-none fixed left-3 top-3 z-40 select-none"
+      className="pointer-events-none fixed left-4 top-4 z-40 select-none"
       aria-label="Hora y clima de Salta, Argentina"
     >
+      <div className="text-4xl font-semibold leading-none tabular-nums tracking-[0.12em] sm:text-5xl" style={digital}>
+        {hora}
+      </div>
       <div
-        className="rounded-xl border px-3 py-2 backdrop-blur-sm"
-        style={{
-          borderColor: "color-mix(in srgb, var(--dorado) 45%, transparent)",
-          background: "color-mix(in srgb, var(--panel) 78%, transparent)",
-        }}
+        className="mt-1.5 text-[0.72rem] uppercase tracking-[0.18em] sm:text-sm"
+        style={digital}
       >
-        <div
-          className="font-mono text-2xl font-semibold leading-none tabular-nums tracking-wider"
-          style={{ color: "var(--dorado)" }}
-        >
-          {hora}
-        </div>
-        <div className="mt-1 flex items-center gap-2">
-          <span className="text-[0.7rem] leading-tight" style={{ color: "var(--dorado)" }}>
-            {fechaTitulo}
-          </span>
-        </div>
-        <div className="mt-1 flex items-center gap-1.5 text-xs" style={{ color: "var(--dorado)" }}>
-          {clima ? (
-            <>
-              <span aria-hidden="true">{iconoClima(clima.codigo)}</span>
-              <span className="font-semibold tabular-nums">{clima.temperatura}°</span>
-              <span className="opacity-80">· Salta</span>
-            </>
-          ) : (
-            <span className="opacity-70">Salta · —°</span>
-          )}
-        </div>
+        {fechaTitulo}
+      </div>
+      <div className="mt-1 flex items-center gap-1.5 text-sm" style={digital}>
+        {clima ? (
+          <>
+            <span aria-hidden="true" style={{ textShadow: "none" }}>{iconoClima(clima.codigo)}</span>
+            <span className="tabular-nums">{clima.temperatura}°</span>
+            <span className="text-[0.72rem] opacity-80">· Salta</span>
+          </>
+        ) : (
+          <span className="text-[0.72rem] opacity-70">Salta · —°</span>
+        )}
       </div>
     </div>
   );
