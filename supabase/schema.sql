@@ -770,3 +770,34 @@ drop policy if exists "compras de mi agencia" on public.compras;
 create policy "compras de mi agencia" on public.compras
   for all using (agencia_id = public.mi_agencia_id())
   with check (agencia_id = public.mi_agencia_id());
+
+-- ============================================================
+-- Publicaciones en redes sociales (Fase Redes): memoria de cada posteo para
+-- poder retirarlo cuando el auto se vende y llevar el historial/métricas.
+-- Facebook se borra por API; Instagram/TikTok no se pueden borrar por código
+-- (quedan en estado 'pendiente_retiro' para hacerlo a mano). RLS por agencia.
+-- ============================================================
+create table if not exists public.publicaciones_redes (
+  id uuid primary key default gen_random_uuid(),
+  agencia_id uuid not null references public.agencias(id) on delete cascade,
+  vehiculo_id uuid references public.vehiculos(id) on delete set null,
+  red text not null check (red in ('facebook','instagram','tiktok')),
+  formato text not null default 'feed' check (formato in ('feed','historia','reel','post')),
+  post_id text,
+  url text,
+  estado text not null default 'publicada' check (estado in ('publicada','eliminada','pendiente_retiro','error')),
+  metricas jsonb,
+  publicado_en timestamptz not null default now(),
+  eliminado_en timestamptz,
+  creado_por uuid
+);
+
+alter table public.publicaciones_redes enable row level security;
+
+drop policy if exists "publicaciones de mi agencia" on public.publicaciones_redes;
+create policy "publicaciones de mi agencia" on public.publicaciones_redes
+  for all using (agencia_id = public.mi_agencia_id())
+  with check (agencia_id = public.mi_agencia_id());
+
+create index if not exists idx_pubredes_vehiculo on public.publicaciones_redes (vehiculo_id);
+create index if not exists idx_pubredes_estado on public.publicaciones_redes (agencia_id, estado);
