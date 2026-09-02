@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ETIQUETA_RED, REDES, publicarEnRedes, type Red } from "@/lib/redes";
+import { ETIQUETA_RED, REDES, publicarEnRedes, type FormatoIG, type Red } from "@/lib/redes";
 import { cargarVehiculos, nombreVehiculo, type Vehiculo } from "@/lib/vehiculos";
 import { cargarFotos } from "@/lib/media";
 import { mensajeDeError } from "@/lib/errores";
 
 export default function RedesWorkspace() {
   const [red, setRed] = useState<Red>("facebook");
+  const [formato, setFormato] = useState<FormatoIG>("feed");
   const [texto, setTexto] = useState("");
   const [imagenUrl, setImagenUrl] = useState("");
   const [vehiculos, setVehiculos] = useState<Vehiculo[]>([]);
@@ -50,8 +51,12 @@ export default function RedesWorkspace() {
     }
     setPublicando(true);
     try {
-      await publicarEnRedes(red, texto.trim(), imagenUrl.trim() || null);
-      setResultado(`Publicado en ${ETIQUETA_RED[red]} ✓`);
+      await publicarEnRedes(red, texto.trim(), imagenUrl.trim() || null, red === "instagram" ? formato : "feed");
+      setResultado(
+        red === "instagram" && formato === "historia"
+          ? "Historia publicada en Instagram ✓"
+          : `Publicado en ${ETIQUETA_RED[red]} ✓`
+      );
       setTexto("");
     } catch (err) {
       setError(mensajeDeError(err));
@@ -84,13 +89,44 @@ export default function RedesWorkspace() {
         ))}
       </div>
 
+      {/* Feed / Historia — solo Instagram */}
+      {red === "instagram" && (
+        <div className="flex gap-2">
+          {([
+            ["feed", "Feed"],
+            ["historia", "Historia"],
+          ] as [FormatoIG, string][]).map(([f, label]) => (
+            <button
+              key={f}
+              type="button"
+              onClick={() => setFormato(f)}
+              className="flex-1 rounded-lg border py-1 text-xs font-semibold"
+              style={{
+                borderColor: formato === f ? "var(--dorado)" : "var(--border)",
+                color: formato === f ? "var(--dorado)" : "var(--muted)",
+                background: formato === f ? "color-mix(in srgb, var(--dorado) 12%, transparent)" : "transparent",
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Texto */}
       <textarea
         className={`${input} min-h-24 resize-y`}
         style={campo}
-        placeholder={red === "instagram" ? "Epígrafe del posteo…" : "Texto del posteo…"}
+        placeholder={
+          red === "instagram"
+            ? formato === "historia"
+              ? "La historia no lleva texto (Instagram lo ignora)…"
+              : "Epígrafe del posteo…"
+            : "Texto del posteo…"
+        }
         value={texto}
         onChange={(e) => setTexto(e.target.value)}
+        disabled={red === "instagram" && formato === "historia"}
       />
 
       {/* Foto del stock */}
@@ -127,7 +163,11 @@ export default function RedesWorkspace() {
           className="rounded-lg px-4 py-1.5 text-sm font-semibold disabled:opacity-50"
           style={{ background: "var(--dorado)", color: "var(--verde-core)" }}
         >
-          {publicando ? "Publicando…" : `Publicar en ${ETIQUETA_RED[red]}`}
+          {publicando
+            ? "Publicando…"
+            : red === "instagram" && formato === "historia"
+              ? "Publicar historia"
+              : `Publicar en ${ETIQUETA_RED[red]}`}
         </button>
       </div>
 

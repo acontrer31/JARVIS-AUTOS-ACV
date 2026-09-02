@@ -19,6 +19,7 @@ import { createClient } from "@supabase/supabase-js";
 const GRAPH = `https://graph.facebook.com/${process.env.META_GRAPH_VERSION || "v21.0"}`;
 
 type Red = "facebook" | "instagram";
+type FormatoIG = "feed" | "historia";
 
 async function publicarFacebook(pageId: string, token: string, texto: string, imagenUrl: string | null) {
   const base = imagenUrl ? `${GRAPH}/${pageId}/photos` : `${GRAPH}/${pageId}/feed`;
@@ -45,11 +46,22 @@ async function idInstagram(pageId: string, token: string): Promise<string> {
   return id;
 }
 
-async function publicarInstagram(pageId: string, token: string, texto: string, imagenUrl: string) {
+async function publicarInstagram(
+  pageId: string,
+  token: string,
+  texto: string,
+  imagenUrl: string,
+  formato: FormatoIG
+) {
   const igId = await idInstagram(pageId, token);
-  // 1) contenedor
+  // 1) contenedor. Una historia lleva media_type=STORIES y no usa epígrafe
+  //    (Instagram lo ignora); un post normal (feed) sí lleva caption.
   const cont = new URLSearchParams({ image_url: imagenUrl, access_token: token });
-  if (texto) cont.set("caption", texto);
+  if (formato === "historia") {
+    cont.set("media_type", "STORIES");
+  } else if (texto) {
+    cont.set("caption", texto);
+  }
   const r1 = await fetch(`${GRAPH}/${igId}/media`, { method: "POST", body: cont });
   const d1 = await r1.json();
   if (!r1.ok) throw new Error(d1?.error?.message || `Instagram respondió ${r1.status} al crear el post`);
@@ -88,7 +100,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Sesión inválida o vencida." }, { status: 401 });
   }
 
-  let cuerpo: { red?: Red; texto?: string; imagen_url?: string | null };
+  let cuerpo: { red?: Red; texto?: string; imagen_url?: string | null; formato?: FormatoIG };
   try {
     cuerpo = await request.json();
   } catch {
@@ -98,6 +110,7 @@ export async function POST(request: Request) {
   const red = cuerpo.red;
   const texto = (cuerpo.texto || "").trim();
   const imagenUrl = cuerpo.imagen_url?.trim() || null;
+  const formato: FormatoIG = cuerpo.formato === "historia" ? "historia" : "feed";
 
   if (red !== "facebook" && red !== "instagram") {
     return NextResponse.json({ error: 'La red debe ser "facebook" o "instagram".' }, { status: 400 });
@@ -113,7 +126,7 @@ export async function POST(request: Request) {
     const id =
       red === "facebook"
         ? await publicarFacebook(pageId, pageToken, texto, imagenUrl)
-        : await publicarInstagram(pageId, pageToken, texto, imagenUrl!);
+        : await publicarInstagram(pageId, pageToken, texto, imagenUrl!, formato);
     return NextResponse.json({ ok: true, red, id });
   } catch (error) {
     return NextResponse.json(
