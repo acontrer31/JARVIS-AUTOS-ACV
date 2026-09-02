@@ -4,6 +4,11 @@ import { MODULOS, type ModuloId } from "@/lib/modules";
 import VehiculosWorkspace from "@/components/modules/VehiculosWorkspace";
 import FinanciacionWorkspace from "@/components/modules/FinanciacionWorkspace";
 import ClientesWorkspace from "@/components/modules/ClientesWorkspace";
+import TareasWorkspace from "@/components/modules/TareasWorkspace";
+import OperacionesWorkspace from "@/components/modules/OperacionesWorkspace";
+import CajaWorkspace from "@/components/modules/CajaWorkspace";
+import ComprasWorkspace from "@/components/modules/ComprasWorkspace";
+import ReportesWorkspace from "@/components/modules/ReportesWorkspace";
 import SeguridadWorkspace from "@/components/modules/SeguridadWorkspace";
 import AdministracionWorkspace from "@/components/modules/AdministracionWorkspace";
 import PlaceholderWorkspace from "@/components/modules/PlaceholderWorkspace";
@@ -45,6 +50,11 @@ export default function ModuleWorkspace({
         {modulo.id === "vehiculos" && <VehiculosWorkspace />}
         {modulo.id === "financiacion" && <FinanciacionWorkspace />}
         {modulo.id === "clientes" && <ClientesWorkspace />}
+        {modulo.id === "tareas" && <TareasWorkspace />}
+        {modulo.id === "operaciones" && <OperacionesWorkspace />}
+        {modulo.id === "caja" && <CajaWorkspace />}
+        {modulo.id === "compras" && <ComprasWorkspace />}
+        {modulo.id === "analitica" && <ReportesWorkspace />}
         {modulo.id === "seguridad" && <SeguridadWorkspace />}
         {modulo.id === "administracion" && <AdministracionWorkspace />}
         {!modulo.real && <PlaceholderWorkspace modulo={modulo} />}

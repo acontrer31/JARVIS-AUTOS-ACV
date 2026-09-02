@@ -624,3 +624,149 @@ end $$;
 -- 3. En Project Settings → API, copiá "Project URL" y la clave "anon public"
 --    y completalas en config.js del sitio.
 -- ============================================================
+
+-- ============================================================
+-- Tareas del día (asistente JARVIS)
+-- Cada usuario ve y gestiona SOLO sus propias tareas, dentro de su agencia.
+-- Se corre igual que el resto: es idempotente (create ... if not exists +
+-- drop policy if exists antes del create policy).
+-- ============================================================
+create table if not exists public.tareas (
+  id uuid primary key default gen_random_uuid(),
+  agencia_id uuid not null references public.agencias (id) on delete cascade,
+  usuario_id uuid not null references public.perfiles (id) on delete cascade,
+  titulo text not null,
+  hecha boolean not null default false,
+  vence date,
+  creado_en timestamptz not null default now()
+);
+create index if not exists tareas_usuario_idx on public.tareas (usuario_id, hecha, vence);
+
+alter table public.tareas enable row level security;
+
+-- El límite lo pone la base: agencia del usuario Y que sea su propia tarea.
+drop policy if exists "mis tareas" on public.tareas;
+create policy "mis tareas" on public.tareas
+  for all using (agencia_id = public.mi_agencia_id() and usuario_id = auth.uid())
+  with check (agencia_id = public.mi_agencia_id() and usuario_id = auth.uid());
+
+-- ============================================================
+-- ERP · Ventas / Operaciones (ampliación de public.operaciones)
+-- La tabla ya existía (Fase 2). Se le suman los campos de una venta real y se
+-- refina el flujo de estados: abierta -> senada -> entregada (o cancelada).
+-- Idempotente. La RLS "operaciones de mi agencia" ya está definida más arriba.
+-- ============================================================
+alter table public.operaciones add column if not exists forma_pago text;  -- 'contado' | 'financiado' | 'permuta' | 'mixto'
+alter table public.operaciones add column if not exists sena numeric;      -- seña / anticipo entregado
+alter table public.operaciones add column if not exists comision numeric;  -- comisión del vendedor
+
+alter table public.operaciones drop constraint if exists operaciones_estado_check;
+alter table public.operaciones add constraint operaciones_estado_check
+  check (estado in ('abierta', 'senada', 'entregada', 'cancelada'));
+
+alter table public.operaciones drop constraint if exists operaciones_forma_pago_check;
+alter table public.operaciones add constraint operaciones_forma_pago_check
+  check (forma_pago is null or forma_pago in ('contado', 'financiado', 'permuta', 'mixto'));
+
+alter table public.operaciones drop constraint if exists operaciones_sena_check;
+alter table public.operaciones add constraint operaciones_sena_check
+  check (sena is null or sena >= 0);
+
+alter table public.operaciones drop constraint if exists operaciones_comision_check;
+alter table public.operaciones add constraint operaciones_comision_check
+  check (comision is null or comision >= 0);
+
+-- ============================================================
+-- ERP · Caja / movimientos de dinero
+-- Ingresos y egresos del día a día. Puede quedar ligado a una operación (el
+-- cobro de una venta) o ser suelto (un gasto). RLS por agencia. Idempotente.
+-- ============================================================
+create table if not exists public.movimientos_caja (
+  id uuid primary key default gen_random_uuid(),
+  agencia_id uuid not null references public.agencias (id) on delete cascade,
+  operacion_id uuid references public.operaciones (id) on delete set null,
+  creado_por uuid references public.perfiles (id) on delete set null,
+  tipo text not null,               -- 'ingreso' | 'egreso'
+  concepto text not null,
+  monto numeric not null,
+  forma_pago text,                  -- 'efectivo' | 'transferencia' | 'cheque' | 'tarjeta' | 'otro'
+  fecha date not null default current_date,
+  creado_en timestamptz not null default now()
+);
+create index if not exists movimientos_caja_agencia_idx on public.movimientos_caja (agencia_id, fecha desc, creado_en desc);
+
+alter table public.movimientos_caja drop constraint if exists movimientos_caja_tipo_check;
+alter table public.movimientos_caja add constraint movimientos_caja_tipo_check
+  check (tipo in ('ingreso', 'egreso'));
+alter table public.movimientos_caja drop constraint if exists movimientos_caja_monto_check;
+alter table public.movimientos_caja add constraint movimientos_caja_monto_check
+  check (monto > 0);
+alter table public.movimientos_caja drop constraint if exists movimientos_caja_forma_pago_check;
+alter table public.movimientos_caja add constraint movimientos_caja_forma_pago_check
+  check (forma_pago is null or forma_pago in ('efectivo', 'transferencia', 'cheque', 'tarjeta', 'otro'));
+
+alter table public.movimientos_caja enable row level security;
+drop policy if exists "caja de mi agencia" on public.movimientos_caja;
+create policy "caja de mi agencia" on public.movimientos_caja
+  for all using (agencia_id = public.mi_agencia_id())
+  with check (agencia_id = public.mi_agencia_id());
+
+-- ============================================================
+-- ERP · Compras / ingreso de stock + proveedores
+-- Registra CÓMO entró cada vehículo (compra/permuta/consignación), a quién y a
+-- qué costo (+ gastos de acondicionamiento). Alimenta el margen real. RLS por
+-- agencia. Idempotente.
+-- ============================================================
+create table if not exists public.proveedores (
+  id uuid primary key default gen_random_uuid(),
+  agencia_id uuid not null references public.agencias (id) on delete cascade,
+  nombre text not null,
+  tipo text,                        -- 'particular' | 'agencia' | 'gestoria' | 'taller' | 'mayorista' | 'otro'
+  telefono text,
+  notas text,
+  creado_en timestamptz not null default now()
+);
+create index if not exists proveedores_agencia_idx on public.proveedores (agencia_id, nombre);
+
+alter table public.proveedores drop constraint if exists proveedores_tipo_check;
+alter table public.proveedores add constraint proveedores_tipo_check
+  check (tipo is null or tipo in ('particular', 'agencia', 'gestoria', 'taller', 'mayorista', 'otro'));
+
+create table if not exists public.compras (
+  id uuid primary key default gen_random_uuid(),
+  agencia_id uuid not null references public.agencias (id) on delete cascade,
+  vehiculo_id uuid references public.vehiculos (id) on delete set null,
+  proveedor_id uuid references public.proveedores (id) on delete set null,
+  creado_por uuid references public.perfiles (id) on delete set null,
+  origen text not null default 'compra',   -- 'compra' | 'permuta' | 'consignacion'
+  costo numeric,                            -- lo que se pagó por el vehículo
+  gastos numeric,                           -- acondicionamiento / preparación
+  fecha date not null default current_date,
+  notas text,
+  creado_en timestamptz not null default now()
+);
+create index if not exists compras_agencia_idx on public.compras (agencia_id, fecha desc);
+create index if not exists compras_vehiculo_idx on public.compras (vehiculo_id);
+
+alter table public.compras drop constraint if exists compras_origen_check;
+alter table public.compras add constraint compras_origen_check
+  check (origen in ('compra', 'permuta', 'consignacion'));
+alter table public.compras drop constraint if exists compras_costo_check;
+alter table public.compras add constraint compras_costo_check
+  check (costo is null or costo >= 0);
+alter table public.compras drop constraint if exists compras_gastos_check;
+alter table public.compras add constraint compras_gastos_check
+  check (gastos is null or gastos >= 0);
+
+alter table public.proveedores enable row level security;
+alter table public.compras enable row level security;
+
+drop policy if exists "proveedores de mi agencia" on public.proveedores;
+create policy "proveedores de mi agencia" on public.proveedores
+  for all using (agencia_id = public.mi_agencia_id())
+  with check (agencia_id = public.mi_agencia_id());
+
+drop policy if exists "compras de mi agencia" on public.compras;
+create policy "compras de mi agencia" on public.compras
+  for all using (agencia_id = public.mi_agencia_id())
+  with check (agencia_id = public.mi_agencia_id());
