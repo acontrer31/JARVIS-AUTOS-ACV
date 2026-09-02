@@ -10,21 +10,22 @@ export const ETIQUETA_RED: Record<Red, string> = {
   instagram: "Instagram",
 };
 
-// Solo aplica a Instagram: post normal (feed) o historia (STORIES).
-export type FormatoIG = "feed" | "historia";
+// feed = post normal; historia = IG Stories; reel = video (FB/IG Reels).
+export type Formato = "feed" | "historia" | "reel";
 
 export interface ResultadoPublicacion {
   ok: boolean;
   red: Red;
+  formato?: Formato;
   id: string | null;
 }
 
 export async function publicarEnRedes(
   red: Red,
   texto: string,
-  imagenUrl?: string | null,
-  formato: FormatoIG = "feed"
+  opciones: { imagenUrl?: string | null; videoUrl?: string | null; formato?: Formato } = {}
 ): Promise<ResultadoPublicacion> {
+  const { imagenUrl = null, videoUrl = null, formato = "feed" } = opciones;
   const { data: sesion } = await supabase.auth.getSession();
   const token = sesion.session?.access_token;
   if (!token) throw new Error("Tu sesión venció. Volvé a iniciar sesión.");
@@ -32,7 +33,7 @@ export async function publicarEnRedes(
   const resp = await fetch("/api/redes/publicar", {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ red, texto, imagen_url: imagenUrl ?? null, formato }),
+    body: JSON.stringify({ red, texto, imagen_url: imagenUrl, video_url: videoUrl, formato }),
   });
   const data = await resp.json();
   if (!resp.ok || !data.ok) throw new Error(data.error || "No se pudo publicar.");

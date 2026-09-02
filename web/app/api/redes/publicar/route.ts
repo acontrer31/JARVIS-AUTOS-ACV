@@ -6,21 +6,24 @@ import { createClient } from "@supabase/supabase-js";
 // de Supabase en el header; acá se valida contra el servidor de auth antes de
 // publicar nada. Mismo patrón que /api/elevenlabs-signed-url.
 //
-// Credenciales por variables de entorno (demo, un solo tenant):
-//   META_PAGE_ID     -> ID de la Página de Facebook
-//   META_PAGE_TOKEN  -> Page Access Token de larga duración (SECRETO)
-//   IG_USER_ID       -> (opcional) ID de la cuenta de Instagram Business;
-//                       si falta, se deriva de la Página en tiempo real.
-//   META_GRAPH_VERSION -> (opcional) por defecto v21.0
+// Formatos:
+//   feed     -> post normal (FB: foto/texto; IG: foto + epígrafe)
+//   historia -> IG Stories (foto, sin epígrafe)
+//   reel     -> video (FB: Video Reels API en 3 pasos; IG: media_type=REELS)
 //
-// A futuro (multi-tenant) esto se reemplaza por una tabla `redes_sociales`
-// leída con service role; el resto del flujo queda igual.
+// Credenciales por variables de entorno (demo, un solo tenant):
+//   META_PAGE_ID, META_PAGE_TOKEN (obligatorias), IG_USER_ID (opcional),
+//   META_GRAPH_VERSION (opcional; por defecto v21.0).
+
+// Los Reels necesitan que Meta procese el video: damos más margen de tiempo.
+export const maxDuration = 60;
 
 const GRAPH = `https://graph.facebook.com/${process.env.META_GRAPH_VERSION || "v21.0"}`;
 
 type Red = "facebook" | "instagram";
-type FormatoIG = "feed" | "historia";
+type Formato = "feed" | "historia" | "reel";
 
+// ---------- Facebook ----------
 async function publicarFacebook(pageId: string, token: string, texto: string, imagenUrl: string | null) {
   const base = imagenUrl ? `${GRAPH}/${pageId}/photos` : `${GRAPH}/${pageId}/feed`;
   const params = new URLSearchParams({ access_token: token });
@@ -36,6 +39,43 @@ async function publicarFacebook(pageId: string, token: string, texto: string, im
   return data?.id ?? null;
 }
 
+// Reel de Facebook: API de Video Reels, subida en 3 fases (start -> upload por
+// URL alojada -> finish PUBLISHED).
+async function publicarFacebookReel(pageId: string, token: string, texto: string, videoUrl: string) {
+  const start = await fetch(`${GRAPH}/${pageId}/video_reels`, {
+    method: "POST",
+    body: new URLSearchParams({ upload_phase: "start", access_token: token }),
+  });
+  const s = await start.json();
+  if (!start.ok || !s?.video_id || !s?.upload_url) {
+    throw new Error(s?.error?.message || "Facebook no pudo iniciar la subida del Reel.");
+  }
+
+  const up = await fetch(s.upload_url, {
+    method: "POST",
+    headers: { Authorization: `OAuth ${token}`, file_url: videoUrl },
+  });
+  const upData = await up.json().catch(() => ({}));
+  if (!up.ok || upData?.success === false) {
+    throw new Error(upData?.debug_info?.message || upData?.error?.message || "Facebook no pudo cargar el video del Reel.");
+  }
+
+  const finish = await fetch(`${GRAPH}/${pageId}/video_reels`, {
+    method: "POST",
+    body: new URLSearchParams({
+      upload_phase: "finish",
+      video_id: s.video_id,
+      video_state: "PUBLISHED",
+      description: texto || "",
+      access_token: token,
+    }),
+  });
+  const f = await finish.json();
+  if (!finish.ok) throw new Error(f?.error?.message || "Facebook no pudo publicar el Reel.");
+  return s.video_id as string;
+}
+
+// ---------- Instagram ----------
 async function idInstagram(pageId: string, token: string): Promise<string> {
   const env = process.env.IG_USER_ID;
   if (env) return env;
@@ -46,26 +86,56 @@ async function idInstagram(pageId: string, token: string): Promise<string> {
   return id;
 }
 
+// Espera a que el contenedor de video (Reel) termine de procesarse. Acotado en
+// tiempo para no pasarnos del límite de la función serverless.
+async function esperarContenedor(creationId: string, token: string, intentos = 4): Promise<boolean> {
+  for (let i = 0; i < intentos; i++) {
+    await new Promise((res) => setTimeout(res, 2500));
+    const r = await fetch(`${GRAPH}/${creationId}?fields=status_code&access_token=${encodeURIComponent(token)}`);
+    const d = await r.json();
+    if (d?.status_code === "FINISHED") return true;
+    if (d?.status_code === "ERROR") return false;
+  }
+  return false;
+}
+
 async function publicarInstagram(
   pageId: string,
   token: string,
   texto: string,
-  imagenUrl: string,
-  formato: FormatoIG
+  imagenUrl: string | null,
+  videoUrl: string | null,
+  formato: Formato
 ) {
   const igId = await idInstagram(pageId, token);
-  // 1) contenedor. Una historia lleva media_type=STORIES y no usa epígrafe
-  //    (Instagram lo ignora); un post normal (feed) sí lleva caption.
-  const cont = new URLSearchParams({ image_url: imagenUrl, access_token: token });
-  if (formato === "historia") {
+
+  // 1) contenedor según formato
+  const cont = new URLSearchParams({ access_token: token });
+  if (formato === "reel") {
+    cont.set("media_type", "REELS");
+    cont.set("video_url", videoUrl!);
+    if (texto) cont.set("caption", texto);
+  } else if (formato === "historia") {
     cont.set("media_type", "STORIES");
-  } else if (texto) {
-    cont.set("caption", texto);
+    cont.set("image_url", imagenUrl!);
+  } else {
+    cont.set("image_url", imagenUrl!);
+    if (texto) cont.set("caption", texto);
   }
+
   const r1 = await fetch(`${GRAPH}/${igId}/media`, { method: "POST", body: cont });
   const d1 = await r1.json();
-  if (!r1.ok) throw new Error(d1?.error?.message || `Instagram respondió ${r1.status} al crear el post`);
-  // 2) publicar
+  if (!r1.ok || !d1?.id) throw new Error(d1?.error?.message || `Instagram respondió ${r1.status} al crear el post`);
+
+  // 2) los Reels necesitan que el video termine de procesarse
+  if (formato === "reel") {
+    const listo = await esperarContenedor(d1.id, token);
+    if (!listo) {
+      throw new Error("El video del Reel todavía se está procesando en Instagram. Esperá un minuto y publicá de nuevo.");
+    }
+  }
+
+  // 3) publicar
   const pub = new URLSearchParams({ creation_id: d1.id, access_token: token });
   const r2 = await fetch(`${GRAPH}/${igId}/media_publish`, { method: "POST", body: pub });
   const d2 = await r2.json();
@@ -100,7 +170,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Sesión inválida o vencida." }, { status: 401 });
   }
 
-  let cuerpo: { red?: Red; texto?: string; imagen_url?: string | null; formato?: FormatoIG };
+  let cuerpo: { red?: Red; texto?: string; imagen_url?: string | null; video_url?: string | null; formato?: Formato };
   try {
     cuerpo = await request.json();
   } catch {
@@ -110,24 +180,33 @@ export async function POST(request: Request) {
   const red = cuerpo.red;
   const texto = (cuerpo.texto || "").trim();
   const imagenUrl = cuerpo.imagen_url?.trim() || null;
-  const formato: FormatoIG = cuerpo.formato === "historia" ? "historia" : "feed";
+  const videoUrl = cuerpo.video_url?.trim() || null;
+  const formato: Formato =
+    cuerpo.formato === "reel" ? "reel" : cuerpo.formato === "historia" ? "historia" : "feed";
 
   if (red !== "facebook" && red !== "instagram") {
     return NextResponse.json({ error: 'La red debe ser "facebook" o "instagram".' }, { status: 400 });
   }
-  if (red === "instagram" && !imagenUrl) {
+  if (formato === "reel" && !videoUrl) {
+    return NextResponse.json({ error: "El Reel necesita la URL pública de un video." }, { status: 400 });
+  }
+  if (red === "instagram" && formato !== "reel" && !imagenUrl) {
     return NextResponse.json({ error: "Instagram necesita una imagen (URL pública)." }, { status: 400 });
   }
-  if (!texto && !imagenUrl) {
+  if (formato === "feed" && red === "facebook" && !texto && !imagenUrl) {
     return NextResponse.json({ error: "El posteo necesita texto o una imagen." }, { status: 400 });
   }
 
   try {
-    const id =
-      red === "facebook"
-        ? await publicarFacebook(pageId, pageToken, texto, imagenUrl)
-        : await publicarInstagram(pageId, pageToken, texto, imagenUrl!, formato);
-    return NextResponse.json({ ok: true, red, id });
+    let id: string | null;
+    if (red === "facebook") {
+      id = formato === "reel"
+        ? await publicarFacebookReel(pageId, pageToken, texto, videoUrl!)
+        : await publicarFacebook(pageId, pageToken, texto, imagenUrl);
+    } else {
+      id = await publicarInstagram(pageId, pageToken, texto, imagenUrl, videoUrl, formato);
+    }
+    return NextResponse.json({ ok: true, red, formato, id });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "No se pudo publicar." },
