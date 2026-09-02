@@ -43,7 +43,7 @@ export const MODULOS: Modulo[] = [
   { id: "conocimiento", label: "Conocimiento", descripcion: "Documentos e información de referencia", real: false },
   { id: "voz", label: "Voz", descripcion: "Asistente conversacional JARVIS", real: false },
   { id: "automatizacion", label: "Automatización", descripcion: "Flujos automáticos del negocio", real: false },
-  { id: "analitica", label: "Analítica", descripcion: "Métricas y predicciones", real: false },
+  { id: "analitica", label: "Reportes", descripcion: "Ventas del mes, margen, stock valorizado y ranking de vendedores", real: true },
   { id: "administracion", label: "Administración", descripcion: "Usuarios y roles de la agencia", real: true },
   { id: "seguridad", label: "Seguridad", descripcion: "Registro de auditoría", real: true },
 ];
