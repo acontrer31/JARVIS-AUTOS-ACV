@@ -17,6 +17,7 @@ import { cargarClientes, crearCliente, clienteVacio, ETIQUETA_ESTADO_LEAD } from
 import { cargarOperaciones, ETIQUETA_TIPO_OP, ETIQUETA_ESTADO_OP } from "@/lib/operaciones";
 import { cargarMovimientos, calcularSaldo, crearMovimiento, movimientoVacio, type TipoMovimiento } from "@/lib/caja";
 import { resumenDelDia } from "@/lib/reportes";
+import { publicarEnRedes } from "@/lib/redes";
 
 export type EstadoJarvis = "standby" | "escuchando" | "activando" | "trabajando" | "error";
 
@@ -443,6 +444,22 @@ export default function JarvisCore({
         return `Listo, agregué a ${nombre} como lead nuevo.`;
       } catch {
         return "No pude agregar el cliente ahora mismo. Probá de nuevo.";
+      }
+    },
+    // Publica un texto en Facebook por voz. Instagram necesita una imagen, así
+    // que para fotos de vehículos se usa el módulo Redes (con selector de auto).
+    publicar_en_redes: async (parametros: { red?: string; texto?: string }) => {
+      const texto = (parametros?.texto || "").trim();
+      if (!texto) return "¿Qué querés que publique?";
+      const pedido = normalizar(parametros?.red || "");
+      if (pedido.includes("insta")) {
+        return "Para Instagram necesito una imagen. Abrí el módulo Redes y elegí el vehículo para publicar la foto.";
+      }
+      try {
+        await publicarEnRedes("facebook", texto);
+        return `Listo, lo publiqué en Facebook: ${texto}`;
+      } catch (err) {
+        return "No pude publicar ahora mismo. " + (err instanceof Error ? err.message : "Probá de nuevo.");
       }
     },
   };
