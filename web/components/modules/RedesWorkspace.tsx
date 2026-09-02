@@ -4,7 +4,11 @@ import { useEffect, useState } from "react";
 import { ETIQUETA_RED, REDES, publicarEnRedes, type Formato, type Red } from "@/lib/redes";
 import { cargarVehiculos, nombreVehiculo, type Vehiculo } from "@/lib/vehiculos";
 import { cargarFotos } from "@/lib/media";
+import { cargarPendientesRetiro, marcarRetirada, registrarPublicacion, type PublicacionRed } from "@/lib/publicacionesRedes";
 import { mensajeDeError } from "@/lib/errores";
+
+// Etiqueta de cada red, incluida TikTok (que puede aparecer en pendientes).
+const ETIQUETA_PUB: Record<string, string> = { facebook: "Facebook", instagram: "Instagram", tiktok: "TikTok" };
 
 // Formatos disponibles por red.
 const FORMATOS: Record<Red, [Formato, string][]> = {
@@ -30,11 +34,15 @@ export default function RedesWorkspace() {
   const [publicando, setPublicando] = useState(false);
   const [resultado, setResultado] = useState("");
   const [error, setError] = useState("");
+  const [pendientes, setPendientes] = useState<PublicacionRed[]>([]);
 
   useEffect(() => {
     cargarVehiculos()
       .then(setVehiculos)
       .catch(() => {}); // el stock es opcional acá
+    cargarPendientesRetiro()
+      .then(setPendientes)
+      .catch(() => {});
   }, []);
 
   const esVideo = formato === "reel";
@@ -82,11 +90,20 @@ export default function RedesWorkspace() {
 
     setPublicando(true);
     try {
-      await publicarEnRedes(red, esHistoria ? "" : texto.trim(), {
+      const res = await publicarEnRedes(red, esHistoria ? "" : texto.trim(), {
         imagenUrl: imagenUrl.trim() || null,
         videoUrl: videoUrl.trim() || null,
         formato,
       });
+      // Guardar en la memoria de publicaciones (para retirarla al vender el auto).
+      try {
+        await registrarPublicacion({
+          vehiculo_id: vehiculoId || null,
+          red,
+          formato,
+          post_id: res.id,
+        });
+      } catch {}
       const etiqueta = FORMATOS[red].find(([f]) => f === formato)?.[1] ?? ETIQUETA_RED[red];
       setResultado(`Publicado en ${ETIQUETA_RED[red]} (${etiqueta}) ✓`);
       setTexto("");
@@ -94,6 +111,16 @@ export default function RedesWorkspace() {
       setError(mensajeDeError(err));
     } finally {
       setPublicando(false);
+    }
+  }
+
+  async function borrada(p: PublicacionRed) {
+    setPendientes((prev) => prev.filter((x) => x.id !== p.id));
+    try {
+      await marcarRetirada(p.id);
+    } catch {
+      // si falla, la recargamos para no perderla de vista
+      cargarPendientesRetiro().then(setPendientes).catch(() => {});
     }
   }
 
@@ -128,7 +155,41 @@ export default function RedesWorkspace() {
   }
 
   return (
-    <form onSubmit={publicar} className="flex flex-col gap-3">
+    <div className="flex flex-col gap-4">
+      {/* Pendientes de retirar a mano (IG/TikTok de autos vendidos) */}
+      {pendientes.length > 0 && (
+        <div className="flex flex-col gap-2 rounded-lg border p-3" style={{ borderColor: "var(--dorado)" }}>
+          <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--dorado)" }}>
+            Pendientes de retirar a mano ({pendientes.length})
+          </p>
+          <p className="text-[0.7rem]" style={{ color: "var(--muted)" }}>
+            Estos avisos son de autos ya vendidos. Instagram y TikTok no se borran por API — abrí el link, borralos en la app y tocá “Ya la borré”.
+          </p>
+          {pendientes.map((p) => (
+            <div key={p.id} className="flex items-center justify-between gap-2 text-sm">
+              <span>
+                {ETIQUETA_PUB[p.red]} · {p.formato}
+                {p.url && (
+                  <>
+                    {" · "}
+                    <a href={p.url} target="_blank" rel="noreferrer" style={{ color: "var(--dorado)" }}>abrir</a>
+                  </>
+                )}
+              </span>
+              <button
+                type="button"
+                onClick={() => borrada(p)}
+                className="rounded-lg border px-2 py-1 text-xs"
+                style={{ borderColor: "var(--border)", color: "var(--muted)" }}
+              >
+                Ya la borré
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <form onSubmit={publicar} className="flex flex-col gap-3">
       {/* Red */}
       {botones(
         REDES.map((r) => [r, ETIQUETA_RED[r]] as [Red, string]),
@@ -209,8 +270,9 @@ export default function RedesWorkspace() {
       </div>
 
       <p className="text-[0.7rem]" style={{ color: "var(--muted)" }}>
-        Publica en tus cuentas conectadas (configuradas en el servidor). Los Reels tardan unos segundos porque el video se procesa.
+        Publica en tus cuentas conectadas (configuradas en el servidor). Los Reels tardan unos segundos porque el video se procesa. Cuando el auto se venda, Facebook se retira solo y el resto queda listado arriba para borrar a mano.
       </p>
-    </form>
+      </form>
+    </div>
   );
 }

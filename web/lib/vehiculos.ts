@@ -76,7 +76,17 @@ export async function actualizarVehiculo(id: string, datos: Partial<VehiculoInpu
 }
 
 export async function cambiarEstado(id: string, estado: EstadoVehiculo): Promise<Vehiculo> {
-  return actualizarVehiculo(id, { estado });
+  const actualizado = await actualizarVehiculo(id, { estado });
+  // Al vender, retirar de redes las publicaciones del auto (Facebook se borra
+  // solo; Instagram/TikTok quedan pendientes de retiro manual). Best-effort:
+  // no bloquea ni rompe la venta si falla. Import dinámico para no acoplar el
+  // módulo de vehículos con el de redes en la carga inicial.
+  if (estado === "vendido") {
+    import("@/lib/redes")
+      .then((m) => m.retirarDeRedes(id))
+      .catch(() => {});
+  }
+  return actualizado;
 }
 
 export async function eliminarVehiculo(id: string): Promise<void> {

@@ -39,3 +39,28 @@ export async function publicarEnRedes(
   if (!resp.ok || !data.ok) throw new Error(data.error || "No se pudo publicar.");
   return data as ResultadoPublicacion;
 }
+
+export interface ResultadoRetiro {
+  facebook_borradas: number;
+  pendientes: number; // Instagram/TikTok que hay que borrar a mano
+}
+
+// Retira de las redes las publicaciones de un vehículo (al venderse). Facebook
+// se borra solo; Instagram/TikTok quedan marcadas como pendientes de retiro
+// manual. Best-effort: nunca frena el flujo de venta si algo falla.
+export async function retirarDeRedes(vehiculoId: string): Promise<ResultadoRetiro | null> {
+  const { data: sesion } = await supabase.auth.getSession();
+  const token = sesion.session?.access_token;
+  if (!token) return null;
+  try {
+    const resp = await fetch("/api/redes/retirar", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ vehiculo_id: vehiculoId }),
+    });
+    if (!resp.ok) return null;
+    return (await resp.json()) as ResultadoRetiro;
+  } catch {
+    return null;
+  }
+}
