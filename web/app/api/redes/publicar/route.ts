@@ -130,8 +130,10 @@ async function publicarInstagram(
     cont.set("video_url", videoUrl!);
     if (texto) cont.set("caption", texto);
   } else if (formato === "historia") {
+    // Una historia puede ser foto o video; si vino video, manda el video.
     cont.set("media_type", "STORIES");
-    cont.set("image_url", imagenUrl!);
+    if (videoUrl) cont.set("video_url", videoUrl);
+    else cont.set("image_url", imagenUrl!);
   } else {
     cont.set("image_url", imagenUrl!);
     if (texto) cont.set("caption", texto);
@@ -145,10 +147,10 @@ async function publicarInstagram(
   //    falla (imagen inaccesible, formato rechazado, etc.) acá obtenemos el
   //    motivo real en vez del genérico "Media ID is not available" al publicar.
   //    Las fotos suelen estar listas al instante; el video tarda más.
-  const espera =
-    formato === "reel"
-      ? await esperarContenedor(d1.id, token, 5, 2500)
-      : await esperarContenedor(d1.id, token, 3, 1200);
+  const llevaVideo = formato === "reel" || (formato === "historia" && !!videoUrl);
+  const espera = llevaVideo
+    ? await esperarContenedor(d1.id, token, 5, 2500)
+    : await esperarContenedor(d1.id, token, 3, 1200);
   if (!espera.ok) throw new Error(`Instagram no aceptó el contenido: ${espera.detalle}`);
 
   // 3) publicar
@@ -206,8 +208,11 @@ export async function POST(request: Request) {
   if (formato === "reel" && !videoUrl) {
     return NextResponse.json({ error: "El Reel necesita la URL pública de un video." }, { status: 400 });
   }
-  if (red === "instagram" && formato !== "reel" && !imagenUrl) {
-    return NextResponse.json({ error: "Instagram necesita una imagen (URL pública)." }, { status: 400 });
+  if (red === "instagram" && formato === "feed" && !imagenUrl) {
+    return NextResponse.json({ error: "El post de Instagram necesita una imagen (URL pública)." }, { status: 400 });
+  }
+  if (red === "instagram" && formato === "historia" && !imagenUrl && !videoUrl) {
+    return NextResponse.json({ error: "La historia necesita una imagen o un video." }, { status: 400 });
   }
   if (formato === "feed" && red === "facebook" && !texto && !imagenUrl) {
     return NextResponse.json({ error: "El posteo necesita texto o una imagen." }, { status: 400 });

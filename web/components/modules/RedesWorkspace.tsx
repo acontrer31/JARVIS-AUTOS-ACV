@@ -35,6 +35,7 @@ export default function RedesWorkspace() {
   const [resultado, setResultado] = useState("");
   const [error, setError] = useState("");
   const [pendientes, setPendientes] = useState<PublicacionRed[]>([]);
+  const [medioHistoria, setMedioHistoria] = useState<"foto" | "video">("foto");
   const [subiendoVideo, setSubiendoVideo] = useState(false);
   const archivoVideo = useRef<HTMLInputElement>(null);
 
@@ -65,8 +66,9 @@ export default function RedesWorkspace() {
     }
   }
 
-  const esVideo = formato === "reel";
   const esHistoria = red === "instagram" && formato === "historia";
+  // El Reel es siempre video; la historia puede ser foto o video.
+  const esVideo = formato === "reel" || (esHistoria && medioHistoria === "video");
 
   function cambiarRed(r: Red) {
     setRed(r);
@@ -96,7 +98,7 @@ export default function RedesWorkspace() {
     setResultado("");
 
     if (esVideo && !videoUrl.trim()) {
-      setError("El Reel necesita la URL pública de un video.");
+      setError("Falta el video: subilo con “Examinar” o pegá su URL.");
       return;
     }
     if (!esVideo && red === "instagram" && !imagenUrl.trim()) {
@@ -220,6 +222,18 @@ export default function RedesWorkspace() {
       {/* Formato */}
       {botones(FORMATOS[red], formato, setFormato, true)}
 
+      {/* La historia de Instagram puede ser foto o video */}
+      {esHistoria &&
+        botones(
+          [
+            ["foto", "Foto"],
+            ["video", "Video"],
+          ] as ["foto" | "video", string][],
+          medioHistoria,
+          setMedioHistoria,
+          true
+        )}
+
       {/* Texto */}
       <textarea
         className={`${input} min-h-24 resize-y disabled:opacity-50`}
@@ -241,7 +255,9 @@ export default function RedesWorkspace() {
       {/* Video (Reel) o Imagen (resto) */}
       {esVideo ? (
         <div className="flex flex-col gap-2 rounded-lg border p-3" style={{ borderColor: "var(--border)" }}>
-          <p className="text-xs" style={{ color: "var(--muted)" }}>Video del Reel (mp4). Vertical 9:16 para que no se recorte.</p>
+          <p className="text-xs" style={{ color: "var(--muted)" }}>
+            {formato === "reel" ? "Video del Reel" : "Video de la historia"} (mp4). Vertical 9:16 para que no se recorte.
+          </p>
 
           <div className="flex items-center gap-2">
             <input
