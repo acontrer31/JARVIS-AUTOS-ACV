@@ -86,17 +86,31 @@ async function idInstagram(pageId: string, token: string): Promise<string> {
   return id;
 }
 
-// Espera a que el contenedor de video (Reel) termine de procesarse. Acotado en
-// tiempo para no pasarnos del límite de la función serverless.
-async function esperarContenedor(creationId: string, token: string, intentos = 4): Promise<boolean> {
+// Espera a que Instagram termine de procesar el contenedor y, si lo rechaza,
+// devuelve el motivo REAL (el campo `status`). Sin esto, publicar un contenedor
+// fallido devuelve el inútil "Media ID is not available". Acotado en tiempo para
+// no pasarnos del límite de la función serverless.
+async function esperarContenedor(
+  creationId: string,
+  token: string,
+  intentos: number,
+  esperaMs: number
+): Promise<{ ok: boolean; detalle?: string }> {
   for (let i = 0; i < intentos; i++) {
-    await new Promise((res) => setTimeout(res, 2500));
-    const r = await fetch(`${GRAPH}/${creationId}?fields=status_code&access_token=${encodeURIComponent(token)}`);
+    const r = await fetch(
+      `${GRAPH}/${creationId}?fields=status_code,status&access_token=${encodeURIComponent(token)}`
+    );
     const d = await r.json();
-    if (d?.status_code === "FINISHED") return true;
-    if (d?.status_code === "ERROR") return false;
+    if (d?.status_code === "FINISHED") return { ok: true };
+    if (d?.status_code === "ERROR") {
+      return { ok: false, detalle: d?.status || "Instagram rechazó el archivo (no dio detalle)." };
+    }
+    await new Promise((res) => setTimeout(res, esperaMs));
   }
-  return false;
+  return {
+    ok: false,
+    detalle: "Instagram todavía está procesando el contenido. Esperá un momento y publicá de nuevo.",
+  };
 }
 
 async function publicarInstagram(
@@ -127,13 +141,15 @@ async function publicarInstagram(
   const d1 = await r1.json();
   if (!r1.ok || !d1?.id) throw new Error(d1?.error?.message || `Instagram respondió ${r1.status} al crear el post`);
 
-  // 2) los Reels necesitan que el video termine de procesarse
-  if (formato === "reel") {
-    const listo = await esperarContenedor(d1.id, token);
-    if (!listo) {
-      throw new Error("El video del Reel todavía se está procesando en Instagram. Esperá un minuto y publicá de nuevo.");
-    }
-  }
+  // 2) Esperar el procesamiento SIEMPRE (no solo en Reels): si el contenedor
+  //    falla (imagen inaccesible, formato rechazado, etc.) acá obtenemos el
+  //    motivo real en vez del genérico "Media ID is not available" al publicar.
+  //    Las fotos suelen estar listas al instante; el video tarda más.
+  const espera =
+    formato === "reel"
+      ? await esperarContenedor(d1.id, token, 5, 2500)
+      : await esperarContenedor(d1.id, token, 3, 1200);
+  if (!espera.ok) throw new Error(`Instagram no aceptó el contenido: ${espera.detalle}`);
 
   // 3) publicar
   const pub = new URLSearchParams({ creation_id: d1.id, access_token: token });
