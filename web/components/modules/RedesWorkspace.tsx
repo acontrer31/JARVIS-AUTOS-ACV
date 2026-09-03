@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ETIQUETA_RED, REDES, publicarEnRedes, type Formato, type Red } from "@/lib/redes";
 import { cargarVehiculos, nombreVehiculo, type Vehiculo } from "@/lib/vehiculos";
-import { cargarFotos } from "@/lib/media";
+import { cargarFotos, subirVideo } from "@/lib/media";
 import { cargarPendientesRetiro, marcarRetirada, registrarPublicacion, type PublicacionRed } from "@/lib/publicacionesRedes";
 import { mensajeDeError } from "@/lib/errores";
 
@@ -35,18 +35,40 @@ export default function RedesWorkspace() {
   const [resultado, setResultado] = useState("");
   const [error, setError] = useState("");
   const [pendientes, setPendientes] = useState<PublicacionRed[]>([]);
+  const [medioHistoria, setMedioHistoria] = useState<"foto" | "video">("foto");
+  const [subiendoVideo, setSubiendoVideo] = useState(false);
+  const archivoVideo = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     cargarVehiculos()
       .then(setVehiculos)
-      .catch(() => {}); // el stock es opcional acá
+      // Si el stock no carga, avisarlo: una lista vacía sin explicación confunde.
+      .catch((err) => setError("No se pudo cargar el stock: " + mensajeDeError(err)));
     cargarPendientesRetiro()
       .then(setPendientes)
       .catch(() => {});
   }, []);
 
-  const esVideo = formato === "reel";
+  // Sube un video desde la compu al Storage público y completa la URL sola.
+  async function elegirArchivoVideo(e: React.ChangeEvent<HTMLInputElement>) {
+    const archivo = e.target.files?.[0];
+    e.target.value = ""; // permite volver a elegir el mismo archivo
+    if (!archivo) return;
+    setError("");
+    setSubiendoVideo(true);
+    try {
+      const url = await subirVideo(archivo);
+      setVideoUrl(url);
+    } catch (err) {
+      setError("No se pudo subir el video: " + mensajeDeError(err));
+    } finally {
+      setSubiendoVideo(false);
+    }
+  }
+
   const esHistoria = red === "instagram" && formato === "historia";
+  // El Reel es siempre video; la historia puede ser foto o video.
+  const esVideo = formato === "reel" || (esHistoria && medioHistoria === "video");
 
   function cambiarRed(r: Red) {
     setRed(r);
@@ -76,7 +98,7 @@ export default function RedesWorkspace() {
     setResultado("");
 
     if (esVideo && !videoUrl.trim()) {
-      setError("El Reel necesita la URL pública de un video.");
+      setError("Falta el video: subilo con “Examinar” o pegá su URL.");
       return;
     }
     if (!esVideo && red === "instagram" && !imagenUrl.trim()) {
@@ -200,6 +222,18 @@ export default function RedesWorkspace() {
       {/* Formato */}
       {botones(FORMATOS[red], formato, setFormato, true)}
 
+      {/* La historia de Instagram puede ser foto o video */}
+      {esHistoria &&
+        botones(
+          [
+            ["foto", "Foto"],
+            ["video", "Video"],
+          ] as ["foto" | "video", string][],
+          medioHistoria,
+          setMedioHistoria,
+          true
+        )}
+
       {/* Texto */}
       <textarea
         className={`${input} min-h-24 resize-y disabled:opacity-50`}
@@ -221,14 +255,48 @@ export default function RedesWorkspace() {
       {/* Video (Reel) o Imagen (resto) */}
       {esVideo ? (
         <div className="flex flex-col gap-2 rounded-lg border p-3" style={{ borderColor: "var(--border)" }}>
-          <p className="text-xs" style={{ color: "var(--muted)" }}>URL pública del video (mp4). Vertical 9:16 para que no se recorte.</p>
-          <input
-            className={input}
-            style={campo}
-            placeholder="https://…/video.mp4"
-            value={videoUrl}
-            onChange={(e) => setVideoUrl(e.target.value)}
-          />
+          <p className="text-xs" style={{ color: "var(--muted)" }}>
+            {formato === "reel" ? "Video del Reel" : "Video de la historia"} (mp4). Vertical 9:16 para que no se recorte.
+          </p>
+
+          <div className="flex items-center gap-2">
+            <input
+              className={`${input} flex-1`}
+              style={campo}
+              placeholder="Pegá la URL del video…"
+              value={videoUrl}
+              onChange={(e) => setVideoUrl(e.target.value)}
+            />
+
+            {/* Botón dorado colapsado que se expande al pasar el cursor */}
+            <button
+              type="button"
+              onClick={() => archivoVideo.current?.click()}
+              disabled={subiendoVideo}
+              title="Subir un video desde tu computadora"
+              className="group flex shrink-0 items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-semibold disabled:opacity-50"
+              style={{ background: "var(--dorado)", color: "var(--verde-core)" }}
+            >
+              <span aria-hidden="true">📁</span>
+              <span className="max-w-0 overflow-hidden whitespace-nowrap transition-[max-width] duration-300 group-hover:max-w-[6rem] group-focus:max-w-[6rem]">
+                {subiendoVideo ? "Subiendo…" : "Examinar"}
+              </span>
+            </button>
+            <input
+              ref={archivoVideo}
+              type="file"
+              accept="video/*"
+              onChange={elegirArchivoVideo}
+              className="hidden"
+            />
+          </div>
+
+          {subiendoVideo && (
+            <p className="text-xs" style={{ color: "var(--dorado)" }}>Subiendo el video…</p>
+          )}
+          {videoUrl && !subiendoVideo && (
+            <video src={videoUrl} controls className="max-h-48 w-auto self-start rounded-lg border" style={{ borderColor: "var(--border)" }} />
+          )}
         </div>
       ) : (
         <div className="flex flex-col gap-2 rounded-lg border p-3" style={{ borderColor: "var(--border)" }}>

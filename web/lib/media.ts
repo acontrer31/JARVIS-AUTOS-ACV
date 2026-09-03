@@ -71,6 +71,36 @@ export async function subirFoto(vehiculoId: string, archivo: File, orden: number
   return data as unknown as Foto;
 }
 
+// Los videos pesan bastante más que las fotos; el bucket igual tiene su propio
+// límite configurado en Supabase, que manda por encima de este aviso temprano.
+export const MAX_BYTES_VIDEO = 50 * 1024 * 1024;
+
+// Sube un video al bucket público y devuelve su URL pública, lista para usar en
+// un Reel (Meta descarga el archivo desde esa URL). No crea fila en
+// `vehiculo_media`: es un archivo suelto para publicar, no una foto del stock.
+// La ruta arranca con el agencia_id, igual que las fotos, para cumplir las
+// policies de Storage.
+export async function subirVideo(archivo: File): Promise<string> {
+  if (!archivo.type.startsWith("video/")) {
+    throw new Error("El archivo tiene que ser un video.");
+  }
+  if (archivo.size > MAX_BYTES_VIDEO) {
+    throw new Error(`El video supera los ${Math.round(MAX_BYTES_VIDEO / 1024 / 1024)} MB.`);
+  }
+
+  const agencia_id = await miAgenciaId();
+  const ruta = `${agencia_id}/videos/${crypto.randomUUID()}.${extension(archivo.name)}`;
+
+  const { error } = await supabase.storage.from(BUCKET).upload(ruta, archivo, {
+    cacheControl: "3600",
+    upsert: false,
+  });
+  if (error) throw error;
+
+  const { data } = supabase.storage.from(BUCKET).getPublicUrl(ruta);
+  return data.publicUrl;
+}
+
 export async function eliminarFoto(foto: Foto): Promise<void> {
   // Primero el archivo, después la fila: al revés, un fallo al borrar el
   // archivo dejaría una foto invisible pero ocupando espacio para siempre.
