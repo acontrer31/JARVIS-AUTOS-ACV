@@ -2,8 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import { ETIQUETA_RED, REDES, publicarEnRedes, type Formato, type Red } from "@/lib/redes";
-import { cargarVehiculos, nombreVehiculo, type Vehiculo } from "@/lib/vehiculos";
-import { cargarFotos, subirVideo } from "@/lib/media";
+import { cargarVehiculos, formatearMoneda, nombreVehiculo, type Vehiculo } from "@/lib/vehiculos";
+import { cargarFotos, subirImagenGenerada, subirVideo } from "@/lib/media";
+import { componerHistoria } from "@/lib/historiaImagen";
 import { cargarPendientesRetiro, marcarRetirada, registrarPublicacion, type PublicacionRed } from "@/lib/publicacionesRedes";
 import { mensajeDeError } from "@/lib/errores";
 
@@ -112,8 +113,27 @@ export default function RedesWorkspace() {
 
     setPublicando(true);
     try {
+      let imagenFinal = imagenUrl.trim() || null;
+
+      // Instagram ignora el texto de las historias, así que si el usuario
+      // escribió algo lo "quemamos" sobre la imagen antes de publicar.
+      if (esHistoria && medioHistoria === "foto" && texto.trim() && imagenFinal) {
+        const v = vehiculos.find((x) => x.id === vehiculoId);
+        const datos = v
+          ? [nombreVehiculo(v), v.anio, v.km ? `${v.km.toLocaleString("es-AR")} km` : null, formatearMoneda(v.precio)]
+              .filter(Boolean)
+              .join(" · ")
+          : undefined;
+        const pieza = await componerHistoria({
+          fotoUrl: imagenFinal,
+          texto: texto.trim(),
+          datosVehiculo: datos,
+        });
+        imagenFinal = await subirImagenGenerada(pieza);
+      }
+
       const res = await publicarEnRedes(red, esHistoria ? "" : texto.trim(), {
-        imagenUrl: imagenUrl.trim() || null,
+        imagenUrl: imagenFinal,
         videoUrl: videoUrl.trim() || null,
         formato,
       });
@@ -239,18 +259,25 @@ export default function RedesWorkspace() {
         className={`${input} min-h-24 resize-y disabled:opacity-50`}
         style={campo}
         placeholder={
-          esHistoria
-            ? "La historia no lleva texto (Instagram lo ignora)…"
-            : esVideo
-              ? "Descripción del Reel…"
-              : red === "instagram"
-                ? "Epígrafe del posteo…"
-                : "Texto del posteo…"
+          esHistoria && medioHistoria === "foto"
+            ? "Leyenda sobre la historia (ej. VENDO · financiación · 387 510-5956)…"
+            : esHistoria
+              ? "La historia en video no lleva leyenda…"
+              : esVideo
+                ? "Descripción del Reel…"
+                : red === "instagram"
+                  ? "Epígrafe del posteo…"
+                  : "Texto del posteo…"
         }
         value={texto}
         onChange={(e) => setTexto(e.target.value)}
-        disabled={esHistoria}
+        disabled={esHistoria && medioHistoria === "video"}
       />
+      {esHistoria && medioHistoria === "foto" && (
+        <p className="text-[0.7rem]" style={{ color: "var(--muted)" }}>
+          Instagram no acepta texto en las historias por API, así que la leyenda se <strong>dibuja sobre la imagen</strong> junto con los datos del auto y tu marca.
+        </p>
+      )}
 
       {/* Video (Reel) o Imagen (resto) */}
       {esVideo ? (
