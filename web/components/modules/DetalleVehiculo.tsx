@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { cargarFotos, type Foto } from "@/lib/media";
+import ChecklistVehiculo from "@/components/modules/ChecklistVehiculo";
 import { mensajeDeError } from "@/lib/errores";
 import {
   ETIQUETA_ESTADO,
@@ -214,6 +215,9 @@ export default function DetalleVehiculo({
                 <p className="whitespace-pre-wrap text-sm">{vehiculo.notas}</p>
               </div>
             )}
+
+            {/* Papeles y accesorios: clave en los autos que entran en consignación. */}
+            <ChecklistVehiculo vehiculoId={vehiculo.id} dominio={vehiculo.dominio} />
           </div>
         </div>
       </div>
