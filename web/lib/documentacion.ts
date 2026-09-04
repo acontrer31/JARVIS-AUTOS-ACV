@@ -10,7 +10,9 @@ export interface Documentacion {
   titulo: boolean;
   libre_deuda_municipal: boolean;
   formulario_08: boolean;
+  /** Formulario 12: la verificación policial. */
   formulario_12: boolean;
+  /** RTV — la "revesa": revisación técnica vehicular. */
   revisacion: boolean;
   seguro: boolean;
   // Accesorios
@@ -35,8 +37,9 @@ export const ITEMS_DOCUMENTACION: [keyof Documentacion, string][] = [
   ["titulo", "Título"],
   ["libre_deuda_municipal", "Libre deuda municipal"],
   ["formulario_08", "Formulario 08"],
-  ["formulario_12", "Formulario 12"],
-  ["revisacion", "Revisación técnica"],
+  // El 12 es la verificación policial; "revesa" es la RTV.
+  ["formulario_12", "Formulario 12 (verificación policial)"],
+  ["revisacion", "Revisación Técnica Vehicular (RTV)"],
   ["seguro", "Seguro"],
 ];
 
