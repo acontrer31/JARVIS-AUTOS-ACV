@@ -101,6 +101,23 @@ export async function subirVideo(archivo: File): Promise<string> {
   return data.publicUrl;
 }
 
+// Sube una imagen generada en el navegador (la pieza de una historia con el
+// texto ya dibujado) y devuelve su URL pública para publicarla.
+export async function subirImagenGenerada(blob: Blob): Promise<string> {
+  const agencia_id = await miAgenciaId();
+  const ruta = `${agencia_id}/historias/${crypto.randomUUID()}.jpg`;
+
+  const { error } = await supabase.storage.from(BUCKET).upload(ruta, blob, {
+    cacheControl: "3600",
+    upsert: false,
+    contentType: "image/jpeg",
+  });
+  if (error) throw error;
+
+  const { data } = supabase.storage.from(BUCKET).getPublicUrl(ruta);
+  return data.publicUrl;
+}
+
 export async function eliminarFoto(foto: Foto): Promise<void> {
   // Primero el archivo, después la fila: al revés, un fallo al borrar el
   // archivo dejaría una foto invisible pero ocupando espacio para siempre.
