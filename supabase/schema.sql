@@ -811,3 +811,41 @@ alter table public.clientes add column if not exists proximo_contacto date;
 
 create index if not exists clientes_proximo_contacto_idx
   on public.clientes (agencia_id, proximo_contacto);
+
+-- ============================================================
+-- Checklist de documentación y accesorios del vehículo. Pensada sobre todo para
+-- los autos que entran en CONSIGNACIÓN: deja constancia de qué papeles y
+-- accesorios entregó el consignante. Relación 1 a 1 con el vehículo.
+-- El informe de dominio del DNRPA es un trámite oficial y pago (sin API
+-- pública): acá solo se registra si hace falta, cuándo se pidió y qué dio.
+-- ============================================================
+create table if not exists public.vehiculo_documentacion (
+  vehiculo_id uuid primary key references public.vehiculos (id) on delete cascade,
+  agencia_id uuid not null references public.agencias (id) on delete cascade,
+  titulo boolean not null default false,
+  libre_deuda_municipal boolean not null default false,
+  formulario_08 boolean not null default false,
+  formulario_12 boolean not null default false,
+  revisacion boolean not null default false,
+  seguro boolean not null default false,
+  gato boolean not null default false,
+  auxilio boolean not null default false,
+  llave_cruz boolean not null default false,
+  duplicado_llave boolean not null default false,
+  balizas boolean not null default false,
+  matafuego boolean not null default false,
+  kit_seguridad boolean not null default false,
+  informe_dominio_necesario boolean not null default false,
+  informe_dominio_pedido date,
+  informe_dominio_resultado text,
+  dni_consignante text,
+  notas text,
+  actualizado_en timestamptz not null default now()
+);
+
+alter table public.vehiculo_documentacion enable row level security;
+
+drop policy if exists "documentacion de mi agencia" on public.vehiculo_documentacion;
+create policy "documentacion de mi agencia" on public.vehiculo_documentacion
+  for all using (agencia_id = public.mi_agencia_id())
+  with check (agencia_id = public.mi_agencia_id());
