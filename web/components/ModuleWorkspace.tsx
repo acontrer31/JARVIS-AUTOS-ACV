@@ -10,6 +10,7 @@ import CajaWorkspace from "@/components/modules/CajaWorkspace";
 import ComprasWorkspace from "@/components/modules/ComprasWorkspace";
 import ReportesWorkspace from "@/components/modules/ReportesWorkspace";
 import RedesWorkspace from "@/components/modules/RedesWorkspace";
+import CrmWorkspace from "@/components/modules/CrmWorkspace";
 import SeguridadWorkspace from "@/components/modules/SeguridadWorkspace";
 import AdministracionWorkspace from "@/components/modules/AdministracionWorkspace";
 import PlaceholderWorkspace from "@/components/modules/PlaceholderWorkspace";
@@ -57,6 +58,7 @@ export default function ModuleWorkspace({
         {modulo.id === "compras" && <ComprasWorkspace />}
         {modulo.id === "analitica" && <ReportesWorkspace />}
         {modulo.id === "comunicaciones" && <RedesWorkspace />}
+        {modulo.id === "crm" && <CrmWorkspace />}
         {modulo.id === "seguridad" && <SeguridadWorkspace />}
         {modulo.id === "administracion" && <AdministracionWorkspace />}
         {!modulo.real && <PlaceholderWorkspace modulo={modulo} />}

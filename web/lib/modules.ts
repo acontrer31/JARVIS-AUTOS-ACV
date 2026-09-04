@@ -37,7 +37,7 @@ export const MODULOS: Modulo[] = [
   { id: "operaciones", label: "Operaciones", descripcion: "Ventas y trámites: stock + cliente + dinero", real: true },
   { id: "caja", label: "Caja", descripcion: "Ingresos, egresos y saldo del día a día", real: true },
   { id: "compras", label: "Compras", descripcion: "Ingreso de stock: origen, proveedor y costo", real: true },
-  { id: "crm", label: "CRM", descripcion: "Leads y seguimiento comercial", real: false },
+  { id: "crm", label: "CRM", descripcion: "Embudo de leads, vendedor asignado y agenda de seguimiento", real: true },
   { id: "comunicaciones", label: "Redes", descripcion: "Publicar en Facebook e Instagram", real: true },
   { id: "marketing", label: "Marketing", descripcion: "Piezas y campañas por vehículo", real: false },
   { id: "conocimiento", label: "Conocimiento", descripcion: "Documentos e información de referencia", real: false },

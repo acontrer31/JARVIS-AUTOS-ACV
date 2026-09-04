@@ -801,3 +801,13 @@ create policy "publicaciones de mi agencia" on public.publicaciones_redes
 
 create index if not exists idx_pubredes_vehiculo on public.publicaciones_redes (vehiculo_id);
 create index if not exists idx_pubredes_estado on public.publicaciones_redes (agencia_id, estado);
+
+-- ============================================================
+-- CRM: agenda de seguimiento del lead. `proximo_contacto` es la fecha en que
+-- hay que volver a contactarlo — es lo que convierte la lista de clientes en un
+-- pipeline con agenda. El historial de contactos ya vive en `interacciones`.
+-- ============================================================
+alter table public.clientes add column if not exists proximo_contacto date;
+
+create index if not exists clientes_proximo_contacto_idx
+  on public.clientes (agencia_id, proximo_contacto);

@@ -13,6 +13,8 @@ export interface Cliente {
   vehiculo_interes_id: string | null;
   presupuesto: number | null;
   vendedor_id: string | null;
+  /** Fecha en la que hay que volver a contactarlo (agenda del pipeline). */
+  proximo_contacto: string | null;
   creado_en: string;
 }
 
@@ -32,7 +34,7 @@ export const ETIQUETA_ESTADO_LEAD: Record<EstadoLead, string> = {
 export type ClienteInput = Omit<Cliente, "id" | "creado_en">;
 
 const COLUMNAS =
-  "id, nombre, telefono, email, notas, estado_lead, vehiculo_interes_id, presupuesto, vendedor_id, creado_en";
+  "id, nombre, telefono, email, notas, estado_lead, vehiculo_interes_id, presupuesto, vendedor_id, proximo_contacto, creado_en";
 
 export async function cargarClientes(): Promise<Cliente[]> {
   const { data, error } = await supabase
@@ -69,6 +71,15 @@ export async function cambiarEstadoLead(id: string, estado_lead: EstadoLead): Pr
   return actualizarCliente(id, { estado_lead });
 }
 
+// Agenda del pipeline: cuándo volver a contactar al lead (null = sin agendar).
+export async function fijarProximoContacto(id: string, proximo_contacto: string | null): Promise<Cliente> {
+  return actualizarCliente(id, { proximo_contacto });
+}
+
+export async function asignarVendedor(id: string, vendedor_id: string | null): Promise<Cliente> {
+  return actualizarCliente(id, { vendedor_id });
+}
+
 export async function eliminarCliente(id: string): Promise<void> {
   const { error } = await supabase.from("clientes").delete().eq("id", id);
   if (error) throw error;
@@ -98,5 +109,6 @@ export function clienteVacio(): ClienteInput {
     vehiculo_interes_id: null,
     presupuesto: null,
     vendedor_id: null,
+    proximo_contacto: null,
   };
 }
