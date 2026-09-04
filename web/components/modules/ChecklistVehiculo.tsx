@@ -5,6 +5,7 @@ import {
   ITEMS_ACCESORIOS,
   ITEMS_DOCUMENTACION,
   URL_DNRPA,
+  URL_DNRPA_HISTORICO,
   cargarDocumentacion,
   documentacionVacia,
   guardarDocumentacion,
@@ -149,18 +150,31 @@ export default function ChecklistVehiculo({
               value={doc.informe_dominio_resultado ?? ""}
               onChange={(e) => setDoc({ ...doc, informe_dominio_resultado: e.target.value || null })}
             />
-            <a
-              href={URL_DNRPA}
-              target="_blank"
-              rel="noreferrer"
-              className="text-xs underline"
-              style={{ color: "var(--dorado)" }}
-            >
-              Pedir el informe en el DNRPA{dominio ? ` (patente ${dominio})` : ""} ↗
-            </a>
+            <div className="flex flex-wrap gap-3">
+              <a
+                href={URL_DNRPA}
+                target="_blank"
+                rel="noreferrer"
+                className="text-xs underline"
+                style={{ color: "var(--dorado)" }}
+              >
+                Pedir informe de dominio ↗
+              </a>
+              <a
+                href={URL_DNRPA_HISTORICO}
+                target="_blank"
+                rel="noreferrer"
+                className="text-xs underline"
+                style={{ color: "var(--dorado)" }}
+              >
+                Pedir informe histórico ↗
+              </a>
+            </div>
             <p className="text-[0.68rem]" style={{ color: "var(--muted)" }}>
-              El informe es un trámite oficial y pago del DNRPA: no se puede consultar automáticamente. Pedilo por el
-              link y anotá acá el resultado.
+              Trámite oficial y pago del DNRPA: no se puede consultar automáticamente. En el sitio se pide con CUIL/CUIT
+              y la patente
+              {dominio ? ` (${dominio})` : ""}, se paga online y el informe llega por mail. Volvé y anotá acá el
+              resultado.
             </p>
           </>
         )}

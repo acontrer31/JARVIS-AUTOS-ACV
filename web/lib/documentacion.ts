@@ -103,6 +103,13 @@ export async function guardarDocumentacion(doc: Documentacion): Promise<void> {
 }
 
 // El informe de dominio del DNRPA es un trámite oficial y pago: no hay API
-// pública para consultarlo, así que desde acá solo se abre el sitio para
-// pedirlo a mano y después se registra el resultado en la checklist.
-export const URL_DNRPA = "https://www.dnrpa.gov.ar/portal_dnrpa/informes.php";
+// pública para consultarlo, así que desde acá solo se abre el trámite en el
+// portal del Estado para hacerlo a mano y después se registra el resultado.
+// El pedido se completa con CUIL/CUIT y la patente, se paga online y el informe
+// llega por mail.
+export const URL_DNRPA = "https://www.argentina.gob.ar/servicio/solicitar-un-informe-de-dominio-del-automotor";
+
+// El histórico muestra toda la cadena de titulares: en una consignación es el
+// que conviene pedir para ver de dónde viene el auto.
+export const URL_DNRPA_HISTORICO =
+  "https://www.argentina.gob.ar/servicio/solicitar-informe-historico-de-dominio-del-automotor";
