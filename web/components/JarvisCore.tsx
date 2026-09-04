@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { ConversationProvider, useConversation } from "@elevenlabs/react";
 import { supabase } from "@/lib/supabase";
 import { MODULOS, type ModuloId } from "@/lib/modules";
-import { cargarVehiculos, formatearMoneda, nombreVehiculo } from "@/lib/vehiculos";
+import { cambiarEstado as cambiarEstadoVehiculo, cargarVehiculos, formatearMoneda, nombreVehiculo, type EstadoVehiculo } from "@/lib/vehiculos";
 import { calcularCostoTransferenciaDNRPA, DNRPA_DISCLAIMER, simularCuotas } from "@/lib/financiacion";
 import JarvisNucleus from "@/components/jarvis/JarvisNucleus";
 import JarvisNetwork from "@/components/jarvis/JarvisNetwork";
@@ -14,10 +14,20 @@ import { soportaEscucha, useEscuchaContinua } from "@/lib/escuchaContinua";
 import { consultarClima } from "@/lib/clima";
 import { cargarTareas, crearTarea } from "@/lib/tareas";
 import { cargarClientes, crearCliente, clienteVacio, ETIQUETA_ESTADO_LEAD } from "@/lib/clientes";
-import { cargarOperaciones, ETIQUETA_TIPO_OP, ETIQUETA_ESTADO_OP } from "@/lib/operaciones";
+import {
+  cambiarEstadoOperacion,
+  cargarOperaciones,
+  crearOperacion,
+  operacionVacia,
+  ETIQUETA_TIPO_OP,
+  ETIQUETA_ESTADO_OP,
+  type EstadoOperacion,
+} from "@/lib/operaciones";
 import { cargarMovimientos, calcularSaldo, crearMovimiento, movimientoVacio, type TipoMovimiento } from "@/lib/caja";
-import { resumenDelDia } from "@/lib/reportes";
-import { publicarEnRedes } from "@/lib/redes";
+import { armarReporte, resumenDelDia } from "@/lib/reportes";
+import { publicarEnRedes, type Red } from "@/lib/redes";
+import { cargarFotos } from "@/lib/media";
+import { registrarPublicacion } from "@/lib/publicacionesRedes";
 
 export type EstadoJarvis = "standby" | "escuchando" | "activando" | "trabajando" | "error";
 
@@ -460,6 +470,125 @@ export default function JarvisCore({
         return `Listo, lo publiqué en Facebook: ${texto}`;
       } catch (err) {
         return "No pude publicar ahora mismo. " + (err instanceof Error ? err.message : "Probá de nuevo.");
+      }
+    },
+    // Cambia el estado de un auto en el stock. Al pasarlo a "vendido" se dispara
+    // solo el retiro de sus publicaciones en redes (ver lib/vehiculos.ts).
+    cambiar_estado_vehiculo: async (parametros: { modelo?: string; estado?: string }) => {
+      const consulta = normalizar(parametros?.modelo || "").trim();
+      if (!consulta) return "¿De qué vehículo querés cambiar el estado?";
+      const pedido = normalizar(parametros?.estado || "");
+      let estado: EstadoVehiculo;
+      if (pedido.includes("vend")) estado = "vendido";
+      else if (pedido.includes("reserv") || pedido.includes("sena")) estado = "reservado";
+      else if (pedido.includes("disponible") || pedido.includes("libre")) estado = "disponible";
+      else if (pedido.includes("no disponible") || pedido.includes("baja")) estado = "no_disponible";
+      else return 'No entendí el estado. Puede ser disponible, reservado, vendido o no disponible.';
+      try {
+        const vehiculos = await cargarVehiculos();
+        const auto = vehiculos.find((v) => normalizar(nombreVehiculo(v)).includes(consulta));
+        if (!auto) return `No encontré ningún vehículo que coincida con "${parametros?.modelo}".`;
+        await cambiarEstadoVehiculo(auto.id, estado);
+        return estado === "vendido"
+          ? `Listo, marqué ${nombreVehiculo(auto)} como vendido. Estoy retirando sus publicaciones de las redes.`
+          : `Listo, ${nombreVehiculo(auto)} quedó como ${estado.replace("_", " ")}.`;
+      } catch {
+        return "No pude cambiar el estado del vehículo ahora mismo.";
+      }
+    },
+    // Cambia el estado de una operación; el stock del vehículo se sincroniza solo.
+    cambiar_estado_operacion: async (parametros: { cliente?: string; estado?: string }) => {
+      const pedido = normalizar(parametros?.estado || "");
+      let estado: EstadoOperacion;
+      if (pedido.includes("entreg")) estado = "entregada";
+      else if (pedido.includes("sena") || pedido.includes("señ")) estado = "senada";
+      else if (pedido.includes("cancel")) estado = "cancelada";
+      else if (pedido.includes("abiert")) estado = "abierta";
+      else return "No entendí el estado. Puede ser abierta, señada, entregada o cancelada.";
+      try {
+        const [ops, clientes] = await Promise.all([cargarOperaciones(), cargarClientes()]);
+        const consulta = normalizar(parametros?.cliente || "").trim();
+        let op = ops.find((o) => o.estado !== "entregada" && o.estado !== "cancelada");
+        if (consulta) {
+          const cliente = clientes.find((c) => normalizar(c.nombre).includes(consulta));
+          if (!cliente) return `No encontré ningún cliente que coincida con "${parametros?.cliente}".`;
+          op = ops.find((o) => o.cliente_id === cliente.id);
+          if (!op) return `${cliente.nombre} no tiene operaciones registradas.`;
+        }
+        if (!op) return "No encontré operaciones abiertas para cambiar.";
+        await cambiarEstadoOperacion(op, estado);
+        return `Listo, la operación quedó como ${ETIQUETA_ESTADO_OP[estado].toLowerCase()}${
+          estado === "entregada" ? " y el vehículo pasó a vendido." : "."
+        }`;
+      } catch {
+        return "No pude cambiar el estado de la operación ahora mismo.";
+      }
+    },
+    // Reporte del mes: ventas, comisiones, margen, stock valorizado y ranking.
+    reporte_del_mes: async () => {
+      try {
+        const r = await armarReporte();
+        const partes = [
+          `En ${r.mesEtiqueta} llevás ${r.ventasMes.cantidad} entrega(s) por ${formatearMoneda(r.ventasMes.monto)}`,
+        ];
+        if (r.ventasMes.comisiones) partes.push(`comisiones por ${formatearMoneda(r.ventasMes.comisiones)}`);
+        if (r.margen.cantidad) partes.push(`margen de ${formatearMoneda(r.margen.total)}`);
+        partes.push(`stock valorizado en ${formatearMoneda(r.stock.valorizado)} con ${r.stock.cantidad} disponible(s)`);
+        if (r.abiertas.cantidad) partes.push(`${r.abiertas.cantidad} operación(es) en curso`);
+        if (r.ranking[0]) partes.push(`el primero del ranking es ${r.ranking[0].nombre} con ${formatearMoneda(r.ranking[0].monto)}`);
+        return partes.join("; ") + ".";
+      } catch {
+        return "No pude armar el reporte del mes ahora mismo.";
+      }
+    },
+    // Publica la foto de un vehículo del stock en Facebook o Instagram.
+    publicar_vehiculo_en_redes: async (parametros: { modelo?: string; red?: string; texto?: string }) => {
+      const consulta = normalizar(parametros?.modelo || "").trim();
+      if (!consulta) return "¿Qué vehículo querés publicar?";
+      const red: Red = normalizar(parametros?.red || "").includes("insta") ? "instagram" : "facebook";
+      try {
+        const vehiculos = await cargarVehiculos();
+        const auto = vehiculos.find((v) => normalizar(nombreVehiculo(v)).includes(consulta));
+        if (!auto) return `No encontré ningún vehículo que coincida con "${parametros?.modelo}".`;
+        const fotos = await cargarFotos(auto.id);
+        const foto = fotos[0]?.url;
+        if (!foto) return `${nombreVehiculo(auto)} no tiene fotos cargadas, así que no puedo publicarlo.`;
+        const texto =
+          (parametros?.texto || "").trim() ||
+          `${nombreVehiculo(auto)}${auto.anio ? ` ${auto.anio}` : ""} — ${formatearMoneda(auto.precio)}`;
+        const res = await publicarEnRedes(red, texto, { imagenUrl: foto, formato: "feed" });
+        try {
+          await registrarPublicacion({ vehiculo_id: auto.id, red, formato: "feed", post_id: res.id });
+        } catch {}
+        return `Listo, publiqué ${nombreVehiculo(auto)} en ${red === "instagram" ? "Instagram" : "Facebook"}.`;
+      } catch (err) {
+        return "No pude publicar el vehículo. " + (err instanceof Error ? err.message : "Probá de nuevo.");
+      }
+    },
+    // Registra una operación de venta uniendo vehículo, cliente y monto.
+    registrar_operacion: async (parametros: { modelo?: string; cliente?: string; monto?: number }) => {
+      const modelo = normalizar(parametros?.modelo || "").trim();
+      const nombreCliente = normalizar(parametros?.cliente || "").trim();
+      if (!modelo) return "¿Sobre qué vehículo es la operación?";
+      if (!nombreCliente) return "¿A nombre de qué cliente la registro?";
+      try {
+        const [vehiculos, clientes] = await Promise.all([cargarVehiculos(), cargarClientes()]);
+        const auto = vehiculos.find((v) => normalizar(nombreVehiculo(v)).includes(modelo));
+        if (!auto) return `No encontré ningún vehículo que coincida con "${parametros?.modelo}".`;
+        const cliente = clientes.find((c) => normalizar(c.nombre).includes(nombreCliente));
+        if (!cliente) return `No encontré ningún cliente que coincida con "${parametros?.cliente}".`;
+        const monto = Number(parametros?.monto) || auto.precio || null;
+        await crearOperacion({
+          ...operacionVacia(),
+          vehiculo_id: auto.id,
+          cliente_id: cliente.id,
+          monto,
+        });
+        return `Listo, registré una operación de ${nombreVehiculo(auto)} para ${cliente.nombre}${
+          monto ? ` por ${formatearMoneda(monto)}` : ""
+        }. Queda abierta.`;
+      } catch {
+        return "No pude registrar la operación ahora mismo.";
       }
     },
   };
