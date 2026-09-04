@@ -104,14 +104,22 @@ el nombre debe coincidir **exacto** con la clave del objeto `clientTools` en
 `web/components/JarvisCore.tsx`. Patrón: "Esperar respuesta" ON, parámetros
 `String` con tipo de valor **LLM Prompt** y no requeridos.
 
-Tools actuales: `consultar_inventario`, `simular_financiacion`,
-`estimar_transferencia_dnrpa`, `mostrar_modulo`, `cambiar_tema`,
-`consultar_clima`, `mis_tareas`, `agregar_tarea`, `datos_cliente`,
-`resumen_del_dia`, `estado_caja`, `registrar_movimiento_caja`,
-`agregar_cliente`, `publicar_en_redes`.
+Las 22 tools actuales, por lo que hacen:
+
+- **Consulta**: `consultar_inventario`, `simular_financiacion`,
+  `estimar_transferencia_dnrpa`, `datos_cliente`, `resumen_del_dia`,
+  `estado_caja`, `reporte_del_mes`, `mis_tareas`, `mis_seguimientos`,
+  `consultar_clima`.
+- **Acción**: `agregar_tarea`, `agregar_cliente`, `registrar_movimiento_caja`,
+  `registrar_operacion`, `cambiar_estado_vehiculo`, `cambiar_estado_operacion`,
+  `cambiar_estado_lead`, `agendar_seguimiento`, `publicar_en_redes`,
+  `publicar_vehiculo_en_redes`.
+- **Interfaz**: `mostrar_modulo`, `cambiar_tema`.
 
 Todas devuelven **texto hablado sobre datos reales**; si falta un dato lo dicen,
-no lo inventan.
+no lo inventan. Las fechas habladas ("mañana", "en tres días", "el jueves") las
+resuelve `interpretarFecha` en `web/lib/crm.ts`, que devuelve `null` cuando no
+entiende — ahí JARVIS pregunta en vez de agendar un día equivocado.
 
 ## Redes sociales
 
