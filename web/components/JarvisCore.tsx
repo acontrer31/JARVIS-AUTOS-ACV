@@ -13,7 +13,16 @@ import { fijarTema, temaActual, type Tema } from "@/lib/tema";
 import { soportaEscucha, useEscuchaContinua } from "@/lib/escuchaContinua";
 import { consultarClima } from "@/lib/clima";
 import { cargarTareas, crearTarea } from "@/lib/tareas";
-import { cargarClientes, crearCliente, clienteVacio, ETIQUETA_ESTADO_LEAD } from "@/lib/clientes";
+import {
+  cambiarEstadoLead,
+  cargarClientes,
+  crearCliente,
+  clienteVacio,
+  fijarProximoContacto,
+  ETIQUETA_ESTADO_LEAD,
+  type EstadoLead,
+} from "@/lib/clientes";
+import { armarPipeline, interpretarFecha } from "@/lib/crm";
 import {
   cambiarEstadoOperacion,
   cargarOperaciones,
@@ -589,6 +598,71 @@ export default function JarvisCore({
         }. Queda abierta.`;
       } catch {
         return "No pude registrar la operación ahora mismo.";
+      }
+    },
+    // Mueve un lead de etapa en el embudo del CRM.
+    cambiar_estado_lead: async (parametros: { cliente?: string; estado?: string }) => {
+      const consulta = normalizar(parametros?.cliente || "").trim();
+      if (!consulta) return "¿De qué cliente querés cambiar la etapa?";
+      const pedido = normalizar(parametros?.estado || "");
+      let estado: EstadoLead;
+      if (pedido.includes("negocia")) estado = "en_negociacion";
+      else if (pedido.includes("contact")) estado = "contactado";
+      else if (pedido.includes("gan") || pedido.includes("vend") || pedido.includes("cerr")) estado = "ganado";
+      else if (pedido.includes("perd") || pedido.includes("no va")) estado = "perdido";
+      else if (pedido.includes("nuevo")) estado = "nuevo";
+      else return "No entendí la etapa. Puede ser nuevo, contactado, en negociación, ganado o perdido.";
+      try {
+        const clientes = await cargarClientes();
+        const cliente = clientes.find((c) => normalizar(c.nombre).includes(consulta));
+        if (!cliente) return `No encontré ningún cliente que coincida con "${parametros?.cliente}".`;
+        await cambiarEstadoLead(cliente.id, estado);
+        return `Listo, ${cliente.nombre} quedó como ${ETIQUETA_ESTADO_LEAD[estado].toLowerCase()}.`;
+      } catch {
+        return "No pude cambiar la etapa del lead ahora mismo.";
+      }
+    },
+    // Agenda cuándo volver a contactar a un cliente. Entiende "mañana", "en tres
+    // días" o una fecha; si no la entiende, pregunta en vez de adivinar.
+    agendar_seguimiento: async (parametros: { cliente?: string; cuando?: string }) => {
+      const consulta = normalizar(parametros?.cliente || "").trim();
+      if (!consulta) return "¿A qué cliente le agendo el seguimiento?";
+      const fecha = interpretarFecha(parametros?.cuando || "");
+      if (!fecha) return "¿Para qué día lo agendo? Podés decirme mañana, en tres días o una fecha.";
+      try {
+        const clientes = await cargarClientes();
+        const cliente = clientes.find((c) => normalizar(c.nombre).includes(consulta));
+        if (!cliente) return `No encontré ningún cliente que coincida con "${parametros?.cliente}".`;
+        await fijarProximoContacto(cliente.id, fecha);
+        const [anio, mes, dia] = fecha.split("-").map(Number);
+        const legible = new Date(anio, mes - 1, dia).toLocaleDateString("es-AR", {
+          weekday: "long",
+          day: "numeric",
+          month: "long",
+        });
+        return `Listo, agendé volver a contactar a ${cliente.nombre} el ${legible}.`;
+      } catch {
+        return "No pude agendar el seguimiento ahora mismo.";
+      }
+    },
+    // Los seguimientos del día: los que vencieron y los de hoy.
+    mis_seguimientos: async () => {
+      try {
+        const pipeline = await armarPipeline();
+        const { vencidos, hoy } = pipeline;
+        if (!vencidos.length && !hoy.length) return "No tenés seguimientos pendientes para hoy.";
+        const partes: string[] = [];
+        if (vencidos.length) {
+          partes.push(
+            `Tenés ${vencidos.length} seguimiento(s) vencido(s): ${vencidos.slice(0, 8).map((c) => c.nombre).join(", ")}`
+          );
+        }
+        if (hoy.length) {
+          partes.push(`para hoy: ${hoy.slice(0, 8).map((c) => c.nombre).join(", ")}`);
+        }
+        return partes.join("; ") + ".";
+      } catch {
+        return "No pude leer la agenda de seguimientos ahora mismo.";
       }
     },
   };
