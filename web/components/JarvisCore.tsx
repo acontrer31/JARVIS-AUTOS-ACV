@@ -37,6 +37,7 @@ import { armarReporte, resumenDelDia } from "@/lib/reportes";
 import { publicarEnRedes, type Red } from "@/lib/redes";
 import { cargarFotos } from "@/lib/media";
 import { registrarPublicacion } from "@/lib/publicacionesRedes";
+import { cargarAuditoria, cargarUsuarios, resumenPorUsuario } from "@/lib/seguridad";
 
 export type EstadoJarvis = "standby" | "escuchando" | "activando" | "trabajando" | "error";
 
@@ -663,6 +664,42 @@ export default function JarvisCore({
         return partes.join("; ") + ".";
       } catch {
         return "No pude leer la agenda de seguimientos ahora mismo.";
+      }
+    },
+    // Qué hizo una persona en el sistema. La base solo se lo devuelve a un
+    // admin: a un vendedor la consulta le vuelve vacía, y eso se dice.
+    auditoria_usuario: async (parametros: { usuario?: string; periodo?: string }) => {
+      const consulta = normalizar(parametros?.usuario || "").trim();
+      // Sin período, el día de hoy.
+      const desde = interpretarFecha(parametros?.periodo || "hoy") ?? undefined;
+      try {
+        const usuarios = await cargarUsuarios();
+        let usuarioId: string | undefined;
+        let quien = "todos";
+        if (consulta) {
+          const persona = usuarios.find((u) => normalizar(u.nombre || "").includes(consulta));
+          if (!persona) return `No encontré ningún usuario que coincida con "${parametros?.usuario}".`;
+          usuarioId = persona.id;
+          quien = persona.nombre || "esa persona";
+        }
+        const entradas = await cargarAuditoria({ usuarioId, desde });
+        if (!entradas.length) {
+          return consulta
+            ? `${quien} no registra movimientos en ese período.`
+            : "No hay movimientos registrados en ese período. Ojo: el registro de auditoría solo lo puede leer un administrador.";
+        }
+        if (usuarioId) {
+          const r = resumenPorUsuario(entradas)[0];
+          const modulos = [...new Set(entradas.map((e) => e.tabla))].slice(0, 4).join(", ");
+          return `${quien} hizo ${r.total} movimiento(s): ${r.altas} alta(s), ${r.cambios} cambio(s) y ${r.bajas} baja(s). Tocó ${modulos}.`;
+        }
+        const ranking = resumenPorUsuario(entradas)
+          .slice(0, 4)
+          .map((r) => `${usuarios.find((u) => u.id === r.usuarioId)?.nombre ?? "Sistema"}: ${r.total}`)
+          .join("; ");
+        return `Hubo ${entradas.length} movimiento(s) en total. Por persona: ${ranking}.`;
+      } catch {
+        return "No pude leer la auditoría ahora mismo.";
       }
     },
   };
