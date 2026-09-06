@@ -849,3 +849,104 @@ drop policy if exists "documentacion de mi agencia" on public.vehiculo_documenta
 create policy "documentacion de mi agencia" on public.vehiculo_documentacion
   for all using (agencia_id = public.mi_agencia_id())
   with check (agencia_id = public.mi_agencia_id());
+
+-- ============================================================
+-- Auditoría completa: qué hizo cada usuario y desde qué conexión
+-- ============================================================
+
+-- ---------- 1. Auditar TODAS las tablas del negocio ----------
+
+-- El registro cubría vehiculos, clientes, operaciones, perfiles y
+-- vehiculo_costos. Faltaba lo demás — y sobre todo `movimientos_caja`, que es el
+-- dinero: era justo lo que no dejaba rastro. Se reusa la misma función
+-- `registrar_auditoria()` sin tocarla: todas estas tablas tienen `agencia_id` y
+-- se identifican por `id` o `vehiculo_id`, que es lo que la función contempla.
+
+drop trigger if exists auditar_movimientos_caja on public.movimientos_caja;
+create trigger auditar_movimientos_caja
+  after insert or update or delete on public.movimientos_caja
+  for each row execute function public.registrar_auditoria();
+
+drop trigger if exists auditar_compras on public.compras;
+create trigger auditar_compras
+  after insert or update or delete on public.compras
+  for each row execute function public.registrar_auditoria();
+
+drop trigger if exists auditar_proveedores on public.proveedores;
+create trigger auditar_proveedores
+  after insert or update or delete on public.proveedores
+  for each row execute function public.registrar_auditoria();
+
+drop trigger if exists auditar_tareas on public.tareas;
+create trigger auditar_tareas
+  after insert or update or delete on public.tareas
+  for each row execute function public.registrar_auditoria();
+
+drop trigger if exists auditar_interacciones on public.interacciones;
+create trigger auditar_interacciones
+  after insert or update or delete on public.interacciones
+  for each row execute function public.registrar_auditoria();
+
+drop trigger if exists auditar_vehiculo_media on public.vehiculo_media;
+create trigger auditar_vehiculo_media
+  after insert or update or delete on public.vehiculo_media
+  for each row execute function public.registrar_auditoria();
+
+drop trigger if exists auditar_publicaciones_redes on public.publicaciones_redes;
+create trigger auditar_publicaciones_redes
+  after insert or update or delete on public.publicaciones_redes
+  for each row execute function public.registrar_auditoria();
+
+drop trigger if exists auditar_vehiculo_documentacion on public.vehiculo_documentacion;
+create trigger auditar_vehiculo_documentacion
+  after insert or update or delete on public.vehiculo_documentacion
+  for each row execute function public.registrar_auditoria();
+
+-- Hasta ahora el log solo se podía recorrer por agencia + fecha. Para poder
+-- preguntar "qué hizo esta persona" hace falta este índice.
+create index if not exists audit_log_usuario_idx
+  on public.audit_log (agencia_id, usuario_id, creado_en desc);
+
+-- ---------- 2. Registro de conexiones ----------
+
+-- Cada ingreso y cada salida del sistema, con IP y dispositivo. Mismo criterio
+-- que el audit_log: desde el cliente es de SOLO LECTURA y solo para admin. Las
+-- filas las escribe únicamente /api/sesion con la clave service_role, así que
+-- el usuario auditado no puede fabricar ni borrar sus propias conexiones.
+create table if not exists public.eventos_sesion (
+  id bigint generated always as identity primary key,
+  agencia_id uuid not null references public.agencias (id) on delete cascade,
+  usuario_id uuid not null,
+  tipo text not null check (tipo in ('ingreso', 'salida')),
+  ip text,
+  dispositivo text,
+  creado_en timestamptz not null default now()
+);
+
+create index if not exists eventos_sesion_agencia_idx
+  on public.eventos_sesion (agencia_id, creado_en desc);
+create index if not exists eventos_sesion_usuario_idx
+  on public.eventos_sesion (agencia_id, usuario_id, creado_en desc);
+
+alter table public.eventos_sesion enable row level security;
+
+drop policy if exists "ver conexiones de mi agencia" on public.eventos_sesion;
+create policy "ver conexiones de mi agencia" on public.eventos_sesion
+  for select using (agencia_id = public.mi_agencia_id() and public.mi_rol() = 'admin');
+
+-- A propósito NO hay políticas de insert, update ni delete: un registro de
+-- conexiones que el propio usuario puede escribir o borrar no sirve de nada.
+revoke insert, update, delete on public.eventos_sesion from anon, authenticated;
+grant select on public.eventos_sesion to authenticated;
+
+-- ---------- 3. Que "inborrable" sea verdad ----------
+
+-- Los permisos por defecto de Supabase le dejaban TRUNCATE a anon y
+-- authenticated sobre el log. TRUNCATE ignora las políticas RLS y vacía la
+-- tabla entera de una sola vez: con eso, "nadie puede borrar el registro" era
+-- mentira. TRIGGER, por lo mismo, permitiría colgarle un trigger propio.
+-- Ninguno de los dos hace falta desde el cliente. La función
+-- registrar_auditoria() sigue escribiendo igual: es security definer y corre
+-- con los permisos de su dueño, no con los del usuario.
+revoke truncate, trigger on public.audit_log from anon, authenticated;
+revoke truncate, trigger on public.eventos_sesion from anon, authenticated;

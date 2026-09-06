@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import JarvisCore from "@/components/JarvisCore";
 import ModuleWorkspace from "@/components/ModuleWorkspace";
 import RelojClima from "@/components/RelojClima";
+import { registrarEventoSesion } from "@/lib/seguridad";
 import type { ModuloId } from "@/lib/modules";
 
 export default function Home() {
@@ -40,7 +41,18 @@ export default function Home() {
     setCargando(true);
     const { error: err } = await supabase.auth.signInWithPassword({ email, password });
     if (err) setError(err.message);
+    // Deja constancia en el registro de conexiones. Cubre los ingresos hechos
+    // desde esta pantalla: si el navegador retoma una sesión guardada no hubo
+    // un ingreso nuevo y no se inventa uno.
+    else await registrarEventoSesion("ingreso");
     setCargando(false);
+  }
+
+  async function cerrarSesion() {
+    // Primero el registro, después el cierre: una vez cerrada la sesión ya no
+    // hay token con qué autenticar el pedido.
+    await registrarEventoSesion("salida");
+    await supabase.auth.signOut();
   }
 
   return (
@@ -94,7 +106,7 @@ export default function Home() {
           <RelojClima />
           <div className="flex w-full max-w-3xl items-center justify-between text-xs" style={{ color: "var(--muted)" }}>
             <span>{agencia ?? "…"}</span>
-            <button onClick={() => supabase.auth.signOut()} className="underline">
+            <button onClick={cerrarSesion} className="underline">
               cerrar sesión
             </button>
           </div>
