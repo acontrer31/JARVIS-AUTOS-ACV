@@ -12,6 +12,7 @@ import {
   cargarOperaciones,
   crearOperacion,
   eliminarOperacion,
+  actualizarOperacion,
   operacionVacia,
   type EstadoOperacion,
   type FormaPago,
@@ -38,6 +39,8 @@ export default function OperacionesWorkspace() {
   const [vendedores, setVendedores] = useState<Vendedor[]>([]);
   const [error, setError] = useState("");
   const [creando, setCreando] = useState(false);
+  // El mismo formulario corrige una operación ya registrada.
+  const [editando, setEditando] = useState<Operacion | null>(null);
   const [form, setForm] = useState<OperacionInput>(operacionVacia());
   const [guardando, setGuardando] = useState(false);
 
@@ -69,12 +72,25 @@ export default function OperacionesWorkspace() {
 
   async function alta(e: React.FormEvent) {
     e.preventDefault();
-    if (!(await confirmar({ titulo: "¿Registrar la operación?" }))) return;
+    if (
+      !(await confirmar({
+        titulo: editando ? "¿Guardar la corrección?" : "¿Registrar la operación?",
+        detalle: editando ? "Queda registrado en la auditoría con lo que decía antes." : undefined,
+      }))
+    ) {
+      return;
+    }
     setError("");
     setGuardando(true);
     try {
-      const creada = await crearOperacion(form);
-      setOps((prev) => [creada, ...(prev ?? [])]);
+      if (editando) {
+        const corregida = await actualizarOperacion(editando.id, form);
+        setOps((prev) => (prev ?? []).map((o) => (o.id === corregida.id ? corregida : o)));
+        setEditando(null);
+      } else {
+        const creada = await crearOperacion(form);
+        setOps((prev) => [creada, ...(prev ?? [])]);
+      }
       setForm(operacionVacia());
       setCreando(false);
     } catch (err) {
@@ -102,6 +118,23 @@ export default function OperacionesWorkspace() {
       setOps((prev) => (prev ?? []).map((x) => (x.id === op.id ? { ...x, estado: previo } : x)));
       setError("No se pudo cambiar el estado de la operación.");
     }
+  }
+
+  function corregir(op: Operacion) {
+    setEditando(op);
+    setForm({
+      vehiculo_id: op.vehiculo_id,
+      cliente_id: op.cliente_id,
+      vendedor_id: op.vendedor_id,
+      tipo: op.tipo,
+      estado: op.estado,
+      monto: op.monto,
+      sena: op.sena,
+      comision: op.comision,
+      forma_pago: op.forma_pago,
+      notas: op.notas,
+    });
+    setCreando(true);
   }
 
   async function borrar(op: Operacion) {
@@ -188,9 +221,9 @@ export default function OperacionesWorkspace() {
           </div>
           <input className={input} style={campo} placeholder="Notas (opcional)" value={form.notas ?? ""} onChange={(e) => setForm({ ...form, notas: e.target.value || null })} />
           <div className="flex justify-end gap-2">
-            <button type="button" onClick={() => { setCreando(false); setForm(operacionVacia()); }} className="rounded-lg border px-3 py-1.5 text-sm" style={{ borderColor: "var(--border)" }}>Cancelar</button>
+            <button type="button" onClick={() => { setCreando(false); setEditando(null); setForm(operacionVacia()); }} className="rounded-lg border px-3 py-1.5 text-sm" style={{ borderColor: "var(--border)" }}>Cancelar</button>
             <button type="submit" disabled={guardando} className="rounded-lg px-3 py-1.5 text-sm font-semibold disabled:opacity-50" style={{ background: "var(--dorado)", color: "var(--verde-core)" }}>
-              {guardando ? "Guardando…" : "Registrar operación"}
+              {guardando ? "Guardando…" : editando ? "Guardar corrección" : "Registrar operación"}
             </button>
           </div>
         </form>
@@ -228,6 +261,15 @@ export default function OperacionesWorkspace() {
                     <option key={es} value={es}>{ETIQUETA_ESTADO_OP[es]}</option>
                   ))}
                 </select>
+                <button
+                  type="button"
+                  onClick={() => corregir(op)}
+                  aria-label="Corregir operación"
+                  className="text-xs underline"
+                  style={{ color: "var(--muted)" }}
+                >
+                  Corregir
+                </button>
                 <button type="button" onClick={() => borrar(op)} aria-label="Borrar operación" className="text-base leading-none" style={{ color: "var(--muted)" }}>×</button>
               </div>
             </div>

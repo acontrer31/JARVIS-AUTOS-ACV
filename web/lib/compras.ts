@@ -89,6 +89,18 @@ export async function crearCompra(datos: CompraInput): Promise<Compra> {
   return data as unknown as Compra;
 }
 
+// Corregir una compra o un proveedor mal cargados. Queda en la auditoría.
+export async function actualizarCompra(id: string, datos: Partial<CompraInput>): Promise<Compra> {
+  const { data, error } = await supabase
+    .from("compras")
+    .update(datos)
+    .eq("id", id)
+    .select(COLS_COMPRA)
+    .single();
+  if (error) throw error;
+  return data as unknown as Compra;
+}
+
 export async function eliminarCompra(id: string): Promise<void> {
   const { error } = await supabase.from("compras").delete().eq("id", id);
   if (error) throw error;

@@ -9,6 +9,7 @@ import {
   cargarCompras,
   cargarProveedores,
   compraVacia,
+  actualizarCompra,
   crearCompra,
   crearProveedor,
   eliminarCompra,
@@ -29,6 +30,8 @@ export default function ComprasWorkspace() {
   const [error, setError] = useState("");
   const [form, setForm] = useState<CompraInput>(compraVacia());
   const [guardando, setGuardando] = useState(false);
+  // El mismo formulario corrige una compra ya cargada.
+  const [editando, setEditando] = useState<Compra | null>(null);
 
   // Alta rápida de proveedor.
   const [nuevoProv, setNuevoProv] = useState(false);
@@ -58,12 +61,25 @@ export default function ComprasWorkspace() {
 
   async function alta(e: React.FormEvent) {
     e.preventDefault();
-    if (!(await confirmar({ titulo: "¿Registrar la compra?" }))) return;
+    if (
+      !(await confirmar({
+        titulo: editando ? "¿Guardar la corrección?" : "¿Registrar la compra?",
+        detalle: editando ? "Queda registrado en la auditoría con lo que decía antes." : undefined,
+      }))
+    ) {
+      return;
+    }
     setError("");
     setGuardando(true);
     try {
-      const creada = await crearCompra(form);
-      setCompras((prev) => [creada, ...(prev ?? [])]);
+      if (editando) {
+        const corregida = await actualizarCompra(editando.id, form);
+        setCompras((prev) => (prev ?? []).map((c) => (c.id === corregida.id ? corregida : c)));
+        setEditando(null);
+      } else {
+        const creada = await crearCompra(form);
+        setCompras((prev) => [creada, ...(prev ?? [])]);
+      }
       setForm(compraVacia());
     } catch (err) {
       setError(mensajeDeError(err));
@@ -84,6 +100,19 @@ export default function ComprasWorkspace() {
     } catch (err) {
       setError(mensajeDeError(err));
     }
+  }
+
+  function corregir(c: Compra) {
+    setEditando(c);
+    setForm({
+      vehiculo_id: c.vehiculo_id,
+      proveedor_id: c.proveedor_id,
+      origen: c.origen,
+      costo: c.costo,
+      gastos: c.gastos,
+      fecha: c.fecha,
+      notas: c.notas,
+    });
   }
 
   async function borrar(c: Compra) {
@@ -158,8 +187,21 @@ export default function ComprasWorkspace() {
         )}
 
         <div className="flex justify-end">
+          {editando && (
+            <button
+              type="button"
+              onClick={() => {
+                setEditando(null);
+                setForm(compraVacia());
+              }}
+              className="rounded-lg border px-3 py-1.5 text-sm"
+              style={{ borderColor: "var(--border)", color: "var(--muted)" }}
+            >
+              Cancelar
+            </button>
+          )}
           <button type="submit" disabled={guardando} className="rounded-lg px-3 py-1.5 text-sm font-semibold disabled:opacity-50" style={{ background: "var(--dorado)", color: "var(--verde-core)" }}>
-            {guardando ? "Guardando…" : "Registrar ingreso de stock"}
+            {guardando ? "Guardando…" : editando ? "Guardar corrección" : "Registrar ingreso de stock"}
           </button>
         </div>
       </form>
@@ -183,6 +225,15 @@ export default function ComprasWorkspace() {
                 {" · "}
                 {new Date(c.fecha + "T00:00:00").toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" })}
               </span>
+              <button
+                type="button"
+                onClick={() => corregir(c)}
+                aria-label="Corregir compra"
+                className="text-xs underline"
+                style={{ color: "var(--muted)" }}
+              >
+                Corregir
+              </button>
               <button type="button" onClick={() => borrar(c)} aria-label="Borrar compra" className="text-base leading-none" style={{ color: "var(--muted)" }}>×</button>
             </div>
           </div>

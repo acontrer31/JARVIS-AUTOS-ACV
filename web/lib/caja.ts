@@ -53,6 +53,23 @@ export async function crearMovimiento(datos: MovimientoInput): Promise<Movimient
   return data as unknown as Movimiento;
 }
 
+// Corregir un movimiento mal cargado. El trigger de auditoría deja registrado
+// solo el antes y el después, así que la corrección no borra el error: lo
+// documenta.
+export async function actualizarMovimiento(
+  id: string,
+  datos: Partial<MovimientoInput>
+): Promise<Movimiento> {
+  const { data, error } = await supabase
+    .from("movimientos_caja")
+    .update(datos)
+    .eq("id", id)
+    .select(COLUMNAS)
+    .single();
+  if (error) throw error;
+  return data as unknown as Movimiento;
+}
+
 export async function eliminarMovimiento(id: string): Promise<void> {
   const { error } = await supabase.from("movimientos_caja").delete().eq("id", id);
   if (error) throw error;
