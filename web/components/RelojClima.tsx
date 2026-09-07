@@ -64,7 +64,7 @@ export default function RelojClima() {
   const [clima, setClima] = useState<ClimaResumen | null>(null);
   const [pos, setPos] = useState<{ x: number; y: number }>(() => leerPos());
   const [oculto, setOculto] = useState<boolean>(() => leerOculto());
-  const arrastre = useRef<{ dx: number; dy: number; movido: boolean } | null>(null);
+  const arrastre = useRef<{ dx: number; dy: number; x0: number; y0: number; movido: boolean } | null>(null);
   // Si el último gesto fue un arrastre, el click que viene después no tiene que
   // desplegar el reloj: mover el sol y abrirlo son dos cosas distintas.
   const arrastrado = useRef(false);
@@ -105,24 +105,58 @@ export default function RelojClima() {
   }
 
   // --- Arrastre (mouse + touch, vía Pointer Events) ---
+  // Un click normal casi nunca es perfectamente quieto: el dedo o el mouse se
+  // corren uno o dos píxeles entre apretar y soltar. Por eso hace falta un
+  // umbral — sin él, cualquier click contaba como arrastre y el sol no se
+  // podía desplegar nunca.
+  const UMBRAL_ARRASTRE = 5; // px
+
   function onPointerDown(e: React.PointerEvent<HTMLDivElement>) {
     if ((e.target as HTMLElement).closest("[data-no-drag]")) return;
-    arrastre.current = { dx: e.clientX - pos.x, dy: e.clientY - pos.y, movido: false };
-    e.currentTarget.setPointerCapture(e.pointerId);
+    arrastre.current = {
+      dx: e.clientX - pos.x,
+      dy: e.clientY - pos.y,
+      x0: e.clientX,
+      y0: e.clientY,
+      movido: false,
+    };
+    arrastrado.current = false;
+    // OJO: acá NO se captura el puntero. setPointerCapture redirige el click
+    // que viene después al elemento que captura, así que el onClick del botón
+    // de adentro nunca se disparaba y el sol no se podía desplegar. La captura
+    // se pide más abajo, recién cuando el gesto se confirma como arrastre.
   }
+
   function onPointerMove(e: React.PointerEvent<HTMLDivElement>) {
     const a = arrastre.current;
     if (!a) return;
-    a.movido = true;
+    // Recién se considera arrastre cuando se pasa el umbral. Una vez que se
+    // pasó, ya no se vuelve atrás aunque el puntero regrese al punto de origen.
+    if (!a.movido && Math.hypot(e.clientX - a.x0, e.clientY - a.y0) < UMBRAL_ARRASTRE) return;
+    if (!a.movido) {
+      a.movido = true;
+      // Ahora sí: es un arrastre. Se captura el puntero para seguir recibiendo
+      // los movimientos aunque el cursor se vaya del elemento.
+      e.currentTarget.setPointerCapture(e.pointerId);
+    }
     const max = 44; // margen mínimo visible
     const x = Math.min(Math.max(e.clientX - a.dx, 0), window.innerWidth - max);
     const y = Math.min(Math.max(e.clientY - a.dy, 0), window.innerHeight - max);
     setPos({ x, y });
   }
+
   function onPointerUp() {
     arrastrado.current = arrastre.current?.movido === true;
     if (arrastrado.current) guardarPos(pos);
     arrastre.current = null;
+  }
+
+  // Si el gesto se cancela (el navegador se lleva el puntero, entra una
+  // llamada, etc.) no llega el pointerup: sin esto el arrastre quedaría
+  // colgado y el próximo click no funcionaría.
+  function onPointerCancel() {
+    arrastre.current = null;
+    arrastrado.current = false;
   }
 
   const hora = fmtHora.format(ahora);
@@ -148,6 +182,7 @@ export default function RelojClima() {
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
+        onPointerCancel={onPointerCancel}
       >
         {/* Sin data-no-drag a propósito: el sol se arrastra igual que el reloj.
             El click solo despliega si el gesto no fue un arrastre. */}
@@ -183,6 +218,7 @@ export default function RelojClima() {
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
+      onPointerCancel={onPointerCancel}
       aria-label="Hora y clima de Salta, Argentina"
     >
       <div className="relative pr-6">

@@ -1,4 +1,5 @@
 import { miAgenciaId, supabase } from "@/lib/supabase";
+import { hoyISO } from "@/lib/fechas";
 
 // Compras / ingreso de stock + proveedores. Mismos valores que los checks del
 // esquema (supabase/schema.sql).
@@ -113,7 +114,7 @@ export function compraVacia(): CompraInput {
     origen: "compra",
     costo: null,
     gastos: null,
-    fecha: new Date().toISOString().slice(0, 10),
+    fecha: hoyISO(),
     notas: null,
   };
 }
