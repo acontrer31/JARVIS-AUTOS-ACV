@@ -35,6 +35,47 @@ const CODIGOS_CLIMA: Record<number, string> = {
   99: "con tormenta y granizo fuerte",
 };
 
+// El emoji que corresponde a cada código WMO. Va acá, al lado del mapa de
+// descripciones, para que los dos se actualicen juntos si mañana se agrega un
+// código: el ícono y el texto tienen que decir lo mismo.
+const ICONOS_CLIMA: Record<number, string> = {
+  0: "☀️",
+  1: "🌤️",
+  2: "⛅",
+  3: "☁️",
+  45: "🌫️",
+  48: "🌫️",
+  51: "🌦️",
+  53: "🌦️",
+  55: "🌦️",
+  56: "🌧️",
+  57: "🌧️",
+  61: "🌧️",
+  63: "🌧️",
+  65: "🌧️",
+  66: "🌧️",
+  67: "🌧️",
+  71: "🌨️",
+  73: "🌨️",
+  75: "🌨️",
+  77: "🌨️",
+  80: "🌦️",
+  81: "🌧️",
+  82: "🌧️",
+  85: "🌨️",
+  86: "🌨️",
+  95: "⛈️",
+  96: "⛈️",
+  99: "⛈️",
+};
+
+// Si el código no está en la tabla, sale el sol: es lo que se veía antes y no
+// hay nada que inventar. Sin clima cargado todavía, lo mismo.
+export function iconoClima(codigo: number | null | undefined): string {
+  if (codigo == null) return "☀️";
+  return ICONOS_CLIMA[codigo] ?? "☀️";
+}
+
 interface Lugar {
   latitude: number;
   longitude: number;

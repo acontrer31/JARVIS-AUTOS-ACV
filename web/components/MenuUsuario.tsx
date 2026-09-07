@@ -72,7 +72,9 @@ export default function MenuUsuario({ agencia }: { agencia?: string | null }) {
   const estiloCampo = { borderColor: "var(--border)", background: "var(--background)" } as const;
 
   return (
-    <div className="relative">
+    // Fijo en la esquina superior izquierda, por encima de todo: es el acceso
+    // a la cuenta y tiene que estar siempre en el mismo lugar.
+    <div className="fixed left-3 top-3 z-50">
       <button
         type="button"
         onClick={() => setAbierto((v) => !v)}
@@ -91,7 +93,7 @@ export default function MenuUsuario({ agencia }: { agencia?: string | null }) {
           {/* Capa para cerrar tocando afuera. */}
           <div className="fixed inset-0 z-40" onClick={() => setAbierto(false)} role="presentation" />
           <div
-            className="absolute right-0 z-50 mt-2 w-64 rounded-xl border p-3"
+            className="absolute left-0 z-50 mt-2 w-64 rounded-xl border p-3"
             style={{ borderColor: "var(--dorado)", background: "var(--panel)" }}
           >
             {/* Primero: quién está conectado. */}
