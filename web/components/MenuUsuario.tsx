@@ -18,15 +18,27 @@ export default function MenuUsuario({ agencia }: { agencia?: string | null }) {
   const [password, setPassword] = useState("");
   const [verPassword, setVerPassword] = useState(false);
   const [error, setError] = useState("");
+  const [errorPerfil, setErrorPerfil] = useState("");
   const [listo, setListo] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const confirmar = useConfirmar();
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => setEmail(data.user?.email ?? null));
+    // getSession() lee la sesión guardada en el navegador: es instantáneo y no
+    // sale a la red. getUser(), en cambio, hace un viaje al servidor para
+    // revalidar el token — y si ese viaje falla o tarda, el email quedaba en
+    // null y se mostraba "…" para siempre. El email ya viene en la sesión, no
+    // hay nada que ir a buscar.
+    supabase.auth
+      .getSession()
+      .then(({ data }) => setEmail(data.session?.user?.email ?? null))
+      .catch(() => setEmail(null));
+
+    // El rol sí sale de la base. Si falla se dice: antes se tragaba el error y
+    // el menú mostraba "…" sin explicar nada.
     miPerfil()
       .then(setPerfil)
-      .catch(() => {}); // el menú sirve igual sin el rol
+      .catch((err) => setErrorPerfil(mensajeDeError(err)));
   }, []);
 
   // Escape cierra el menú.
@@ -97,10 +109,18 @@ export default function MenuUsuario({ agencia }: { agencia?: string | null }) {
             style={{ borderColor: "var(--dorado)", background: "var(--panel)" }}
           >
             {/* Primero: quién está conectado. */}
-            <p className="text-sm font-medium break-all">{email ?? "…"}</p>
+            <p className="text-sm font-medium break-all">{email ?? "Sin sesión"}</p>
             <p className="mt-0.5 text-xs" style={{ color: "var(--muted)" }}>
-              {perfil?.nombre ? `${perfil.nombre} · ` : ""}
-              {perfil ? (perfil.rol === "admin" ? "Administrador" : "Vendedor") : "…"}
+              {perfil ? (
+                <>
+                  {perfil.nombre ? `${perfil.nombre} · ` : ""}
+                  {perfil.rol === "admin" ? "Administrador" : "Vendedor"}
+                </>
+              ) : errorPerfil ? (
+                <span className="text-red-400">{errorPerfil}</span>
+              ) : (
+                "Cargando…"
+              )}
             </p>
             <p className="mt-1 flex items-center gap-1.5 text-xs" style={{ color: "#7fb069" }}>
               <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: "#7fb069" }} />
@@ -116,6 +136,9 @@ export default function MenuUsuario({ agencia }: { agencia?: string | null }) {
             )}
 
             {!cambiando ? (
+              // Punto dorado que se ensancha al pasarle el cursor por encima,
+              // igual que el botón de editar de la ficha del vehículo. En
+              // pantallas táctiles (sin hover) el punto se toca y abre igual.
               <button
                 type="button"
                 onClick={() => {
@@ -123,10 +146,14 @@ export default function MenuUsuario({ agencia }: { agencia?: string | null }) {
                   setListo(false);
                   setError("");
                 }}
-                className="w-full rounded-lg border px-2 py-1.5 text-left text-xs"
-                style={{ borderColor: "var(--border)" }}
+                title="Cambiar contraseña"
+                aria-label="Cambiar contraseña"
+                className="group flex h-6 w-6 items-center justify-center overflow-hidden whitespace-nowrap rounded-full text-xs font-semibold transition-all duration-200 hover:w-44"
+                style={{ background: "var(--dorado)", color: "var(--verde-core)" }}
               >
-                Cambiar contraseña
+                <span className="opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+                  Cambiar contraseña
+                </span>
               </button>
             ) : (
               <form onSubmit={cambiarPassword} className="flex flex-col gap-2">
