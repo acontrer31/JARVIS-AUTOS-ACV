@@ -2,12 +2,14 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  auditoriaCSV,
   cargarAuditoria,
   cargarConexiones,
   cargarUsuarios,
   describirRegistro,
+  ETIQUETA_OPERACION,
   miPerfil,
+  nombreTabla,
+  textoDeCambios,
   resumenPorUsuario,
   valoresCambiados,
   type EntradaAuditoria,
@@ -17,40 +19,13 @@ import {
 } from "@/lib/seguridad";
 import { mensajeDeError } from "@/lib/errores";
 import TemaToggle from "@/components/TemaToggle";
-
-const ETIQUETA_OPERACION: Record<EntradaAuditoria["operacion"], string> = {
-  INSERT: "Alta",
-  UPDATE: "Cambio",
-  DELETE: "Baja",
-};
+import { exportarExcel } from "@/lib/excel";
 
 const COLOR_OPERACION: Record<EntradaAuditoria["operacion"], string> = {
   INSERT: "#7fb069",
   UPDATE: "#e8a33d",
   DELETE: "#c86a6a",
 };
-
-// Nombres de tabla en castellano, para no mostrarle al usuario el nombre
-// técnico de la base.
-const ETIQUETA_TABLA: Record<string, string> = {
-  vehiculos: "Vehículos",
-  vehiculo_costos: "Costos de vehículo",
-  vehiculo_media: "Fotos de vehículo",
-  vehiculo_documentacion: "Checklist de vehículo",
-  clientes: "Clientes",
-  interacciones: "Contactos con clientes",
-  operaciones: "Operaciones",
-  movimientos_caja: "Caja",
-  compras: "Compras",
-  proveedores: "Proveedores",
-  tareas: "Tareas",
-  publicaciones_redes: "Publicaciones en redes",
-  perfiles: "Usuarios y roles",
-};
-
-function nombreTabla(tabla: string): string {
-  return ETIQUETA_TABLA[tabla] ?? tabla;
-}
 
 function formatearMomento(iso: string): string {
   return new Date(iso).toLocaleString("es-AR", {
@@ -104,6 +79,7 @@ export default function SeguridadWorkspace() {
   const [esAdmin, setEsAdmin] = useState(true);
   const [error, setError] = useState("");
   const [solapa, setSolapa] = useState<Solapa>("actividad");
+  const [exportando, setExportando] = useState(false);
 
   // Filtros. Se aplican en la consulta, no en el navegador.
   const [usuarioId, setUsuarioId] = useState("");
@@ -165,14 +141,48 @@ export default function SeguridadWorkspace() {
     return [...porUsuario.values()];
   }, [conexiones]);
 
-  function exportar() {
-    if (!entradas?.length) return;
-    const csv = auditoriaCSV(entradas, nombreUsuario);
-    const enlace = document.createElement("a");
-    enlace.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
-    enlace.download = `auditoria-jarvis-${new Date().toISOString().slice(0, 10)}.csv`;
-    enlace.click();
-    URL.revokeObjectURL(enlace.href);
+  // Los ids sueltos no le dicen nada a nadie en un reporte: se cambian por el
+  // nombre de la persona, el vehículo o el cliente cuando se los puede resolver.
+  function nombreDeId(id: string): string | null {
+    const persona = usuarios.find((u) => u.id === id);
+    return persona?.nombre ?? null;
+  }
+
+  async function exportar() {
+    const lista = entradas ?? [];
+    if (!lista.length) return;
+    setExportando(true);
+    try {
+      await exportarExcel({
+        archivo: `auditoria-jarvis-${new Date().toISOString().slice(0, 10)}.xlsx`,
+        hoja: "Auditoría",
+        columnas: [
+          { titulo: "Fecha", ancho: 12 },
+          { titulo: "Hora", ancho: 8 },
+          { titulo: "Usuario", ancho: 22 },
+          { titulo: "Acción", ancho: 10 },
+          { titulo: "Módulo", ancho: 22 },
+          { titulo: "Registro", ancho: 30 },
+          { titulo: "Cambios", ancho: 60, ajustar: true },
+        ],
+        filas: lista.map((e) => {
+          const momento = new Date(e.creado_en);
+          return [
+            momento,
+            momento.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" }),
+            nombreUsuario(e.usuario_id),
+            ETIQUETA_OPERACION[e.operacion] ?? e.operacion,
+            nombreTabla(e.tabla),
+            describirRegistro(e),
+            textoDeCambios(e, nombreDeId),
+          ];
+        }),
+      });
+    } catch (err) {
+      setError("No se pudo generar el Excel: " + mensajeDeError(err));
+    } finally {
+      setExportando(false);
+    }
   }
 
   if (error) return <p className="py-6 text-center text-sm text-red-400">{error}</p>;
@@ -295,11 +305,11 @@ export default function SeguridadWorkspace() {
             <button
               type="button"
               onClick={exportar}
-              disabled={!entradas.length}
+              disabled={!entradas.length || exportando}
               className="rounded-lg px-3 py-1 text-xs font-semibold disabled:opacity-40"
               style={{ background: "var(--dorado)", color: "var(--verde-core)" }}
             >
-              Exportar a Excel
+              {exportando ? "Generando…" : "Exportar a Excel"}
             </button>
           </div>
 
