@@ -104,9 +104,11 @@ export default function Home() {
       {session === true && (
         <ProveedorConfirmacion>
           <RelojClima />
-          <div className="flex w-full max-w-3xl items-center justify-between text-xs" style={{ color: "var(--muted)" }}>
+          {/* El menú va fijo arriba a la izquierda; el nombre de la agencia
+              queda a la derecha para no chocar con él. */}
+          <MenuUsuario agencia={agencia} />
+          <div className="flex w-full max-w-3xl items-center justify-end text-xs" style={{ color: "var(--muted)" }}>
             <span>{agencia ?? "…"}</span>
-            <MenuUsuario agencia={agencia} />
           </div>
           <JarvisCore moduloActivo={moduloActivo} onActivarModulo={setModuloActivo} agencia={agencia} />
           {moduloActivo && <ModuleWorkspace moduloId={moduloActivo} onCerrar={() => setModuloActivo(null)} />}

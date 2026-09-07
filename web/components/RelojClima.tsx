@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { climaSaltaActual, type ClimaResumen } from "@/lib/clima";
+import { climaSaltaActual, iconoClima, type ClimaResumen } from "@/lib/clima";
 
 // Reloj digital + clima de Salta, Argentina, sobre el dashboard. Flotante,
 // arrastrable a cualquier parte de la pantalla y ocultable: al ocultarse queda
@@ -18,7 +18,10 @@ const CLAVE_OCULTO = "jarvis-reloj-oculto";
 
 // Posición inicial: pegado a la izquierda, a la altura aproximada del módulo
 // Administración (segundo anillo de nodos). Después es arrastrable.
-const POS_DEFECTO = { x: 16, y: 150 };
+// Arranca por debajo del panel del menú de cuenta, que ahora vive en la esquina
+// superior izquierda: si no, al abrir el menú le tapa el reloj. Igual se puede
+// arrastrar a donde cada uno quiera, y esa posición queda guardada.
+const POS_DEFECTO = { x: 16, y: 250 };
 
 const fmtHora = new Intl.DateTimeFormat("es-AR", {
   timeZone: ZONA,
@@ -35,18 +38,6 @@ const fmtFecha = new Intl.DateTimeFormat("es-AR", {
   month: "long",
 });
 
-function iconoClima(codigo: number): string {
-  if (codigo === 0) return "☀️";
-  if (codigo === 1 || codigo === 2) return "🌤️";
-  if (codigo === 3) return "☁️";
-  if (codigo >= 45 && codigo <= 48) return "🌫️";
-  if (codigo >= 51 && codigo <= 67) return "🌧️";
-  if (codigo >= 71 && codigo <= 77) return "🌨️";
-  if (codigo >= 80 && codigo <= 82) return "🌦️";
-  if (codigo >= 85 && codigo <= 86) return "🌨️";
-  if (codigo >= 95) return "⛈️";
-  return "🌡️";
-}
 
 function leerPos(): { x: number; y: number } {
   if (typeof window === "undefined") return POS_DEFECTO;
@@ -166,12 +157,15 @@ export default function RelojClima() {
             if (arrastrado.current) return;
             fijarOculto(false);
           }}
-          aria-label="Mostrar reloj y clima"
+          aria-label={clima ? `Mostrar reloj y clima: ${clima.descripcion}` : "Mostrar reloj y clima"}
           className="flex flex-col items-center gap-0.5"
           style={{ background: "none", border: "none", cursor: "inherit", padding: 0 }}
         >
+          {/* El ícono sigue al clima real: sol si está despejado, nube si
+              está nublado, nube con lluvia si llueve. Mientras no cargó,
+              sale el sol. */}
           <span className="text-3xl leading-none" aria-hidden="true">
-            ☀️
+            {iconoClima(clima?.codigo)}
           </span>
           <span className="text-[0.62rem] uppercase tracking-[0.22em]" style={digital}>
             clima
