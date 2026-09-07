@@ -104,9 +104,12 @@ recién ahí usa el secreto.
   solo elige `tipo`.
 - `POST /api/redes/publicar` — publica en Facebook/Instagram.
 - `POST /api/redes/retirar` — retira las publicaciones de un vehículo vendido.
-- `GET /api/redes/cron` — publica las programadas que vencieron. Lo llama Vercel
-  Cron cada 5 min (`vercel.json`) y se autentica con `CRON_SECRET`, no con
-  sesión: no hay usuario del otro lado. Sin esa variable no hace nada.
+- `GET /api/redes/cron` — publica las programadas que vencieron. Se autentica
+  con `CRON_SECRET`, no con sesión: no hay usuario del otro lado. Sin esa
+  variable no hace nada.
+  **Lo dispara `pg_cron` desde Supabase cada 5 min, no Vercel Cron**: el plan
+  Hobby limita los cron a uno por día y un schedule más frecuente hace fallar el
+  deploy. Ver `supabase/cron-publicaciones.sql`.
 
 ## Voz (ElevenLabs)
 
