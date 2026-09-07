@@ -102,6 +102,7 @@ export default function PerfilCliente({
       <div className="grid grid-cols-2 gap-3 rounded-lg border p-3" style={{ borderColor: "var(--border)" }}>
         <Dato etiqueta="Teléfono" valor={cliente.telefono} />
         <Dato etiqueta="Email" valor={cliente.email} />
+        <Dato etiqueta="Domicilio" valor={cliente.domicilio} />
         <Dato etiqueta="Vehículo de interés" valor={nombreVehiculoInteres} />
         <Dato etiqueta="Presupuesto" valor={cliente.presupuesto != null ? formatearMoneda(cliente.presupuesto) : null} />
         <Dato etiqueta="Vendedor asignado" valor={vendedor} />

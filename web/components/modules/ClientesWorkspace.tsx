@@ -9,6 +9,7 @@ import {
   cargarClientes,
   cargarVendedores,
   clienteVacio,
+  datosDeContactoFaltantes,
   crearCliente,
   eliminarCliente,
   type Cliente,
@@ -215,6 +216,7 @@ export default function ClientesWorkspace() {
       <div className="flex max-h-96 flex-col gap-2 overflow-y-auto pr-1">
         {filtrados.map((c) => {
           const interes = nombreDeVehiculo(c.vehiculo_interes_id);
+          const faltan = datosDeContactoFaltantes(c);
           return (
             <div
               key={c.id}
@@ -222,7 +224,20 @@ export default function ClientesWorkspace() {
               style={{ borderColor: "var(--border)" }}
             >
               <button type="button" onClick={() => setViendo(c)} className="min-w-0 text-left">
-                <p className="font-medium underline decoration-dotted underline-offset-4">{c.nombre}</p>
+                <p className="font-medium underline decoration-dotted underline-offset-4">
+                  {c.nombre}
+                  {/* Se calcula en cada render: una marca guardada quedaría
+                      vieja apenas alguien completa el dato. */}
+                  {faltan.length > 0 && (
+                    <span
+                      className="ml-2 rounded px-1.5 py-0.5 text-[0.6rem] font-normal"
+                      style={{ background: "color-mix(in srgb, #e8a33d 25%, transparent)", color: "#e8a33d" }}
+                      title={`Falta cargar: ${faltan.join(", ")}`}
+                    >
+                      faltan datos
+                    </span>
+                  )}
+                </p>
                 <p className="text-xs" style={{ color: "var(--muted)" }}>
                   {c.telefono ?? "Sin teléfono"}
                   {interes ? ` · Interés: ${interes}` : ""}

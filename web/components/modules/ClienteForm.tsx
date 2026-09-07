@@ -1,7 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { useConfirmar } from "@/lib/confirmar";
 import {
+  datosDeContactoFaltantes,
   ESTADOS_LEAD,
   ETIQUETA_ESTADO_LEAD,
   type Cliente,
@@ -58,6 +60,7 @@ export default function ClienteForm({
   });
   const [error, setError] = useState("");
   const [guardando, setGuardando] = useState(false);
+  const confirmar = useConfirmar();
 
   function set<K extends keyof ClienteInput>(campo: K, valor: ClienteInput[K]) {
     setC((prev) => ({ ...prev, [campo]: valor }));
@@ -75,6 +78,20 @@ export default function ClienteForm({
     if (problema) {
       setError(problema);
       return;
+    }
+    // Teléfono, email y domicilio se piden siempre, pero no frenan el guardado:
+    // muchas veces el dato llega después. Se avisa qué falta y decide el usuario.
+    const faltan = datosDeContactoFaltantes(c);
+    if (faltan.length > 0) {
+      const listado =
+        faltan.length === 1 ? faltan[0] : faltan.slice(0, -1).join(", ") + " y " + faltan.at(-1);
+      const seguir = await confirmar({
+        titulo: `Falta cargar ${listado}.`,
+        detalle: "Podés guardarlo igual y completarlo después: va a quedar marcado como incompleto.",
+        textoConfirmar: "Guardar igual",
+        textoCancelar: "Volver a completar",
+      });
+      if (!seguir) return;
     }
     setError("");
     setGuardando(true);
@@ -95,11 +112,14 @@ export default function ClienteForm({
         <Campo etiqueta="Nombre *">
           <input className={input} style={estiloCampo} value={c.nombre} onChange={(e) => set("nombre", e.target.value)} />
         </Campo>
-        <Campo etiqueta="Teléfono">
+        <Campo etiqueta="Teléfono *">
           <input className={input} style={estiloCampo} value={c.telefono ?? ""} onChange={(e) => setTexto("telefono", e.target.value)} />
         </Campo>
-        <Campo etiqueta="Email">
+        <Campo etiqueta="Email *">
           <input type="email" className={input} style={estiloCampo} value={c.email ?? ""} onChange={(e) => setTexto("email", e.target.value)} />
+        </Campo>
+        <Campo etiqueta="Domicilio *">
+          <input className={input} style={estiloCampo} value={c.domicilio ?? ""} onChange={(e) => setTexto("domicilio", e.target.value)} />
         </Campo>
         <Campo etiqueta="Etapa">
           <select

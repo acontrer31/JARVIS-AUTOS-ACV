@@ -8,6 +8,7 @@ export interface Cliente {
   nombre: string;
   telefono: string | null;
   email: string | null;
+  domicilio: string | null;
   notas: string | null;
   estado_lead: EstadoLead;
   vehiculo_interes_id: string | null;
@@ -34,7 +35,7 @@ export const ETIQUETA_ESTADO_LEAD: Record<EstadoLead, string> = {
 export type ClienteInput = Omit<Cliente, "id" | "creado_en">;
 
 const COLUMNAS =
-  "id, nombre, telefono, email, notas, estado_lead, vehiculo_interes_id, presupuesto, vendedor_id, proximo_contacto, creado_en";
+  "id, nombre, telefono, email, domicilio, notas, estado_lead, vehiculo_interes_id, presupuesto, vendedor_id, proximo_contacto, creado_en";
 
 export async function cargarClientes(): Promise<Cliente[]> {
   const { data, error } = await supabase
@@ -104,6 +105,7 @@ export function clienteVacio(): ClienteInput {
     nombre: "",
     telefono: null,
     email: null,
+    domicilio: null,
     notas: null,
     estado_lead: "nuevo",
     vehiculo_interes_id: null,
@@ -111,4 +113,23 @@ export function clienteVacio(): ClienteInput {
     vendedor_id: null,
     proximo_contacto: null,
   };
+}
+
+// Datos de contacto que la agencia quiere tener siempre. No son obligatorios en
+// la base — hay clientes viejos sin ellos y JARVIS anota leads por voz con lo
+// que le dictan — así que el formulario avisa y pregunta si guardar igual, y
+// acá se calcula qué falta.
+//
+// Se calcula, no se guarda: una marca guardada se desincroniza apenas alguien
+// completa el dato. Calculada nunca miente.
+export function datosDeContactoFaltantes(c: {
+  telefono?: string | null;
+  email?: string | null;
+  domicilio?: string | null;
+}): string[] {
+  const faltan: string[] = [];
+  if (!c.telefono?.trim()) faltan.push("teléfono");
+  if (!c.email?.trim()) faltan.push("email");
+  if (!c.domicilio?.trim()) faltan.push("domicilio");
+  return faltan;
 }

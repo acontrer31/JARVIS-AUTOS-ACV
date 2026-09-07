@@ -950,3 +950,12 @@ grant select on public.eventos_sesion to authenticated;
 -- con los permisos de su dueño, no con los del usuario.
 revoke truncate, trigger on public.audit_log from anon, authenticated;
 revoke truncate, trigger on public.eventos_sesion from anon, authenticated;
+
+-- ============================================================
+-- Domicilio del cliente
+-- ============================================================
+-- Nullable a propósito: hay clientes ya cargados sin teléfono ni email, así que
+-- un `not null` haría fallar esta misma migración; y JARVIS tiene que poder
+-- anotar un lead por voz con lo poco que le dictaron. La obligatoriedad vive en
+-- el formulario, que avisa qué falta y pregunta si se guarda igual.
+alter table public.clientes add column if not exists domicilio text;
