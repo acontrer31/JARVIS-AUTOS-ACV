@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { cargarTareas, crearTarea, eliminarTarea, marcarHecha, type Tarea } from "@/lib/tareas";
+import { actualizarTarea, cargarTareas, crearTarea, eliminarTarea, marcarHecha, type Tarea } from "@/lib/tareas";
 import { mensajeDeError } from "@/lib/errores";
+import { useConfirmar } from "@/lib/confirmar";
 
 export default function TareasWorkspace() {
   const [tareas, setTareas] = useState<Tarea[] | null>(null);
@@ -10,6 +11,9 @@ export default function TareasWorkspace() {
   const [nueva, setNueva] = useState("");
   const [vence, setVence] = useState("");
   const [guardando, setGuardando] = useState(false);
+  // Corrección en la misma línea: se edita el título ahí donde está.
+  const [corrigiendo, setCorrigiendo] = useState<string | null>(null);
+  const [textoCorregido, setTextoCorregido] = useState("");
 
   useEffect(() => {
     cargarTareas()
@@ -17,9 +21,12 @@ export default function TareasWorkspace() {
       .catch((err) => setError("No se pudieron cargar las tareas: " + mensajeDeError(err)));
   }, []);
 
+  const confirmar = useConfirmar();
+
   async function agregar(e: React.FormEvent) {
     e.preventDefault();
     if (!nueva.trim()) return;
+    if (!(await confirmar({ titulo: "¿Agregar la tarea?", detalle: nueva }))) return;
     setError("");
     setGuardando(true);
     try {
@@ -35,6 +42,14 @@ export default function TareasWorkspace() {
   }
 
   async function alternar(t: Tarea) {
+    if (
+      !(await confirmar({
+        titulo: t.hecha ? "¿Volver a marcarla como pendiente?" : "¿Marcar la tarea como hecha?",
+        detalle: t.titulo,
+      }))
+    ) {
+      return;
+    }
     const previo = t.hecha;
     setTareas((prev) => (prev ?? []).map((x) => (x.id === t.id ? { ...x, hecha: !previo } : x)));
     try {
@@ -45,7 +60,35 @@ export default function TareasWorkspace() {
     }
   }
 
+  async function guardarCorreccion(t: Tarea) {
+    const titulo = textoCorregido.trim();
+    if (!titulo || titulo === t.titulo) {
+      setCorrigiendo(null);
+      return;
+    }
+    if (!(await confirmar({ titulo: "¿Guardar la corrección?", detalle: titulo }))) return;
+    const antes = tareas ?? [];
+    setTareas((prev) => (prev ?? []).map((x) => (x.id === t.id ? { ...x, titulo } : x)));
+    setCorrigiendo(null);
+    try {
+      await actualizarTarea(t.id, { titulo });
+    } catch {
+      setTareas(antes);
+      setError("No se pudo corregir la tarea.");
+    }
+  }
+
   async function borrar(t: Tarea) {
+    if (
+      !(await confirmar({
+        titulo: "¿Borrar la tarea?",
+        detalle: `${t.titulo}. No se puede deshacer.`,
+        textoConfirmar: "Borrar",
+        tono: "peligro",
+      }))
+    ) {
+      return;
+    }
     const antes = tareas ?? [];
     setTareas((prev) => (prev ?? []).filter((x) => x.id !== t.id));
     try {
@@ -106,15 +149,50 @@ export default function TareasWorkspace() {
           >
             <label className="flex flex-1 items-center gap-2">
               <input type="checkbox" checked={t.hecha} onChange={() => alternar(t)} aria-label={`Marcar "${t.titulo}"`} />
-              <span style={{ textDecoration: t.hecha ? "line-through" : "none", color: t.hecha ? "var(--muted)" : "inherit" }}>
-                {t.titulo}
-              </span>
+              {corrigiendo === t.id ? (
+                <input
+                  className="flex-1 rounded border px-1.5 py-0.5 text-sm outline-none"
+                  style={estiloCampo}
+                  value={textoCorregido}
+                  onChange={(e) => setTextoCorregido(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") guardarCorreccion(t);
+                    if (e.key === "Escape") setCorrigiendo(null);
+                  }}
+                  onBlur={() => guardarCorreccion(t)}
+                  autoFocus
+                  aria-label="Corregir el texto de la tarea"
+                />
+              ) : (
+                <span
+                  onDoubleClick={() => {
+                    setCorrigiendo(t.id);
+                    setTextoCorregido(t.titulo);
+                  }}
+                  title="Doble clic para corregir"
+                  style={{ textDecoration: t.hecha ? "line-through" : "none", color: t.hecha ? "var(--muted)" : "inherit" }}
+                >
+                  {t.titulo}
+                </span>
+              )}
               {t.vence && (
                 <span className="text-[0.65rem]" style={{ color: "var(--muted)" }}>
                   · vence {new Date(t.vence + "T00:00:00").toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" })}
                 </span>
               )}
             </label>
+            <button
+              type="button"
+              onClick={() => {
+                setCorrigiendo(t.id);
+                setTextoCorregido(t.titulo);
+              }}
+              aria-label={`Corregir "${t.titulo}"`}
+              className="text-xs underline"
+              style={{ color: "var(--muted)" }}
+            >
+              Corregir
+            </button>
             <button
               type="button"
               onClick={() => borrar(t)}

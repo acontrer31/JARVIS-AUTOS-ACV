@@ -9,6 +9,7 @@ import {
   cargarClientes,
   cargarVendedores,
   clienteVacio,
+  datosDeContactoFaltantes,
   crearCliente,
   eliminarCliente,
   type Cliente,
@@ -20,6 +21,7 @@ import { cargarVehiculos, formatearMoneda, nombreVehiculo, type Vehiculo } from 
 import ClienteForm from "@/components/modules/ClienteForm";
 import PerfilCliente from "@/components/modules/PerfilCliente";
 import { mensajeDeError } from "@/lib/errores";
+import { useConfirmar } from "@/lib/confirmar";
 
 const COLOR_LEAD: Record<EstadoLead, string> = {
   nuevo: "var(--dorado)",
@@ -75,7 +77,20 @@ export default function ClientesWorkspace() {
     return v ? nombreVehiculo(v) : null;
   }
 
+  const confirmar = useConfirmar();
   async function guardar(datos: ClienteInput) {
+    // El aviso por datos de contacto faltantes lo da el formulario antes de
+    // llegar acá; esta confirmación es la del guardado en sí.
+    const nuevo = editando === "nuevo";
+    if (
+      !(await confirmar({
+        titulo: nuevo ? "¿Dar de alta al cliente?" : "¿Guardar los cambios?",
+        detalle: nuevo ? undefined : "Queda registrado en la auditoría.",
+        textoConfirmar: nuevo ? "Dar de alta" : "Guardar",
+      }))
+    ) {
+      return;
+    }
     if (editando === "nuevo") {
       const creado = await crearCliente(datos);
       setClientes((prev) => [creado, ...(prev ?? [])]);
@@ -88,6 +103,13 @@ export default function ClientesWorkspace() {
   }
 
   async function cambiar(c: Cliente, estado_lead: EstadoLead) {
+    if (
+      !(await confirmar({
+        titulo: `¿Pasar a ${c.nombre} a ${ETIQUETA_ESTADO_LEAD[estado_lead].toLowerCase()}?`,
+      }))
+    ) {
+      return;
+    }
     // Optimista: la fila cambia al instante y se revierte si la base rechaza.
     const previo = c.estado_lead;
     setClientes((prev) => (prev ?? []).map((x) => (x.id === c.id ? { ...x, estado_lead } : x)));
@@ -100,7 +122,16 @@ export default function ClientesWorkspace() {
   }
 
   async function borrar(c: Cliente) {
-    if (!confirm(`¿Eliminar a ${c.nombre}? Se borra también su historial. No se puede deshacer.`)) return;
+    if (
+      !(await confirmar({
+        titulo: `¿Eliminar a ${c.nombre}?`,
+        detalle: "Se borra también todo su historial de contactos. No se puede deshacer.",
+        textoConfirmar: "Eliminar",
+        tono: "peligro",
+      }))
+    ) {
+      return;
+    }
     try {
       await eliminarCliente(c.id);
       setClientes((prev) => (prev ?? []).filter((x) => x.id !== c.id));
@@ -185,6 +216,7 @@ export default function ClientesWorkspace() {
       <div className="flex max-h-96 flex-col gap-2 overflow-y-auto pr-1">
         {filtrados.map((c) => {
           const interes = nombreDeVehiculo(c.vehiculo_interes_id);
+          const faltan = datosDeContactoFaltantes(c);
           return (
             <div
               key={c.id}
@@ -192,7 +224,20 @@ export default function ClientesWorkspace() {
               style={{ borderColor: "var(--border)" }}
             >
               <button type="button" onClick={() => setViendo(c)} className="min-w-0 text-left">
-                <p className="font-medium underline decoration-dotted underline-offset-4">{c.nombre}</p>
+                <p className="font-medium underline decoration-dotted underline-offset-4">
+                  {c.nombre}
+                  {/* Se calcula en cada render: una marca guardada quedaría
+                      vieja apenas alguien completa el dato. */}
+                  {faltan.length > 0 && (
+                    <span
+                      className="ml-2 rounded px-1.5 py-0.5 text-[0.6rem] font-normal"
+                      style={{ background: "color-mix(in srgb, #e8a33d 25%, transparent)", color: "#e8a33d" }}
+                      title={`Falta cargar: ${faltan.join(", ")}`}
+                    >
+                      faltan datos
+                    </span>
+                  )}
+                </p>
                 <p className="text-xs" style={{ color: "var(--muted)" }}>
                   {c.telefono ?? "Sin teléfono"}
                   {interes ? ` · Interés: ${interes}` : ""}

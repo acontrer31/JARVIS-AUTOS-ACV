@@ -17,6 +17,7 @@ import {
   cambiarEstadoLead,
   cargarClientes,
   crearCliente,
+  datosDeContactoFaltantes,
   clienteVacio,
   fijarProximoContacto,
   ETIQUETA_ESTADO_LEAD,
@@ -450,18 +451,30 @@ export default function JarvisCore({
       }
     },
     // Alta rápida de cliente / lead por voz.
-    agregar_cliente: async (parametros: { nombre?: string; telefono?: string; interes?: string }) => {
+    agregar_cliente: async (parametros: {
+      nombre?: string;
+      telefono?: string;
+      email?: string;
+      domicilio?: string;
+      interes?: string;
+    }) => {
       const nombre = (parametros?.nombre || "").trim();
       if (!nombre) return "¿Cómo se llama el cliente que querés anotar?";
       const interes = (parametros?.interes || "").trim();
+      const contacto = {
+        telefono: (parametros?.telefono || "").trim() || null,
+        email: (parametros?.email || "").trim() || null,
+        domicilio: (parametros?.domicilio || "").trim() || null,
+      };
       try {
-        await crearCliente({
-          ...clienteVacio(),
-          nombre,
-          telefono: (parametros?.telefono || "").trim() || null,
-          notas: interes ? `Interés: ${interes}` : null,
-        });
-        return `Listo, agregué a ${nombre} como lead nuevo.`;
+        await crearCliente({ ...clienteVacio(), nombre, ...contacto, notas: interes ? `Interés: ${interes}` : null });
+        // La agencia pide siempre teléfono, email y domicilio. Por voz no se
+        // frena el alta — es peor perder el lead — pero se avisa qué falta,
+        // igual que hace el formulario, para que la voz no sea el agujero.
+        const faltan = datosDeContactoFaltantes(contacto);
+        return faltan.length
+          ? `Listo, agregué a ${nombre} como lead nuevo. Te falta cargarle ${faltan.join(", ")}: quedó marcado como incompleto.`
+          : `Listo, agregué a ${nombre} como lead nuevo con todos sus datos.`;
       } catch {
         return "No pude agregar el cliente ahora mismo. Probá de nuevo.";
       }

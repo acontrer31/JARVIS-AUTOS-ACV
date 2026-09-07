@@ -12,6 +12,7 @@ import {
   type Documentacion,
 } from "@/lib/documentacion";
 import { mensajeDeError } from "@/lib/errores";
+import { useConfirmar } from "@/lib/confirmar";
 
 // Un ítem tildable. Vive fuera del componente principal a propósito: definirlo
 // adentro crearía un componente nuevo en cada render.
@@ -46,6 +47,7 @@ export default function ChecklistVehiculo({
   vehiculoId: string;
   dominio?: string | null;
 }) {
+  const confirmar = useConfirmar();
   const [doc, setDoc] = useState<Documentacion | null>(null);
   const [guardando, setGuardando] = useState(false);
   const [guardado, setGuardado] = useState(false);
@@ -67,6 +69,9 @@ export default function ChecklistVehiculo({
 
   async function guardar() {
     if (!doc) return;
+    // Los tildes sueltos no preguntan: sería insoportable con catorce ítems.
+    // La confirmación va una sola vez, acá, que es cuando se guarda de verdad.
+    if (!(await confirmar({ titulo: "¿Guardar la checklist?" }))) return;
     setError("");
     setGuardando(true);
     try {

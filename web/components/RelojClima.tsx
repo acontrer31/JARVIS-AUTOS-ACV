@@ -68,35 +68,15 @@ function leerOculto(): boolean {
   return false;
 }
 
-// Sol dibujado (SVG) para el estado colapsado.
-function Sol({ size = 30 }: { size?: number }) {
-  const rayos = Array.from({ length: 8 }, (_, i) => i * 45);
-  return (
-    <svg width={size} height={size} viewBox="0 0 40 40" aria-hidden="true">
-      <circle cx="20" cy="20" r="8" fill="var(--dorado)" />
-      {rayos.map((ang) => (
-        <line
-          key={ang}
-          x1="20"
-          y1="20"
-          x2="20"
-          y2="4"
-          stroke="var(--dorado)"
-          strokeWidth="2.4"
-          strokeLinecap="round"
-          transform={`rotate(${ang} 20 20)`}
-        />
-      ))}
-    </svg>
-  );
-}
-
 export default function RelojClima() {
   const [ahora, setAhora] = useState<Date>(() => new Date());
   const [clima, setClima] = useState<ClimaResumen | null>(null);
   const [pos, setPos] = useState<{ x: number; y: number }>(() => leerPos());
   const [oculto, setOculto] = useState<boolean>(() => leerOculto());
   const arrastre = useRef<{ dx: number; dy: number; movido: boolean } | null>(null);
+  // Si el último gesto fue un arrastre, el click que viene después no tiene que
+  // desplegar el reloj: mover el sol y abrirlo son dos cosas distintas.
+  const arrastrado = useRef(false);
 
   // Reloj: tick cada segundo.
   useEffect(() => {
@@ -149,7 +129,8 @@ export default function RelojClima() {
     setPos({ x, y });
   }
   function onPointerUp() {
-    if (arrastre.current?.movido) guardarPos(pos);
+    arrastrado.current = arrastre.current?.movido === true;
+    if (arrastrado.current) guardarPos(pos);
     arrastre.current = null;
   }
 
@@ -177,19 +158,22 @@ export default function RelojClima() {
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
       >
+        {/* Sin data-no-drag a propósito: el sol se arrastra igual que el reloj.
+            El click solo despliega si el gesto no fue un arrastre. */}
         <button
           type="button"
-          data-no-drag
-          onClick={() => fijarOculto(false)}
+          onClick={() => {
+            if (arrastrado.current) return;
+            fijarOculto(false);
+          }}
           aria-label="Mostrar reloj y clima"
           className="flex flex-col items-center gap-0.5"
-          style={{ background: "none", border: "none", cursor: "pointer", padding: 0 }}
+          style={{ background: "none", border: "none", cursor: "inherit", padding: 0 }}
         >
-          <Sol size={34} />
-          <span
-            className="text-[0.62rem] uppercase tracking-[0.22em]"
-            style={digital}
-          >
+          <span className="text-3xl leading-none" aria-hidden="true">
+            ☀️
+          </span>
+          <span className="text-[0.62rem] uppercase tracking-[0.22em]" style={digital}>
             clima
           </span>
         </button>

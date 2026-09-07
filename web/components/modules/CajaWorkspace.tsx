@@ -6,6 +6,7 @@ import {
   FORMAS_PAGO_CAJA,
   calcularSaldo,
   cargarMovimientos,
+  actualizarMovimiento,
   crearMovimiento,
   eliminarMovimiento,
   movimientoVacio,
@@ -16,12 +17,15 @@ import {
 } from "@/lib/caja";
 import { formatearMoneda } from "@/lib/vehiculos";
 import { mensajeDeError } from "@/lib/errores";
+import { useConfirmar } from "@/lib/confirmar";
 
 export default function CajaWorkspace() {
   const [movs, setMovs] = useState<Movimiento[] | null>(null);
   const [error, setError] = useState("");
   const [form, setForm] = useState<MovimientoInput>(movimientoVacio());
   const [guardando, setGuardando] = useState(false);
+  // Si hay un movimiento en edición, el mismo formulario corrige en vez de crear.
+  const [editando, setEditando] = useState<Movimiento | null>(null);
 
   useEffect(() => {
     cargarMovimientos()
@@ -31,14 +35,32 @@ export default function CajaWorkspace() {
 
   const totales = useMemo(() => calcularSaldo(movs ?? []), [movs]);
 
+  const confirmar = useConfirmar();
+
   async function alta(e: React.FormEvent) {
     e.preventDefault();
     if (!form.concepto.trim() || !form.monto) return;
+    if (
+      !(await confirmar({
+        titulo: editando
+          ? "¿Guardar la corrección?"
+          : `¿Registrar un ${form.tipo} de ${formatearMoneda(form.monto)}?`,
+        detalle: editando ? "Queda registrado en la auditoría con lo que decía antes." : form.concepto,
+      }))
+    ) {
+      return;
+    }
     setError("");
     setGuardando(true);
     try {
-      const creado = await crearMovimiento(form);
-      setMovs((prev) => [creado, ...(prev ?? [])]);
+      if (editando) {
+        const corregido = await actualizarMovimiento(editando.id, form);
+        setMovs((prev) => (prev ?? []).map((m) => (m.id === corregido.id ? corregido : m)));
+        setEditando(null);
+      } else {
+        const creado = await crearMovimiento(form);
+        setMovs((prev) => [creado, ...(prev ?? [])]);
+      }
       setForm(movimientoVacio());
     } catch (err) {
       setError(mensajeDeError(err));
@@ -47,7 +69,29 @@ export default function CajaWorkspace() {
     }
   }
 
+  function corregir(m: Movimiento) {
+    setEditando(m);
+    setForm({
+      operacion_id: m.operacion_id,
+      tipo: m.tipo,
+      concepto: m.concepto,
+      monto: m.monto,
+      forma_pago: m.forma_pago,
+      fecha: m.fecha,
+    });
+  }
+
   async function borrar(m: Movimiento) {
+    if (
+      !(await confirmar({
+        titulo: "¿Borrar el movimiento?",
+        detalle: `${m.concepto} — ${formatearMoneda(m.monto)}. No se puede deshacer.`,
+        textoConfirmar: "Borrar",
+        tono: "peligro",
+      }))
+    ) {
+      return;
+    }
     const antes = movs ?? [];
     setMovs((prev) => (prev ?? []).filter((x) => x.id !== m.id));
     try {
@@ -99,9 +143,22 @@ export default function CajaWorkspace() {
           </select>
           <input className={input} style={campo} type="date" value={form.fecha} onChange={(e) => setForm({ ...form, fecha: e.target.value })} aria-label="Fecha" />
         </div>
-        <div className="flex justify-end">
+        <div className="flex items-center justify-end gap-2">
+          {editando && (
+            <button
+              type="button"
+              onClick={() => {
+                setEditando(null);
+                setForm(movimientoVacio());
+              }}
+              className="rounded-lg border px-3 py-1.5 text-sm"
+              style={{ borderColor: "var(--border)", color: "var(--muted)" }}
+            >
+              Cancelar
+            </button>
+          )}
           <button type="submit" disabled={guardando || !form.concepto.trim() || !form.monto} className="rounded-lg px-3 py-1.5 text-sm font-semibold disabled:opacity-50" style={{ background: "var(--dorado)", color: "var(--verde-core)" }}>
-            {guardando ? "Guardando…" : "Registrar movimiento"}
+            {guardando ? "Guardando…" : editando ? "Guardar corrección" : "Registrar movimiento"}
           </button>
         </div>
       </form>
@@ -123,6 +180,15 @@ export default function CajaWorkspace() {
               <span className="font-semibold" style={{ color: m.tipo === "ingreso" ? "#7fb069" : "#c86a6a" }}>
                 {m.tipo === "ingreso" ? "+" : "−"} {formatearMoneda(m.monto)}
               </span>
+              <button
+                type="button"
+                onClick={() => corregir(m)}
+                aria-label={`Corregir ${m.concepto}`}
+                className="text-xs underline"
+                style={{ color: "var(--muted)" }}
+              >
+                Corregir
+              </button>
               <button type="button" onClick={() => borrar(m)} aria-label="Borrar movimiento" className="text-base leading-none" style={{ color: "var(--muted)" }}>×</button>
             </div>
           </div>

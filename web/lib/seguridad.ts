@@ -233,28 +233,97 @@ export function resumenPorUsuario(entradas: EntradaAuditoria[]): ResumenUsuario[
   return [...porUsuario.values()].sort((a, b) => b.total - a.total);
 }
 
-// CSV para abrir en Excel. Separador ';' y BOM al principio: es lo que espera
-// el Excel en español, sin eso las tildes salen rotas y todo cae en una columna.
-export function auditoriaCSV(
-  entradas: EntradaAuditoria[],
-  nombreDe: (id: string | null) => string
-): string {
-  const escapar = (texto: string) => `"${texto.replace(/"/g, '""')}"`;
-  const filas = [["Fecha y hora", "Usuario", "Acción", "Tabla", "Registro", "Cambios"]];
-  for (const e of entradas) {
-    const cambios = valoresCambiados(e)
-      .map((c) => `${c.campo}: ${c.antes} -> ${c.despues}`)
-      .join(" | ");
-    filas.push([
-      new Date(e.creado_en).toLocaleString("es-AR"),
-      nombreDe(e.usuario_id),
-      e.operacion,
-      e.tabla,
-      describirRegistro(e),
-      cambios,
-    ]);
-  }
-  return "﻿" + filas.map((f) => f.map(escapar).join(";")).join("\r\n");
+// Etiquetas legibles. Viven acá y no en el componente para que la pantalla y
+// el archivo exportado digan exactamente lo mismo: antes el módulo traducía y
+// el archivo salía con los nombres crudos de la base.
+export const ETIQUETA_OPERACION: Record<EntradaAuditoria["operacion"], string> = {
+  INSERT: "Alta",
+  UPDATE: "Cambio",
+  DELETE: "Baja",
+};
+
+export const ETIQUETA_TABLA: Record<string, string> = {
+  vehiculos: "Vehículos",
+  vehiculo_costos: "Costos de vehículo",
+  vehiculo_media: "Fotos de vehículo",
+  vehiculo_documentacion: "Checklist de vehículo",
+  clientes: "Clientes",
+  interacciones: "Contactos con clientes",
+  operaciones: "Operaciones",
+  movimientos_caja: "Caja",
+  compras: "Compras",
+  proveedores: "Proveedores",
+  tareas: "Tareas",
+  publicaciones_redes: "Publicaciones en redes",
+  perfiles: "Usuarios y roles",
+};
+
+export function nombreTabla(tabla: string): string {
+  return ETIQUETA_TABLA[tabla] ?? tabla;
+}
+
+// Los campos de la base en castellano. Lo que no esté acá sale con su nombre
+// técnico: preferimos eso a inventar una traducción que confunda.
+const ETIQUETA_CAMPO: Record<string, string> = {
+  estado: "Estado",
+  estado_lead: "Etapa del lead",
+  proximo_contacto: "Próximo contacto",
+  vendedor_id: "Vendedor asignado",
+  vehiculo_interes_id: "Vehículo de interés",
+  vehiculo_id: "Vehículo",
+  cliente_id: "Cliente",
+  proveedor_id: "Proveedor",
+  operacion_id: "Operación",
+  precio: "Precio",
+  costo: "Costo",
+  costo_interno: "Costo interno",
+  gastos: "Gastos",
+  monto: "Monto",
+  sena: "Seña",
+  comision: "Comisión",
+  presupuesto: "Presupuesto",
+  km: "Kilómetros",
+  anio: "Año",
+  dominio: "Dominio",
+  forma_pago: "Forma de pago",
+  concepto: "Concepto",
+  titulo: "Título",
+  hecha: "Hecha",
+  vence: "Vence",
+  notas: "Notas",
+  rol: "Rol",
+  nombre: "Nombre",
+  telefono: "Teléfono",
+  email: "Email",
+  domicilio: "Domicilio",
+  fecha: "Fecha",
+  actualizado_en: "Actualizado",
+};
+
+export function nombreCampo(campo: string): string {
+  return ETIQUETA_CAMPO[campo] ?? campo;
+}
+
+// Campos internos que no le dicen nada a nadie en un reporte.
+const CAMPOS_OCULTOS = new Set(["id", "agencia_id", "creado_en", "usuario_id"]);
+
+/** Traduce un id a un nombre. Devuelve null si no lo conoce. */
+export type BuscarNombre = (id: string) => string | null;
+
+// Arma el texto de los cambios de una entrada, una línea por campo. Los ids se
+// cambian por nombres cuando se los puede resolver; si no, se deja el id — nunca
+// se inventa un nombre que no se pudo confirmar.
+export function textoDeCambios(entrada: EntradaAuditoria, buscarNombre?: BuscarNombre): string {
+  return valoresCambiados(entrada)
+    .filter((c) => !CAMPOS_OCULTOS.has(c.campo))
+    .map((c) => {
+      const legible = (valor: string) => {
+        if (!c.campo.endsWith("_id") || valor === "vacío" || !buscarNombre) return valor;
+        return buscarNombre(valor) ?? valor;
+      };
+      return `${nombreCampo(c.campo)}: ${legible(c.antes)} → ${legible(c.despues)}`;
+    })
+    .join("\n");
 }
 
 // Etiqueta legible de la fila afectada, sacada del propio JSON auditado: el

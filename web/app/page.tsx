@@ -6,6 +6,9 @@ import JarvisCore from "@/components/JarvisCore";
 import ModuleWorkspace from "@/components/ModuleWorkspace";
 import RelojClima from "@/components/RelojClima";
 import { registrarEventoSesion } from "@/lib/seguridad";
+import { ProveedorConfirmacion } from "@/lib/confirmar";
+import MenuUsuario from "@/components/MenuUsuario";
+import OjoPassword from "@/components/OjoPassword";
 import type { ModuloId } from "@/lib/modules";
 
 export default function Home() {
@@ -14,6 +17,7 @@ export default function Home() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [cargando, setCargando] = useState(false);
+  const [verPassword, setVerPassword] = useState(false);
   const [agencia, setAgencia] = useState<string | null>(null);
   const [moduloActivo, setModuloActivo] = useState<ModuloId | null>(null);
 
@@ -48,13 +52,6 @@ export default function Home() {
     setCargando(false);
   }
 
-  async function cerrarSesion() {
-    // Primero el registro, después el cierre: una vez cerrada la sesión ya no
-    // hay token con qué autenticar el pedido.
-    await registrarEventoSesion("salida");
-    await supabase.auth.signOut();
-  }
-
   return (
     <div className="flex min-h-screen flex-col items-center px-4 py-6">
       {session === null && (
@@ -80,15 +77,18 @@ export default function Home() {
             style={{ borderColor: "var(--border)", background: "var(--panel)" }}
             required
           />
-          <input
-            type="password"
-            placeholder="contraseña"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="rounded-lg border px-3 py-2 text-sm outline-none"
-            style={{ borderColor: "var(--border)", background: "var(--panel)" }}
-            required
-          />
+          <div className="relative">
+            <input
+              type={verPassword ? "text" : "password"}
+              placeholder="contraseña"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full rounded-lg border px-3 py-2 pr-9 text-sm outline-none"
+              style={{ borderColor: "var(--border)", background: "var(--panel)" }}
+              required
+            />
+            <OjoPassword visible={verPassword} onAlternar={() => setVerPassword((v) => !v)} />
+          </div>
           <button
             type="submit"
             disabled={cargando}
@@ -102,17 +102,15 @@ export default function Home() {
       )}
 
       {session === true && (
-        <>
+        <ProveedorConfirmacion>
           <RelojClima />
           <div className="flex w-full max-w-3xl items-center justify-between text-xs" style={{ color: "var(--muted)" }}>
             <span>{agencia ?? "…"}</span>
-            <button onClick={cerrarSesion} className="underline">
-              cerrar sesión
-            </button>
+            <MenuUsuario agencia={agencia} />
           </div>
           <JarvisCore moduloActivo={moduloActivo} onActivarModulo={setModuloActivo} agencia={agencia} />
           {moduloActivo && <ModuleWorkspace moduloId={moduloActivo} onCerrar={() => setModuloActivo(null)} />}
-        </>
+        </ProveedorConfirmacion>
       )}
     </div>
   );

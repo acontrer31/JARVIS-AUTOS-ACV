@@ -51,6 +51,15 @@ export async function marcarHecha(id: string, hecha: boolean): Promise<void> {
   if (error) throw error;
 }
 
+// Corregir el título o el vencimiento de una tarea mal escrita.
+export async function actualizarTarea(
+  id: string,
+  datos: { titulo?: string; vence?: string | null }
+): Promise<void> {
+  const { error } = await supabase.from("tareas").update(datos).eq("id", id);
+  if (error) throw error;
+}
+
 export async function eliminarTarea(id: string): Promise<void> {
   const { error } = await supabase.from("tareas").delete().eq("id", id);
   if (error) throw error;
