@@ -18,148 +18,16 @@ import { createClient } from "@supabase/supabase-js";
 // Los Reels necesitan que Meta procese el video: damos más margen de tiempo.
 export const maxDuration = 60;
 
-const GRAPH = `https://graph.facebook.com/${process.env.META_GRAPH_VERSION || "v21.0"}`;
-
-type Red = "facebook" | "instagram";
-type Formato = "feed" | "historia" | "reel";
-
-// ---------- Facebook ----------
-async function publicarFacebook(pageId: string, token: string, texto: string, imagenUrl: string | null) {
-  const base = imagenUrl ? `${GRAPH}/${pageId}/photos` : `${GRAPH}/${pageId}/feed`;
-  const params = new URLSearchParams({ access_token: token });
-  if (imagenUrl) {
-    params.set("url", imagenUrl);
-    if (texto) params.set("message", texto);
-  } else {
-    params.set("message", texto);
-  }
-  const resp = await fetch(base, { method: "POST", body: params });
-  const data = await resp.json();
-  if (!resp.ok) throw new Error(data?.error?.message || `Facebook respondió ${resp.status}`);
-  return data?.id ?? null;
-}
-
-// Reel de Facebook: API de Video Reels, subida en 3 fases (start -> upload por
-// URL alojada -> finish PUBLISHED).
-async function publicarFacebookReel(pageId: string, token: string, texto: string, videoUrl: string) {
-  const start = await fetch(`${GRAPH}/${pageId}/video_reels`, {
-    method: "POST",
-    body: new URLSearchParams({ upload_phase: "start", access_token: token }),
-  });
-  const s = await start.json();
-  if (!start.ok || !s?.video_id || !s?.upload_url) {
-    throw new Error(s?.error?.message || "Facebook no pudo iniciar la subida del Reel.");
-  }
-
-  const up = await fetch(s.upload_url, {
-    method: "POST",
-    headers: { Authorization: `OAuth ${token}`, file_url: videoUrl },
-  });
-  const upData = await up.json().catch(() => ({}));
-  if (!up.ok || upData?.success === false) {
-    throw new Error(upData?.debug_info?.message || upData?.error?.message || "Facebook no pudo cargar el video del Reel.");
-  }
-
-  const finish = await fetch(`${GRAPH}/${pageId}/video_reels`, {
-    method: "POST",
-    body: new URLSearchParams({
-      upload_phase: "finish",
-      video_id: s.video_id,
-      video_state: "PUBLISHED",
-      description: texto || "",
-      access_token: token,
-    }),
-  });
-  const f = await finish.json();
-  if (!finish.ok) throw new Error(f?.error?.message || "Facebook no pudo publicar el Reel.");
-  return s.video_id as string;
-}
-
-// ---------- Instagram ----------
-async function idInstagram(pageId: string, token: string): Promise<string> {
-  const env = process.env.IG_USER_ID;
-  if (env) return env;
-  const resp = await fetch(`${GRAPH}/${pageId}?fields=instagram_business_account&access_token=${encodeURIComponent(token)}`);
-  const data = await resp.json();
-  const id = data?.instagram_business_account?.id;
-  if (!id) throw new Error("La Página no tiene una cuenta de Instagram Business vinculada.");
-  return id;
-}
-
-// Espera a que Instagram termine de procesar el contenedor y, si lo rechaza,
-// devuelve el motivo REAL (el campo `status`). Sin esto, publicar un contenedor
-// fallido devuelve el inútil "Media ID is not available". Acotado en tiempo para
-// no pasarnos del límite de la función serverless.
-async function esperarContenedor(
-  creationId: string,
-  token: string,
-  intentos: number,
-  esperaMs: number
-): Promise<{ ok: boolean; detalle?: string }> {
-  for (let i = 0; i < intentos; i++) {
-    const r = await fetch(
-      `${GRAPH}/${creationId}?fields=status_code,status&access_token=${encodeURIComponent(token)}`
-    );
-    const d = await r.json();
-    if (d?.status_code === "FINISHED") return { ok: true };
-    if (d?.status_code === "ERROR") {
-      return { ok: false, detalle: d?.status || "Instagram rechazó el archivo (no dio detalle)." };
-    }
-    await new Promise((res) => setTimeout(res, esperaMs));
-  }
-  return {
-    ok: false,
-    detalle: "Instagram todavía está procesando el contenido. Esperá un momento y publicá de nuevo.",
-  };
-}
-
-async function publicarInstagram(
-  pageId: string,
-  token: string,
-  texto: string,
-  imagenUrl: string | null,
-  videoUrl: string | null,
-  formato: Formato
-) {
-  const igId = await idInstagram(pageId, token);
-
-  // 1) contenedor según formato
-  const cont = new URLSearchParams({ access_token: token });
-  if (formato === "reel") {
-    cont.set("media_type", "REELS");
-    cont.set("video_url", videoUrl!);
-    if (texto) cont.set("caption", texto);
-  } else if (formato === "historia") {
-    // Una historia puede ser foto o video; si vino video, manda el video.
-    cont.set("media_type", "STORIES");
-    if (videoUrl) cont.set("video_url", videoUrl);
-    else cont.set("image_url", imagenUrl!);
-  } else {
-    cont.set("image_url", imagenUrl!);
-    if (texto) cont.set("caption", texto);
-  }
-
-  const r1 = await fetch(`${GRAPH}/${igId}/media`, { method: "POST", body: cont });
-  const d1 = await r1.json();
-  if (!r1.ok || !d1?.id) throw new Error(d1?.error?.message || `Instagram respondió ${r1.status} al crear el post`);
-
-  // 2) Esperar el procesamiento SIEMPRE (no solo en Reels): si el contenedor
-  //    falla (imagen inaccesible, formato rechazado, etc.) acá obtenemos el
-  //    motivo real en vez del genérico "Media ID is not available" al publicar.
-  //    Las fotos suelen estar listas al instante; el video tarda más.
-  const llevaVideo = formato === "reel" || (formato === "historia" && !!videoUrl);
-  const espera = llevaVideo
-    ? await esperarContenedor(d1.id, token, 5, 2500)
-    : await esperarContenedor(d1.id, token, 3, 1200);
-  if (!espera.ok) throw new Error(`Instagram no aceptó el contenido: ${espera.detalle}`);
-
-  // 3) publicar
-  const pub = new URLSearchParams({ creation_id: d1.id, access_token: token });
-  const r2 = await fetch(`${GRAPH}/${igId}/media_publish`, { method: "POST", body: pub });
-  const d2 = await r2.json();
-  if (!r2.ok) throw new Error(d2?.error?.message || `Instagram respondió ${r2.status} al publicar`);
-  return d2?.id ?? null;
-}
+import {
+  idInstagram,
+  publicarFacebook,
+  publicarFacebookCarrusel,
+  publicarFacebookReel,
+  publicarInstagram,
+  publicarInstagramCarrusel,
+  type Formato,
+  type Red,
+} from "@/lib/server/meta";
 
 export async function POST(request: Request) {
   const pageId = process.env.META_PAGE_ID;
@@ -188,7 +56,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Sesión inválida o vencida." }, { status: 401 });
   }
 
-  let cuerpo: { red?: Red; texto?: string; imagen_url?: string | null; video_url?: string | null; formato?: Formato };
+  let cuerpo: {
+    red?: Red;
+    texto?: string;
+    imagen_url?: string | null;
+    imagen_urls?: string[] | null;
+    video_url?: string | null;
+    formato?: Formato;
+  };
   try {
     cuerpo = await request.json();
   } catch {
@@ -200,10 +75,36 @@ export async function POST(request: Request) {
   const imagenUrl = cuerpo.imagen_url?.trim() || null;
   const videoUrl = cuerpo.video_url?.trim() || null;
   const formato: Formato =
-    cuerpo.formato === "reel" ? "reel" : cuerpo.formato === "historia" ? "historia" : "feed";
+    cuerpo.formato === "reel"
+      ? "reel"
+      : cuerpo.formato === "historia"
+        ? "historia"
+        : cuerpo.formato === "carrusel"
+          ? "carrusel"
+          : "feed";
+  // Las fotos del carrusel, limpias y sin repetidas: mandar dos veces la misma
+  // hace que Instagram rechace el contenedor entero.
+  const imagenes = [...new Set((cuerpo.imagen_urls ?? []).map((u) => (u || "").trim()).filter(Boolean))];
 
   if (red !== "facebook" && red !== "instagram") {
     return NextResponse.json({ error: 'La red debe ser "facebook" o "instagram".' }, { status: 400 });
+  }
+  // Instagram acepta entre 2 y 10 fotos por carrusel; Facebook no marca un tope
+  // publicado, así que se le aplica el mismo criterio para que las dos redes se
+  // comporten igual y nadie arme un carrusel de 30 que después falle.
+  if (formato === "carrusel") {
+    if (imagenes.length < 2) {
+      return NextResponse.json(
+        { error: "Un carrusel necesita al menos 2 fotos distintas." },
+        { status: 400 }
+      );
+    }
+    if (imagenes.length > 10) {
+      return NextResponse.json(
+        { error: "Un carrusel admite hasta 10 fotos." },
+        { status: 400 }
+      );
+    }
   }
   if (formato === "reel" && !videoUrl) {
     return NextResponse.json({ error: "El Reel necesita la URL pública de un video." }, { status: 400 });
@@ -221,9 +122,15 @@ export async function POST(request: Request) {
   try {
     let id: string | null;
     if (red === "facebook") {
-      id = formato === "reel"
-        ? await publicarFacebookReel(pageId, pageToken, texto, videoUrl!)
-        : await publicarFacebook(pageId, pageToken, texto, imagenUrl);
+      id =
+        formato === "reel"
+          ? await publicarFacebookReel(pageId, pageToken, texto, videoUrl!)
+          : formato === "carrusel"
+            ? await publicarFacebookCarrusel(pageId, pageToken, texto, imagenes)
+            : await publicarFacebook(pageId, pageToken, texto, imagenUrl);
+    } else if (formato === "carrusel") {
+      const igId = await idInstagram(pageId, pageToken);
+      id = await publicarInstagramCarrusel(igId, pageToken, texto, imagenes);
     } else {
       id = await publicarInstagram(pageId, pageToken, texto, imagenUrl, videoUrl, formato);
     }

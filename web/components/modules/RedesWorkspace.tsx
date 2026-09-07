@@ -1,13 +1,29 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { ETIQUETA_RED, REDES, publicarEnRedes, type Formato, type Red } from "@/lib/redes";
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  CARRUSEL_MAX,
+  CARRUSEL_MIN,
+  ETIQUETA_RED,
+  REDES,
+  publicarEnRedes,
+  type Formato,
+  type Red,
+} from "@/lib/redes";
 import { cargarVehiculos, formatearMoneda, nombreVehiculo, type Vehiculo } from "@/lib/vehiculos";
 import { cargarFotos, subirImagenGenerada, subirVideo } from "@/lib/media";
 import { componerHistoria } from "@/lib/historiaImagen";
 import { cargarPendientesRetiro, marcarRetirada, registrarPublicacion, type PublicacionRed } from "@/lib/publicacionesRedes";
 import { mensajeDeError } from "@/lib/errores";
 import { useConfirmar } from "@/lib/confirmar";
+import {
+  aInstante,
+  cancelarProgramada,
+  cargarProgramadas,
+  programarPublicacion,
+  ETIQUETA_ESTADO_PROGRAMADA,
+  type Programada,
+} from "@/lib/programadas";
 
 // Etiqueta de cada red, incluida TikTok (que puede aparecer en pendientes).
 const ETIQUETA_PUB: Record<string, string> = { facebook: "Facebook", instagram: "Instagram", tiktok: "TikTok" };
@@ -16,10 +32,12 @@ const ETIQUETA_PUB: Record<string, string> = { facebook: "Facebook", instagram: 
 const FORMATOS: Record<Red, [Formato, string][]> = {
   facebook: [
     ["feed", "Post"],
+    ["carrusel", "Carrusel"],
     ["reel", "Reel"],
   ],
   instagram: [
     ["feed", "Feed"],
+    ["carrusel", "Carrusel"],
     ["historia", "Historia"],
     ["reel", "Reel"],
   ],
@@ -33,7 +51,13 @@ export default function RedesWorkspace() {
   const [videoUrl, setVideoUrl] = useState("");
   const [vehiculos, setVehiculos] = useState<Vehiculo[]>([]);
   const [vehiculoId, setVehiculoId] = useState("");
+  // Fotos del vehículo elegido y cuáles entran al carrusel, en orden de tildado.
+  const [fotosVehiculo, setFotosVehiculo] = useState<{ id: string; url: string }[]>([]);
+  const [fotosElegidas, setFotosElegidas] = useState<string[]>([]);
   const [publicando, setPublicando] = useState(false);
+  // Cuándo publicarla. Vacío = ahora mismo, que es el caso normal.
+  const [cuando, setCuando] = useState("");
+  const [programadas, setProgramadas] = useState<Programada[]>([]);
   const [resultado, setResultado] = useState("");
   const [error, setError] = useState("");
   const [pendientes, setPendientes] = useState<PublicacionRed[]>([]);
@@ -71,6 +95,7 @@ export default function RedesWorkspace() {
   }
 
   const esHistoria = red === "instagram" && formato === "historia";
+  const esCarrusel = formato === "carrusel";
   // El Reel es siempre video; la historia puede ser foto o video.
   const esVideo = formato === "reel" || (esHistoria && medioHistoria === "video");
 
@@ -89,11 +114,52 @@ export default function RedesWorkspace() {
     if (!id) return;
     try {
       const fotos = await cargarFotos(id);
+      setFotosVehiculo(fotos.map((f) => ({ id: f.id, url: f.url })));
+      // El carrusel arranca con todas tildadas (hasta el tope): es lo que uno
+      // quiere el 90% de las veces, y destildar es más rápido que tildar ocho.
+      setFotosElegidas(fotos.slice(0, CARRUSEL_MAX).map((f) => f.url));
       if (fotos[0]?.url) setImagenUrl(fotos[0].url);
       else setError("Ese vehículo no tiene fotos cargadas.");
     } catch (err) {
       setError(mensajeDeError(err));
     }
+  }
+
+  const recargarProgramadas = useCallback(() => {
+    cargarProgramadas()
+      .then(setProgramadas)
+      .catch(() => {}); // el resto del módulo funciona igual sin la agenda
+  }, []);
+
+  useEffect(() => {
+    recargarProgramadas();
+  }, [recargarProgramadas]);
+
+  async function cancelar(p: Programada) {
+    if (!(await confirmar({
+      titulo: "¿Cancelar la publicación agendada?",
+      detalle: `Estaba para el ${new Date(p.programada_para).toLocaleString("es-AR")}.`,
+      textoConfirmar: "Cancelar la publicación",
+      textoCancelar: "Dejarla",
+      tono: "peligro",
+    }))) {
+      return;
+    }
+    try {
+      await cancelarProgramada(p.id);
+      recargarProgramadas();
+    } catch (err) {
+      setError(mensajeDeError(err));
+    }
+  }
+
+  // Tildar suma al final; destildar saca y los que siguen se corren solos.
+  function alternarFoto(url: string) {
+    setFotosElegidas((prev) => {
+      if (prev.includes(url)) return prev.filter((u) => u !== url);
+      if (prev.length >= CARRUSEL_MAX) return prev;
+      return [...prev, url];
+    });
   }
 
   async function publicar(e: React.FormEvent) {
@@ -117,12 +183,54 @@ export default function RedesWorkspace() {
       setError("Falta el video: subilo con “Examinar” o pegá su URL.");
       return;
     }
-    if (!esVideo && red === "instagram" && !imagenUrl.trim()) {
+    if (esCarrusel && fotosElegidas.length < CARRUSEL_MIN) {
+      setError(`Un carrusel necesita al menos ${CARRUSEL_MIN} fotos. Elegí un vehículo y tildá las que quieras.`);
+      return;
+    }
+    if (!esVideo && !esCarrusel && red === "instagram" && !imagenUrl.trim()) {
       setError("Instagram necesita una imagen. Elegí un vehículo o pegá una URL.");
       return;
     }
     if (formato === "feed" && red === "facebook" && !texto.trim() && !imagenUrl.trim()) {
       setError("Escribí un texto o elegí una imagen.");
+      return;
+    }
+
+    // Con fecha elegida no se publica ahora: se guarda para que el cron la
+    // levante cuando venza. El texto y las fotos quedan congelados en la fila,
+    // así lo que sale es lo que se aprobó y no una versión cambiada después.
+    if (cuando) {
+      if (new Date(cuando).getTime() <= Date.now()) {
+        setError("Esa fecha ya pasó. Elegí un momento futuro o dejá el campo vacío para publicar ahora.");
+        return;
+      }
+      if (!(await confirmar({
+        titulo: "¿Programar la publicación?",
+        detalle: `Se va a publicar sola el ${new Date(cuando).toLocaleString("es-AR")}.`,
+        textoConfirmar: "Programar",
+      }))) {
+        return;
+      }
+      setPublicando(true);
+      try {
+        await programarPublicacion({
+          vehiculo_id: vehiculoId || null,
+          red,
+          formato,
+          texto: texto.trim() || null,
+          imagen_url: imagenUrl.trim() || null,
+          imagen_urls: esCarrusel ? fotosElegidas : [],
+          video_url: videoUrl.trim() || null,
+          programada_para: aInstante(cuando),
+        });
+        setResultado(`Programada para el ${new Date(cuando).toLocaleString("es-AR")} ✓`);
+        setCuando("");
+        recargarProgramadas();
+      } catch (err) {
+        setError(mensajeDeError(err));
+      } finally {
+        setPublicando(false);
+      }
       return;
     }
 
@@ -149,6 +257,7 @@ export default function RedesWorkspace() {
 
       const res = await publicarEnRedes(red, esHistoria ? "" : texto.trim(), {
         imagenUrl: imagenFinal,
+        imagenUrls: esCarrusel ? fotosElegidas : [],
         videoUrl: videoUrl.trim() || null,
         formato,
       });
@@ -360,31 +469,161 @@ export default function RedesWorkspace() {
               <option key={v.id} value={v.id}>{nombreVehiculo(v)}</option>
             ))}
           </select>
-          <input
-            className={input}
-            style={campo}
-            placeholder="…o pegá una URL de imagen pública"
-            value={imagenUrl}
-            onChange={(e) => setImagenUrl(e.target.value)}
-          />
-          {imagenUrl && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={imagenUrl} alt="Vista previa" className="max-h-40 w-auto self-start rounded-lg border" style={{ borderColor: "var(--border)" }} />
+
+          {/* Carrusel: se tildan las fotos y el orden de tildado es el orden en
+              que se van a ver. El número sobre la foto lo hace explícito. */}
+          {esCarrusel && (
+            <div className="flex flex-col gap-1.5">
+              {fotosVehiculo.length === 0 ? (
+                <p className="text-xs" style={{ color: "var(--muted)" }}>
+                  Elegí un vehículo para ver sus fotos.
+                </p>
+              ) : (
+                <>
+                  <p className="text-xs" style={{ color: "var(--muted)" }}>
+                    {fotosElegidas.length} de {fotosVehiculo.length} elegidas · entre {CARRUSEL_MIN} y{" "}
+                    {CARRUSEL_MAX} · tocá para ordenar
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {fotosVehiculo.map((f) => {
+                      const orden = fotosElegidas.indexOf(f.url);
+                      const elegida = orden >= 0;
+                      return (
+                        <button
+                          key={f.id}
+                          type="button"
+                          onClick={() => alternarFoto(f.url)}
+                          aria-label={elegida ? `Sacar del carrusel (posición ${orden + 1})` : "Sumar al carrusel"}
+                          aria-pressed={elegida}
+                          className="relative overflow-hidden rounded-lg"
+                          style={{
+                            border: elegida ? "2px solid var(--dorado)" : "1px solid var(--border)",
+                            opacity: elegida ? 1 : 0.5,
+                          }}
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element -- Storage de Supabase */}
+                          <img src={f.url} alt="" className="h-16 w-24 object-cover" />
+                          {elegida && (
+                            <span
+                              className="absolute left-1 top-1 flex h-5 w-5 items-center justify-center rounded-full text-[0.65rem] font-bold"
+                              style={{ background: "var(--dorado)", color: "var(--verde-core)" }}
+                            >
+                              {orden + 1}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+            </div>
           )}
+
+          {/* El carrusel arma su lista con los tildes de arriba; el campo de URL
+              suelta solo tiene sentido para los otros formatos. */}
+          {!esCarrusel && (
+            <>
+              <input
+                className={input}
+                style={campo}
+                placeholder="…o pegá una URL de imagen pública"
+                value={imagenUrl}
+                onChange={(e) => setImagenUrl(e.target.value)}
+              />
+              {imagenUrl && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={imagenUrl}
+                  alt="Vista previa"
+                  className="max-h-40 w-auto self-start rounded-lg border"
+                  style={{ borderColor: "var(--border)" }}
+                />
+              )}
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Agenda: lo que está esperando su turno y lo que salió mal. Las ya
+          publicadas no se listan acá, viven en el historial. */}
+      {programadas.some((p) => p.estado === "pendiente" || p.estado === "fallida") && (
+        <div className="flex flex-col gap-1.5 rounded-lg border p-2" style={{ borderColor: "var(--dorado)" }}>
+          <p className="text-[0.7rem] uppercase tracking-wider" style={{ color: "var(--dorado)" }}>
+            Agendadas
+          </p>
+          {programadas
+            .filter((p) => p.estado === "pendiente" || p.estado === "fallida")
+            .map((p) => (
+              <div key={p.id} className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                <span>
+                  {ETIQUETA_RED[p.red]} · {FORMATOS[p.red].find(([f]) => f === p.formato)?.[1] ?? p.formato} ·{" "}
+                  {new Date(p.programada_para).toLocaleString("es-AR", {
+                    day: "2-digit",
+                    month: "2-digit",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                  {p.estado === "fallida" && (
+                    <span className="ml-1.5" style={{ color: "#c86a6a" }}>
+                      · {ETIQUETA_ESTADO_PROGRAMADA.fallida}
+                      {p.error ? `: ${p.error}` : ""}
+                    </span>
+                  )}
+                </span>
+                {p.estado === "pendiente" && (
+                  <button
+                    type="button"
+                    onClick={() => cancelar(p)}
+                    className="underline"
+                    style={{ color: "var(--muted)" }}
+                  >
+                    cancelar
+                  </button>
+                )}
+              </div>
+            ))}
         </div>
       )}
 
       {error && <p className="text-sm text-red-400">{error}</p>}
       {resultado && <p className="text-sm" style={{ color: "var(--dorado)" }}>{resultado}</p>}
 
-      <div className="flex justify-end">
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <label className="flex items-center gap-1.5 text-xs" style={{ color: "var(--muted)" }}>
+          Programar para
+          <input
+            type="datetime-local"
+            className={input}
+            style={campo}
+            value={cuando}
+            onChange={(e) => setCuando(e.target.value)}
+            aria-label="Fecha y hora de publicación"
+          />
+        </label>
+        {cuando && (
+          <button
+            type="button"
+            onClick={() => setCuando("")}
+            className="text-xs underline"
+            style={{ color: "var(--muted)" }}
+          >
+            publicar ahora
+          </button>
+        )}
         <button
           type="submit"
           disabled={publicando}
           className="rounded-lg px-4 py-1.5 text-sm font-semibold disabled:opacity-50"
           style={{ background: "var(--dorado)", color: "var(--verde-core)" }}
         >
-          {publicando ? "Publicando…" : `Publicar ${FORMATOS[red].find(([f]) => f === formato)?.[1] ?? ""} en ${ETIQUETA_RED[red]}`}
+          {publicando
+            ? cuando
+              ? "Programando…"
+              : "Publicando…"
+            : cuando
+              ? "Programar"
+              : `Publicar ${FORMATOS[red].find(([f]) => f === formato)?.[1] ?? ""} en ${ETIQUETA_RED[red]}`}
         </button>
       </div>
 
