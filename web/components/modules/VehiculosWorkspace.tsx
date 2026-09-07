@@ -22,6 +22,7 @@ import VehiculoForm from "@/components/modules/VehiculoForm";
 import DetalleVehiculo from "@/components/modules/DetalleVehiculo";
 import { miPerfil } from "@/lib/seguridad";
 import { mensajeDeError } from "@/lib/errores";
+import { useConfirmar } from "@/lib/confirmar";
 
 const COLOR_ESTADO: Record<EstadoVehiculo, string> = {
   borrador: "var(--muted)",
@@ -74,7 +75,20 @@ export default function VehiculosWorkspace() {
     });
   }, [vehiculos, filtro, filtroEstado]);
 
+  const confirmar = useConfirmar();
   async function guardar(datos: VehiculoInput, costo: number | null) {
+    const nuevo = editando === "nuevo";
+    if (
+      !(await confirmar({
+        titulo: nuevo ? "¿Cargar el vehículo?" : "¿Guardar los cambios?",
+        detalle: nuevo
+          ? "Se suma al stock de la agencia."
+          : "Queda registrado en la auditoría con lo que había antes y lo que queda ahora.",
+        textoConfirmar: nuevo ? "Cargar" : "Guardar",
+      }))
+    ) {
+      return;
+    }
     let id: string;
     if (editando === "nuevo") {
       const creado = await crearVehiculo(datos);
@@ -97,6 +111,17 @@ export default function VehiculosWorkspace() {
   }
 
   async function cambiar(v: Vehiculo, estado: EstadoVehiculo) {
+    if (
+      !(await confirmar({
+        titulo: `¿Marcar ${nombreVehiculo(v)} como ${ETIQUETA_ESTADO[estado].toLowerCase()}?`,
+        detalle:
+          estado === "vendido"
+            ? "Al pasarlo a vendido se retiran sus publicaciones de las redes."
+            : undefined,
+      }))
+    ) {
+      return;
+    }
     // Optimista: la fila cambia al instante y se revierte si la base rechaza.
     const previo = v.estado;
     setVehiculos((prev) => (prev ?? []).map((x) => (x.id === v.id ? { ...x, estado } : x)));
@@ -109,7 +134,16 @@ export default function VehiculosWorkspace() {
   }
 
   async function borrar(v: Vehiculo) {
-    if (!confirm(`¿Eliminar ${nombreVehiculo(v)}? No se puede deshacer.`)) return;
+    if (
+      !(await confirmar({
+        titulo: `¿Eliminar ${nombreVehiculo(v)}?`,
+        detalle: "Se borran también sus fotos y su checklist. No se puede deshacer.",
+        textoConfirmar: "Eliminar",
+        tono: "peligro",
+      }))
+    ) {
+      return;
+    }
     try {
       await eliminarVehiculo(v.id);
       setVehiculos((prev) => (prev ?? []).filter((x) => x.id !== v.id));

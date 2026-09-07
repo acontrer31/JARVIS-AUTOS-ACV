@@ -15,6 +15,7 @@ import {
 } from "@/lib/clientes";
 import { formatearMoneda } from "@/lib/vehiculos";
 import { mensajeDeError } from "@/lib/errores";
+import { useConfirmar } from "@/lib/confirmar";
 
 // Color por etapa del embudo: del dorado (arranque) al verde (ganado) y gris
 // (perdido). No inventa datos: todo sale de `clientes`.
@@ -45,7 +46,16 @@ export default function CrmWorkspace() {
       .catch(() => {}); // sin vendedores igual se puede usar el embudo
   }, [recargar]);
 
+  const confirmar = useConfirmar();
+
   async function moverEtapa(cliente: Cliente, estado: EstadoLead) {
+    if (
+      !(await confirmar({
+        titulo: `¿Pasar a ${cliente.nombre} a ${ETIQUETA_ESTADO_LEAD[estado].toLowerCase()}?`,
+      }))
+    ) {
+      return;
+    }
     try {
       await cambiarEstadoLead(cliente.id, estado);
       recargar();
@@ -55,6 +65,7 @@ export default function CrmWorkspace() {
   }
 
   async function cambiarVendedor(cliente: Cliente, vendedor_id: string) {
+    if (!(await confirmar({ titulo: `¿Cambiar el vendedor asignado a ${cliente.nombre}?` }))) return;
     try {
       await asignarVendedor(cliente.id, vendedor_id || null);
       recargar();
@@ -64,6 +75,15 @@ export default function CrmWorkspace() {
   }
 
   async function agendar(cliente: Cliente, fecha: string) {
+    if (
+      !(await confirmar({
+        titulo: fecha
+          ? `¿Agendar el seguimiento de ${cliente.nombre}?`
+          : `¿Quitarle la fecha de seguimiento a ${cliente.nombre}?`,
+      }))
+    ) {
+      return;
+    }
     try {
       await fijarProximoContacto(cliente.id, fecha || null);
       recargar();

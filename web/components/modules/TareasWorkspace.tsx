@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { cargarTareas, crearTarea, eliminarTarea, marcarHecha, type Tarea } from "@/lib/tareas";
 import { mensajeDeError } from "@/lib/errores";
+import { useConfirmar } from "@/lib/confirmar";
 
 export default function TareasWorkspace() {
   const [tareas, setTareas] = useState<Tarea[] | null>(null);
@@ -17,9 +18,12 @@ export default function TareasWorkspace() {
       .catch((err) => setError("No se pudieron cargar las tareas: " + mensajeDeError(err)));
   }, []);
 
+  const confirmar = useConfirmar();
+
   async function agregar(e: React.FormEvent) {
     e.preventDefault();
     if (!nueva.trim()) return;
+    if (!(await confirmar({ titulo: "¿Agregar la tarea?", detalle: nueva }))) return;
     setError("");
     setGuardando(true);
     try {
@@ -35,6 +39,14 @@ export default function TareasWorkspace() {
   }
 
   async function alternar(t: Tarea) {
+    if (
+      !(await confirmar({
+        titulo: t.hecha ? "¿Volver a marcarla como pendiente?" : "¿Marcar la tarea como hecha?",
+        detalle: t.titulo,
+      }))
+    ) {
+      return;
+    }
     const previo = t.hecha;
     setTareas((prev) => (prev ?? []).map((x) => (x.id === t.id ? { ...x, hecha: !previo } : x)));
     try {
@@ -46,6 +58,16 @@ export default function TareasWorkspace() {
   }
 
   async function borrar(t: Tarea) {
+    if (
+      !(await confirmar({
+        titulo: "¿Borrar la tarea?",
+        detalle: `${t.titulo}. No se puede deshacer.`,
+        textoConfirmar: "Borrar",
+        tono: "peligro",
+      }))
+    ) {
+      return;
+    }
     const antes = tareas ?? [];
     setTareas((prev) => (prev ?? []).filter((x) => x.id !== t.id));
     try {

@@ -16,6 +16,7 @@ import {
 } from "@/lib/caja";
 import { formatearMoneda } from "@/lib/vehiculos";
 import { mensajeDeError } from "@/lib/errores";
+import { useConfirmar } from "@/lib/confirmar";
 
 export default function CajaWorkspace() {
   const [movs, setMovs] = useState<Movimiento[] | null>(null);
@@ -31,9 +32,19 @@ export default function CajaWorkspace() {
 
   const totales = useMemo(() => calcularSaldo(movs ?? []), [movs]);
 
+  const confirmar = useConfirmar();
+
   async function alta(e: React.FormEvent) {
     e.preventDefault();
     if (!form.concepto.trim() || !form.monto) return;
+    if (
+      !(await confirmar({
+        titulo: `¿Registrar un ${form.tipo} de ${formatearMoneda(form.monto)}?`,
+        detalle: form.concepto,
+      }))
+    ) {
+      return;
+    }
     setError("");
     setGuardando(true);
     try {
@@ -48,6 +59,16 @@ export default function CajaWorkspace() {
   }
 
   async function borrar(m: Movimiento) {
+    if (
+      !(await confirmar({
+        titulo: "¿Borrar el movimiento?",
+        detalle: `${m.concepto} — ${formatearMoneda(m.monto)}. No se puede deshacer.`,
+        textoConfirmar: "Borrar",
+        tono: "peligro",
+      }))
+    ) {
+      return;
+    }
     const antes = movs ?? [];
     setMovs((prev) => (prev ?? []).filter((x) => x.id !== m.id));
     try {

@@ -12,6 +12,7 @@ import {
   type Usuario,
 } from "@/lib/seguridad";
 import { mensajeDeError } from "@/lib/errores";
+import { useConfirmar } from "@/lib/confirmar";
 
 export default function AdministracionWorkspace() {
   const [usuarios, setUsuarios] = useState<Usuario[] | null>(null);
@@ -44,7 +45,21 @@ export default function AdministracionWorkspace() {
       );
   }, []);
 
+  const confirmar = useConfirmar();
+
   async function cambiar(u: Usuario, rol: Rol) {
+    if (
+      !(await confirmar({
+        titulo: `¿Cambiar a ${u.nombre ?? "este usuario"} a ${rol}?`,
+        detalle:
+          rol === "admin"
+            ? "Un administrador ve los costos internos, la auditoría y puede crear usuarios."
+            : "Deja de ver los costos internos y la auditoría.",
+        tono: rol === "admin" ? "peligro" : "normal",
+      }))
+    ) {
+      return;
+    }
     // Optimista: se revierte si la base rechaza (por ejemplo, si quien lo pide
     // dejó de ser admin entre que cargó la pantalla y tocó el selector).
     const previo = u.rol;
@@ -60,6 +75,15 @@ export default function AdministracionWorkspace() {
 
   async function altaUsuario(e: React.FormEvent) {
     e.preventDefault();
+    if (
+      !(await confirmar({
+        titulo: `¿Crear el usuario ${nuevoNombre || nuevoEmail}?`,
+        detalle: `Va a entrar como ${nuevoRol} en la agencia.`,
+        textoConfirmar: "Crear",
+      }))
+    ) {
+      return;
+    }
     setError("");
     setGuardando(true);
     try {

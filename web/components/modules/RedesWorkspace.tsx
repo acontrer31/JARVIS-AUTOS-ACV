@@ -7,6 +7,7 @@ import { cargarFotos, subirImagenGenerada, subirVideo } from "@/lib/media";
 import { componerHistoria } from "@/lib/historiaImagen";
 import { cargarPendientesRetiro, marcarRetirada, registrarPublicacion, type PublicacionRed } from "@/lib/publicacionesRedes";
 import { mensajeDeError } from "@/lib/errores";
+import { useConfirmar } from "@/lib/confirmar";
 
 // Etiqueta de cada red, incluida TikTok (que puede aparecer en pendientes).
 const ETIQUETA_PUB: Record<string, string> = { facebook: "Facebook", instagram: "Instagram", tiktok: "TikTok" };
@@ -51,6 +52,8 @@ export default function RedesWorkspace() {
   }, []);
 
   // Sube un video desde la compu al Storage público y completa la URL sola.
+  const confirmar = useConfirmar();
+
   async function elegirArchivoVideo(e: React.ChangeEvent<HTMLInputElement>) {
     const archivo = e.target.files?.[0];
     e.target.value = ""; // permite volver a elegir el mismo archivo
@@ -97,6 +100,18 @@ export default function RedesWorkspace() {
     e.preventDefault();
     setError("");
     setResultado("");
+
+    // Publicar es hacia afuera y en Instagram no se puede borrar por API: la
+    // confirmación acá vale más que en cualquier otro módulo.
+    if (
+      !(await confirmar({
+        titulo: `¿Publicar en ${red === "instagram" ? "Instagram" : "Facebook"}?`,
+        detalle: "Sale publicado en la cuenta real de la agencia.",
+        textoConfirmar: "Publicar",
+      }))
+    ) {
+      return;
+    }
 
     if (esVideo && !videoUrl.trim()) {
       setError("Falta el video: subilo con “Examinar” o pegá su URL.");
@@ -157,6 +172,15 @@ export default function RedesWorkspace() {
   }
 
   async function borrada(p: PublicacionRed) {
+    if (
+      !(await confirmar({
+        titulo: "¿Ya la borraste de la red?",
+        detalle: "Se saca de la lista de pendientes. La publicación en sí la borrás vos desde la app de la red.",
+        textoConfirmar: "Sí, ya la borré",
+      }))
+    ) {
+      return;
+    }
     setPendientes((prev) => prev.filter((x) => x.id !== p.id));
     try {
       await marcarRetirada(p.id);

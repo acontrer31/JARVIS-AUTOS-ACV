@@ -22,6 +22,7 @@ import {
 import { cargarVehiculos, formatearMoneda, nombreVehiculo, type Vehiculo } from "@/lib/vehiculos";
 import { cargarClientes, cargarVendedores, type Cliente, type Vendedor } from "@/lib/clientes";
 import { mensajeDeError } from "@/lib/errores";
+import { useConfirmar } from "@/lib/confirmar";
 
 const COLOR_ESTADO: Record<EstadoOperacion, string> = {
   abierta: "var(--muted)",
@@ -64,8 +65,11 @@ export default function OperacionesWorkspace() {
     return (id: string | null) => (id ? m.get(id) ?? "—" : "—");
   }, [vendedores]);
 
+  const confirmar = useConfirmar();
+
   async function alta(e: React.FormEvent) {
     e.preventDefault();
+    if (!(await confirmar({ titulo: "¿Registrar la operación?" }))) return;
     setError("");
     setGuardando(true);
     try {
@@ -81,6 +85,15 @@ export default function OperacionesWorkspace() {
   }
 
   async function cambiar(op: Operacion, estado: EstadoOperacion) {
+    if (
+      !(await confirmar({
+        titulo: `¿Pasar la operación a ${ETIQUETA_ESTADO_OP[estado].toLowerCase()}?`,
+        detalle:
+          estado === "entregada" ? "El vehículo pasa a vendido y se retira de las redes." : undefined,
+      }))
+    ) {
+      return;
+    }
     const previo = op.estado;
     setOps((prev) => (prev ?? []).map((x) => (x.id === op.id ? { ...x, estado } : x)));
     try {
@@ -92,6 +105,16 @@ export default function OperacionesWorkspace() {
   }
 
   async function borrar(op: Operacion) {
+    if (
+      !(await confirmar({
+        titulo: "¿Borrar la operación?",
+        detalle: "No se puede deshacer.",
+        textoConfirmar: "Borrar",
+        tono: "peligro",
+      }))
+    ) {
+      return;
+    }
     const antes = ops ?? [];
     setOps((prev) => (prev ?? []).filter((x) => x.id !== op.id));
     try {

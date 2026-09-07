@@ -20,6 +20,7 @@ import { cargarVehiculos, formatearMoneda, nombreVehiculo, type Vehiculo } from 
 import ClienteForm from "@/components/modules/ClienteForm";
 import PerfilCliente from "@/components/modules/PerfilCliente";
 import { mensajeDeError } from "@/lib/errores";
+import { useConfirmar } from "@/lib/confirmar";
 
 const COLOR_LEAD: Record<EstadoLead, string> = {
   nuevo: "var(--dorado)",
@@ -75,7 +76,20 @@ export default function ClientesWorkspace() {
     return v ? nombreVehiculo(v) : null;
   }
 
+  const confirmar = useConfirmar();
   async function guardar(datos: ClienteInput) {
+    // El aviso por datos de contacto faltantes lo da el formulario antes de
+    // llegar acá; esta confirmación es la del guardado en sí.
+    const nuevo = editando === "nuevo";
+    if (
+      !(await confirmar({
+        titulo: nuevo ? "¿Dar de alta al cliente?" : "¿Guardar los cambios?",
+        detalle: nuevo ? undefined : "Queda registrado en la auditoría.",
+        textoConfirmar: nuevo ? "Dar de alta" : "Guardar",
+      }))
+    ) {
+      return;
+    }
     if (editando === "nuevo") {
       const creado = await crearCliente(datos);
       setClientes((prev) => [creado, ...(prev ?? [])]);
@@ -88,6 +102,13 @@ export default function ClientesWorkspace() {
   }
 
   async function cambiar(c: Cliente, estado_lead: EstadoLead) {
+    if (
+      !(await confirmar({
+        titulo: `¿Pasar a ${c.nombre} a ${ETIQUETA_ESTADO_LEAD[estado_lead].toLowerCase()}?`,
+      }))
+    ) {
+      return;
+    }
     // Optimista: la fila cambia al instante y se revierte si la base rechaza.
     const previo = c.estado_lead;
     setClientes((prev) => (prev ?? []).map((x) => (x.id === c.id ? { ...x, estado_lead } : x)));
@@ -100,7 +121,16 @@ export default function ClientesWorkspace() {
   }
 
   async function borrar(c: Cliente) {
-    if (!confirm(`¿Eliminar a ${c.nombre}? Se borra también su historial. No se puede deshacer.`)) return;
+    if (
+      !(await confirmar({
+        titulo: `¿Eliminar a ${c.nombre}?`,
+        detalle: "Se borra también todo su historial de contactos. No se puede deshacer.",
+        textoConfirmar: "Eliminar",
+        tono: "peligro",
+      }))
+    ) {
+      return;
+    }
     try {
       await eliminarCliente(c.id);
       setClientes((prev) => (prev ?? []).filter((x) => x.id !== c.id));

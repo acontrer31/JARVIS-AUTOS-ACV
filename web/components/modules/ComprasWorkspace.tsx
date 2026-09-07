@@ -20,6 +20,7 @@ import {
 } from "@/lib/compras";
 import { cargarVehiculos, formatearMoneda, nombreVehiculo, type Vehiculo } from "@/lib/vehiculos";
 import { mensajeDeError } from "@/lib/errores";
+import { useConfirmar } from "@/lib/confirmar";
 
 export default function ComprasWorkspace() {
   const [compras, setCompras] = useState<Compra[] | null>(null);
@@ -53,8 +54,11 @@ export default function ComprasWorkspace() {
     return (id: string | null) => (id ? m.get(id) ?? "—" : "—");
   }, [proveedores]);
 
+  const confirmar = useConfirmar();
+
   async function alta(e: React.FormEvent) {
     e.preventDefault();
+    if (!(await confirmar({ titulo: "¿Registrar la compra?" }))) return;
     setError("");
     setGuardando(true);
     try {
@@ -70,6 +74,7 @@ export default function ComprasWorkspace() {
 
   async function altaProveedor() {
     if (!provNombre.trim()) return;
+    if (!(await confirmar({ titulo: `¿Dar de alta a ${provNombre}?` }))) return;
     try {
       const p = await crearProveedor({ nombre: provNombre, tipo: provTipo });
       setProveedores((prev) => [...prev, p].sort((a, b) => a.nombre.localeCompare(b.nombre)));
@@ -82,6 +87,16 @@ export default function ComprasWorkspace() {
   }
 
   async function borrar(c: Compra) {
+    if (
+      !(await confirmar({
+        titulo: "¿Borrar la compra?",
+        detalle: "No se puede deshacer.",
+        textoConfirmar: "Borrar",
+        tono: "peligro",
+      }))
+    ) {
+      return;
+    }
     const antes = compras ?? [];
     setCompras((prev) => (prev ?? []).filter((x) => x.id !== c.id));
     try {
