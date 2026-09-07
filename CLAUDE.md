@@ -62,7 +62,12 @@ Command Center) → `ModuleWorkspace` (overlay que despacha por `moduloId`).
 - `mi_agencia_id()` y `mi_rol()` son `security definer` y **deben** conservar
   `execute` para `authenticated` (las usan las policies). Solo se les revoca a
   `anon`/`public` — ver `supabase/security-hardening.sql`.
-- Auditoría en `audit_log` vía trigger `registrar_auditoria()`.
+- **Auditoría**: `audit_log` vía el trigger `registrar_auditoria()`, colgado en
+  las 13 tablas del negocio (incluida `movimientos_caja`). `eventos_sesion`
+  guarda cada ingreso/salida con IP y dispositivo. Las dos son **de solo lectura
+  desde el cliente** — sin policy de insert/update/delete y sin `truncate`, para
+  que "el log no se puede borrar" sea cierto — y solo las lee un `admin`.
+  `eventos_sesion` la escribe únicamente `POST /api/sesion` con service role.
 - `costo_interno` vive en `vehiculo_costos` (policy solo-admin), **no** en
   `vehiculos`.
 - Storage: bucket público `vehiculos`; las rutas arrancan con `<agencia_id>/…` y
@@ -94,6 +99,9 @@ recién ahí usa el secreto.
 
 - `POST /api/elevenlabs-signed-url` — URL firmada para la voz (exige sesión).
 - `POST /api/crear-usuario` — alta de usuarios (service role).
+- `POST /api/sesion` — registra un ingreso/salida en `eventos_sesion` (service
+  role). El usuario y la agencia salen del token, la IP del header: el cliente
+  solo elige `tipo`.
 - `POST /api/redes/publicar` — publica en Facebook/Instagram.
 - `POST /api/redes/retirar` — retira las publicaciones de un vehículo vendido.
 
@@ -104,12 +112,12 @@ el nombre debe coincidir **exacto** con la clave del objeto `clientTools` en
 `web/components/JarvisCore.tsx`. Patrón: "Esperar respuesta" ON, parámetros
 `String` con tipo de valor **LLM Prompt** y no requeridos.
 
-Las 22 tools actuales, por lo que hacen:
+Las 23 tools actuales, por lo que hacen:
 
 - **Consulta**: `consultar_inventario`, `simular_financiacion`,
   `estimar_transferencia_dnrpa`, `datos_cliente`, `resumen_del_dia`,
   `estado_caja`, `reporte_del_mes`, `mis_tareas`, `mis_seguimientos`,
-  `consultar_clima`.
+  `auditoria_usuario`, `consultar_clima`.
 - **Acción**: `agregar_tarea`, `agregar_cliente`, `registrar_movimiento_caja`,
   `registrar_operacion`, `cambiar_estado_vehiculo`, `cambiar_estado_operacion`,
   `cambiar_estado_lead`, `agendar_seguimiento`, `publicar_en_redes`,
