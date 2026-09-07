@@ -120,7 +120,7 @@ export async function cargarAuditoria(filtros: FiltroAuditoria = {}): Promise<En
   if (filtros.usuarioId) consulta = consulta.eq("usuario_id", filtros.usuarioId);
   if (filtros.tabla) consulta = consulta.eq("tabla", filtros.tabla);
   if (filtros.operacion) consulta = consulta.eq("operacion", filtros.operacion);
-  if (filtros.desde) consulta = consulta.gte("creado_en", filtros.desde);
+  if (filtros.desde) consulta = consulta.gte("creado_en", arranqueDelDia(filtros.desde));
   // `hasta` es un día entero: sin esto, "hasta el 5" dejaría afuera todo lo del
   // día 5 salvo lo ocurrido exactamente a las 00:00.
   if (filtros.hasta) consulta = consulta.lt("creado_en", finDelDia(filtros.hasta));
@@ -132,13 +132,24 @@ export async function cargarAuditoria(filtros: FiltroAuditoria = {}): Promise<En
   return (data ?? []) as unknown as EntradaAuditoria[];
 }
 
-// El día siguiente a las 00:00, para usar con "<" y así incluir todo el día.
+// Los filtros de fecha vienen de un <input type="date"> como "2026-09-07", y
+// `creado_en` es timestamptz. Mandar la fecha pelada no sirve: el servidor está
+// en UTC y la lee como las 00:00 UTC, o sea las 21:00 del día anterior en
+// Argentina. Con eso, "desde el 7" traía cosas del 6 a la noche y "hasta el 7"
+// se comía las últimas tres horas del 7.
+//
+// Por eso se arma el instante real: medianoche LOCAL del navegador, convertida
+// a UTC con toISOString(). El navegador está en la hora de la agencia, que es
+// la que el usuario tiene en la cabeza cuando elige la fecha.
+function arranqueDelDia(dia: string): string {
+  const [anio, mes, d] = dia.split("-").map(Number);
+  return new Date(anio, mes - 1, d, 0, 0, 0, 0).toISOString();
+}
+
+// El día siguiente a las 00:00 locales, para usar con "<" e incluir el día entero.
 function finDelDia(dia: string): string {
   const [anio, mes, d] = dia.split("-").map(Number);
-  const siguiente = new Date(anio, mes - 1, d + 1);
-  const mm = String(siguiente.getMonth() + 1).padStart(2, "0");
-  const dd = String(siguiente.getDate()).padStart(2, "0");
-  return `${siguiente.getFullYear()}-${mm}-${dd}`;
+  return new Date(anio, mes - 1, d + 1, 0, 0, 0, 0).toISOString();
 }
 
 // Historial de conexiones de la agencia. Misma política que el log: solo admin.
@@ -148,7 +159,7 @@ export async function cargarConexiones(filtros: FiltroAuditoria = {}): Promise<E
     .select("id, usuario_id, tipo, ip, dispositivo, creado_en");
 
   if (filtros.usuarioId) consulta = consulta.eq("usuario_id", filtros.usuarioId);
-  if (filtros.desde) consulta = consulta.gte("creado_en", filtros.desde);
+  if (filtros.desde) consulta = consulta.gte("creado_en", arranqueDelDia(filtros.desde));
   if (filtros.hasta) consulta = consulta.lt("creado_en", finDelDia(filtros.hasta));
 
   const { data, error } = await consulta

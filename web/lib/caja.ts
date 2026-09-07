@@ -1,4 +1,5 @@
 import { miAgenciaId, supabase } from "@/lib/supabase";
+import { hoyISO } from "@/lib/fechas";
 
 // Caja: ingresos y egresos de dinero. Mismos valores que los checks del esquema
 // (supabase/schema.sql -> movimientos_caja_*_check).
@@ -98,6 +99,6 @@ export function movimientoVacio(): MovimientoInput {
     concepto: "",
     monto: 0,
     forma_pago: "efectivo",
-    fecha: new Date().toISOString().slice(0, 10),
+    fecha: hoyISO(),
   };
 }

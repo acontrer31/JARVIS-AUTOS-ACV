@@ -20,6 +20,7 @@ import {
 import { mensajeDeError } from "@/lib/errores";
 import TemaToggle from "@/components/TemaToggle";
 import { exportarExcel } from "@/lib/excel";
+import { hoyISO } from "@/lib/fechas";
 
 const COLOR_OPERACION: Record<EntradaAuditoria["operacion"], string> = {
   INSERT: "#7fb069",
@@ -154,7 +155,7 @@ export default function SeguridadWorkspace() {
     setExportando(true);
     try {
       await exportarExcel({
-        archivo: `auditoria-jarvis-${new Date().toISOString().slice(0, 10)}.xlsx`,
+        archivo: `auditoria-jarvis-${hoyISO()}.xlsx`,
         hoja: "Auditoría",
         columnas: [
           { titulo: "Fecha", ancho: 12 },

@@ -41,6 +41,10 @@ export function ProveedorConfirmacion({ children }: { children: React.ReactNode 
 
   const confirmar = useCallback((opciones: OpcionesConfirmacion) => {
     return new Promise<boolean>((resolver) => {
+      // Si ya había una confirmación abierta, se la cierra en "no" antes de
+      // abrir la nueva. Sin esto su promesa quedaba sin resolver nunca y quien
+      // la estaba esperando se colgaba en silencio.
+      pendiente.current?.(false);
       pendiente.current = resolver;
       setPedido({ ...opciones, resolver });
     });

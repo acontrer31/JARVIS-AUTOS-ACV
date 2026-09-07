@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { actualizarTarea, cargarTareas, crearTarea, eliminarTarea, marcarHecha, type Tarea } from "@/lib/tareas";
 import { mensajeDeError } from "@/lib/errores";
 import { useConfirmar } from "@/lib/confirmar";
@@ -14,6 +14,10 @@ export default function TareasWorkspace() {
   // Corrección en la misma línea: se edita el título ahí donde está.
   const [corrigiendo, setCorrigiendo] = useState<string | null>(null);
   const [textoCorregido, setTextoCorregido] = useState("");
+  // Enter abre la confirmación, la confirmación se lleva el foco, y ese blur
+  // volvía a llamar a guardarCorreccion: dos modales para una sola corrección.
+  // Este candado deja pasar solo al primero.
+  const guardando_correccion = useRef(false);
 
   useEffect(() => {
     cargarTareas()
@@ -61,12 +65,18 @@ export default function TareasWorkspace() {
   }
 
   async function guardarCorreccion(t: Tarea) {
+    if (guardando_correccion.current) return;
     const titulo = textoCorregido.trim();
     if (!titulo || titulo === t.titulo) {
       setCorrigiendo(null);
       return;
     }
-    if (!(await confirmar({ titulo: "¿Guardar la corrección?", detalle: titulo }))) return;
+    guardando_correccion.current = true;
+    try {
+      if (!(await confirmar({ titulo: "¿Guardar la corrección?", detalle: titulo }))) return;
+    } finally {
+      guardando_correccion.current = false;
+    }
     const antes = tareas ?? [];
     setTareas((prev) => (prev ?? []).map((x) => (x.id === t.id ? { ...x, titulo } : x)));
     setCorrigiendo(null);

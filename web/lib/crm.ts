@@ -1,4 +1,5 @@
 import { cargarClientes, ESTADOS_LEAD, type Cliente, type EstadoLead } from "@/lib/clientes";
+import { aISO, hoyISO as hoyLocal } from "@/lib/fechas";
 
 // CRM: el embudo comercial sobre los clientes que ya existen. No duplica datos
 // — agrupa los mismos leads por etapa y arma la agenda de seguimiento a partir
@@ -20,18 +21,8 @@ export interface Pipeline {
   hoy: Cliente[];
 }
 
-// Fecha de hoy en formato AAAA-MM-DD, calculada con la hora local. No se usa
-// toISOString(): eso devuelve UTC y en Argentina (UTC-3) después de las 21 h el
-// "hoy" saltaría al día siguiente, y un seguimiento de hoy aparecería vencido.
-export function hoyISO(): string {
-  return aISO(new Date());
-}
-
-function aISO(fecha: Date): string {
-  const mes = String(fecha.getMonth() + 1).padStart(2, "0");
-  const dia = String(fecha.getDate()).padStart(2, "0");
-  return `${fecha.getFullYear()}-${mes}-${dia}`;
-}
+// Se reexporta para no romper a quien ya la importaba desde acá.
+export { hoyISO } from "@/lib/fechas";
 
 function sumarDias(dias: number): string {
   const fecha = new Date();
@@ -112,7 +103,7 @@ export function interpretarFecha(texto: string): string | null {
 // ver el resultado del mes, pero no entran en la agenda de seguimiento.
 export async function armarPipeline(): Promise<Pipeline> {
   const clientes = await cargarClientes();
-  const dia = hoyISO();
+  const dia = hoyLocal();
 
   const etapas: EtapaPipeline[] = ESTADOS_LEAD.map((estado) => {
     const leads = clientes.filter((c) => c.estado_lead === estado);

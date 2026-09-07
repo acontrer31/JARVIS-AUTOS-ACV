@@ -8,9 +8,7 @@ import { cargarVehiculos, formatearMoneda } from "@/lib/vehiculos";
 // Reportes / analítica del negocio (Fase 4 del ERP). Todo sobre datos reales de
 // Supabase; si una parte falla, se omite en vez de inventar.
 
-function hoyISO(): string {
-  return new Date().toISOString().slice(0, 10);
-}
+import { aISO, hoyISO } from "@/lib/fechas";
 
 function mismoMes(iso: string, ref: Date): boolean {
   const d = new Date(iso);
@@ -26,7 +24,11 @@ export async function resumenDelDia(): Promise<string> {
   // Operaciones creadas hoy.
   try {
     const ops = await cargarOperaciones();
-    const deHoy = ops.filter((o) => (o.creado_en || "").slice(0, 10) === hoy);
+    // `creado_en` es timestamptz y llega en UTC: cortarle los primeros 10
+    // caracteres da el día UTC, no el nuestro. Una operación cargada a las
+    // 22:30 en Argentina ya figura como del día siguiente. Hay que pasarla a
+    // fecha local antes de comparar.
+    const deHoy = ops.filter((o) => (o.creado_en ? aISO(new Date(o.creado_en)) === hoy : false));
     if (deHoy.length) {
       const monto = deHoy.reduce((s, o) => s + (o.monto ?? 0), 0);
       partes.push(
