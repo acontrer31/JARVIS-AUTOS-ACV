@@ -220,6 +220,14 @@ export interface Conversacion {
   estado: string | null;
   /** success | failure | unknown, según la evaluación del agente. */
   resultado: string | null;
+  /**
+   * Por qué terminó la llamada. Es el dato por el que existe esta pantalla:
+   * cuando la voz corta sola, acá dice el motivo sin tener que entrar al panel
+   * de ElevenLabs a buscarlo.
+   */
+  motivoCorte: string | null;
+  /** Resumen de una línea de lo que se habló. Viene solo si se pidió. */
+  titulo: string | null;
 }
 
 export interface Transcripcion {

@@ -163,16 +163,27 @@ export default function VozWorkspace() {
                 <div key={c.id} className="rounded-lg border p-3" style={{ borderColor: "var(--border)" }}>
                   <button type="button" onClick={() => abrir(c)} className="w-full text-left" aria-expanded={abierta === c.id}>
                     <div className="flex flex-wrap items-baseline justify-between gap-2">
-                      <span className="text-sm">{fechaHora(c.inicio)}</span>
+                      {/* El resumen manda sobre la fecha: dice de qué se habló,
+                          que es lo que uno busca al recorrer la lista. */}
+                      <span className="text-sm">{c.titulo || fechaHora(c.inicio)}</span>
                       <span className="text-xs" style={{ color: fallo ? "#f87171" : "var(--muted)" }}>
                         {ETIQUETA_ESTADO[c.estado ?? ""] ?? c.estado ?? "—"}
                         {c.resultado ? ` · ${ETIQUETA_RESULTADO[c.resultado] ?? c.resultado}` : ""}
                       </span>
                     </div>
                     <p className="mt-0.5 text-[0.7rem]" style={{ color: "var(--muted)" }}>
+                      {c.titulo ? `${fechaHora(c.inicio)} · ` : ""}
                       {duracionLegible(c.duracionSegundos)}
                       {c.mensajes != null ? ` · ${c.mensajes} intervenciones` : ""}
                     </p>
+                    {/* El motivo del corte solo se muestra cuando algo salió
+                        mal: en una llamada normal dice "el usuario colgó" y
+                        sería ruido en cada fila. */}
+                    {fallo && c.motivoCorte && (
+                      <p className="mt-0.5 text-[0.7rem]" style={{ color: "#f87171" }}>
+                        Cortó por: {c.motivoCorte}
+                      </p>
+                    )}
                   </button>
 
                   {abierta === c.id && (
@@ -205,8 +216,8 @@ export default function VozWorkspace() {
 
           <p className="text-[0.7rem] leading-relaxed" style={{ color: "var(--muted)" }}>
             Sale del historial real de ElevenLabs, las 30 más recientes. Sirve sobre todo cuando la voz corta
-            sola: acá se ve si fue un error de la cuenta (cuota agotada, por ejemplo) en vez de tener que
-            entrar al panel de ElevenLabs a buscarlo.
+            sola: en las que fallaron se muestra el motivo del corte —una cuota agotada, por ejemplo— sin
+            tener que entrar al panel de ElevenLabs a buscarlo.
           </p>
         </>
       )}

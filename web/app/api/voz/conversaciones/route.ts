@@ -13,6 +13,10 @@ export const maxDuration = 30;
 
 const API = "https://api.elevenlabs.io/v1/convai";
 
+// Nombres verificados contra los tipos del SDK oficial
+// (@elevenlabs/elevenlabs-js, ConversationSummaryResponseModel.Raw). Van todos
+// opcionales igual: si un día la API deja de mandar uno, el panel muestra un
+// guion y no una pantalla rota.
 interface FilaEL {
   conversation_id?: string;
   start_time_unix_secs?: number;
@@ -20,6 +24,8 @@ interface FilaEL {
   message_count?: number;
   status?: string;
   call_successful?: string;
+  termination_reason?: string | null;
+  call_summary_title?: string | null;
 }
 
 interface MensajeEL {
@@ -84,8 +90,12 @@ export async function GET(request: Request) {
       return NextResponse.json({ ok: true, transcripcion });
     }
 
+    // `summary_mode=include` no es opcional para lo que queremos: sin él la API
+    // no manda `call_summary_title`, y la lista quedaría siendo doce filas de
+    // fecha y duración que obligan a abrir una por una para saber de qué se
+    // habló.
     const r = await fetch(
-      `${API}/conversations?agent_id=${encodeURIComponent(agentId)}&page_size=30`,
+      `${API}/conversations?agent_id=${encodeURIComponent(agentId)}&page_size=30&summary_mode=include`,
       { headers: { "xi-api-key": apiKey } }
     );
     if (!r.ok) {
@@ -103,6 +113,11 @@ export async function GET(request: Request) {
       mensajes: c.message_count ?? null,
       estado: c.status ?? null,
       resultado: c.call_successful ?? null,
+      // El motivo del corte es el dato por el que existe esta pantalla: cuando
+      // la voz se muere sola, acá dice por qué sin entrar al panel de
+      // ElevenLabs.
+      motivoCorte: c.termination_reason ?? null,
+      titulo: c.call_summary_title ?? null,
     }));
 
     return NextResponse.json({ configurado: true, conversaciones });
