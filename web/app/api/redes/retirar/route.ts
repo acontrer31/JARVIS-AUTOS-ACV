@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { datosInstagram, metricasFacebook } from "@/lib/server/meta";
 
 // Retira de las redes las publicaciones de un vehículo (se llama cuando el auto
 // pasa a "vendido"). Facebook se borra por API; Instagram/TikTok no se pueden
@@ -10,42 +11,6 @@ import { createClient } from "@supabase/supabase-js";
 export const maxDuration = 60;
 
 const GRAPH = `https://graph.facebook.com/${process.env.META_GRAPH_VERSION || "v21.0"}`;
-
-// Snapshot de métricas de un post de Facebook (best-effort).
-async function metricasFacebook(postId: string, token: string): Promise<Record<string, number> | null> {
-  try {
-    const r = await fetch(
-      `${GRAPH}/${postId}?fields=likes.summary(true).limit(0),comments.summary(true).limit(0),shares&access_token=${encodeURIComponent(token)}`
-    );
-    const d = await r.json();
-    if (!r.ok) return null;
-    return {
-      likes: d?.likes?.summary?.total_count ?? 0,
-      comentarios: d?.comments?.summary?.total_count ?? 0,
-      compartidos: d?.shares?.count ?? 0,
-    };
-  } catch {
-    return null;
-  }
-}
-
-// Permalink + métricas básicas de un media de Instagram (para el link de retiro
-// manual y el historial).
-async function datosInstagram(mediaId: string, token: string): Promise<{ url: string | null; metricas: Record<string, number> | null }> {
-  try {
-    const r = await fetch(
-      `${GRAPH}/${mediaId}?fields=permalink,like_count,comments_count&access_token=${encodeURIComponent(token)}`
-    );
-    const d = await r.json();
-    if (!r.ok) return { url: null, metricas: null };
-    return {
-      url: d?.permalink ?? null,
-      metricas: { likes: d?.like_count ?? 0, comentarios: d?.comments_count ?? 0 },
-    };
-  } catch {
-    return { url: null, metricas: null };
-  }
-}
 
 export async function POST(request: Request) {
   const pageToken = process.env.META_PAGE_TOKEN;

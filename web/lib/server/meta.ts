@@ -234,3 +234,51 @@ export async function publicarInstagram(
   if (!r2.ok) throw new Error(d2?.error?.message || `Instagram respondió ${r2.status} al publicar`);
   return d2?.id ?? null;
 }
+
+// ---------- Métricas ----------
+// Snapshot de un post ya publicado. Best-effort a propósito: si Meta no
+// contesta o el post se borró desde la app, se devuelve null y el llamador
+// sigue — perder un contador nunca puede frenar una venta ni un retiro.
+//
+// Vive acá, y no dentro de /api/redes/retirar donde nació, porque ahora la usan
+// dos rutas: la del retiro (snapshot final antes de borrar) y la que refresca
+// las métricas del módulo Marketing.
+
+export async function metricasFacebook(postId: string, token: string): Promise<Record<string, number> | null> {
+  try {
+    const r = await fetch(
+      `${GRAPH}/${postId}?fields=likes.summary(true).limit(0),comments.summary(true).limit(0),shares&access_token=${encodeURIComponent(token)}`
+    );
+    const d = await r.json();
+    if (!r.ok) return null;
+    return {
+      likes: d?.likes?.summary?.total_count ?? 0,
+      comentarios: d?.comments?.summary?.total_count ?? 0,
+      compartidos: d?.shares?.count ?? 0,
+    };
+  } catch {
+    return null;
+  }
+}
+
+// Permalink + métricas básicas de un media de Instagram. El permalink es lo que
+// después permite abrir el posteo para borrarlo a mano, porque la API de IG no
+// deja borrarlo por código.
+export async function datosInstagram(
+  mediaId: string,
+  token: string
+): Promise<{ url: string | null; metricas: Record<string, number> | null }> {
+  try {
+    const r = await fetch(
+      `${GRAPH}/${mediaId}?fields=permalink,like_count,comments_count&access_token=${encodeURIComponent(token)}`
+    );
+    const d = await r.json();
+    if (!r.ok) return { url: null, metricas: null };
+    return {
+      url: d?.permalink ?? null,
+      metricas: { likes: d?.like_count ?? 0, comentarios: d?.comments_count ?? 0 },
+    };
+  } catch {
+    return { url: null, metricas: null };
+  }
+}

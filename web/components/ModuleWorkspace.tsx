@@ -15,6 +15,7 @@ import SeguridadWorkspace from "@/components/modules/SeguridadWorkspace";
 import AdministracionWorkspace from "@/components/modules/AdministracionWorkspace";
 import AutomatizacionWorkspace from "@/components/modules/AutomatizacionWorkspace";
 import ConocimientoWorkspace from "@/components/modules/ConocimientoWorkspace";
+import MarketingWorkspace from "@/components/modules/MarketingWorkspace";
 import PlaceholderWorkspace from "@/components/modules/PlaceholderWorkspace";
 
 export default function ModuleWorkspace({
@@ -65,6 +66,7 @@ export default function ModuleWorkspace({
         {modulo.id === "administracion" && <AdministracionWorkspace />}
         {modulo.id === "automatizacion" && <AutomatizacionWorkspace />}
         {modulo.id === "conocimiento" && <ConocimientoWorkspace />}
+        {modulo.id === "marketing" && <MarketingWorkspace />}
         {!modulo.real && <PlaceholderWorkspace modulo={modulo} />}
       </div>
     </div>

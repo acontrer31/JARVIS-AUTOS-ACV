@@ -1151,3 +1151,18 @@ create trigger auditar_documentos
   for each row execute function public.registrar_auditoria();
 
 revoke truncate, trigger on public.documentos from anon, authenticated;
+
+-- ============================================================
+-- Métricas de publicaciones vivas
+-- ============================================================
+-- Hasta ahora `metricas` solo se llenaba al retirar la publicación, o sea justo
+-- cuando el auto ya se había vendido: servía para el historial pero no para
+-- decidir nada. Con esta columna se refrescan mientras el aviso sigue publicado
+-- y se sabe de cuándo es cada número — sin la fecha, "12 likes" no dice si es
+-- de hoy o del mes pasado.
+alter table public.publicaciones_redes
+  add column if not exists metricas_actualizadas_en timestamptz;
+
+-- El refresco (POST /api/redes/metricas) pide las más desactualizadas primero.
+create index if not exists publicaciones_redes_metricas_idx
+  on public.publicaciones_redes (agencia_id, estado, metricas_actualizadas_en nulls first);

@@ -104,6 +104,9 @@ recién ahí usa el secreto.
   solo elige `tipo`.
 - `POST /api/redes/publicar` — publica en Facebook/Instagram.
 - `POST /api/redes/retirar` — retira las publicaciones de un vehículo vendido.
+- `POST /api/redes/metricas` — refresca desde Meta los contadores de lo que
+  sigue publicado, de a 25 por llamada (exige sesión). Lo dispara el usuario
+  desde Marketing.
 - `GET /api/redes/cron` — publica las programadas que vencieron. Se autentica
   con `CRON_SECRET`, no con sesión: no hay usuario del otro lado. Sin esa
   variable no hace nada.
@@ -157,6 +160,24 @@ Todas devuelven **texto hablado sobre datos reales**; si falta un dato lo dicen,
 no lo inventan. Las fechas habladas ("mañana", "en tres días", "el jueves") las
 resuelve `interpretarFecha` en `web/lib/crm.ts`, que devuelve `null` cuando no
 entiende — ahí JARVIS pregunta en vez de agendar un día equivocado.
+
+## Marketing
+
+Las dos preguntas que Redes no contesta: qué escribo, y qué pasó con lo que ya
+publiqué (`web/lib/marketing.ts`).
+
+- `armarPieza(vehiculo, tono, agencia)` compone el texto **desde la ficha**, en
+  tres tonos (ficha / aviso / historia). Cada dato entra solo si está cargado:
+  un aviso que dice "0 km" sobre un usado sin kilometraje cargado es peor que
+  uno que no lo menciona. No hay LLM ni relleno.
+- El rendimiento agrupa `publicaciones_redes` por vehículo, **incluidas las
+  retiradas**: saber que un auto necesitó seis publicaciones antes de venderse
+  es el dato que sirve para el próximo parecido.
+- Sin métricas se muestra "sin datos todavía", **nunca un cero** — un cero
+  diría "nadie lo tocó" cuando en realidad nunca se preguntó. Igual del lado
+  del servidor: si Meta no contesta, no se pisa el último número bueno.
+- `metricasFacebook` / `datosInstagram` viven en `lib/server/meta.ts` porque
+  ahora las usan dos rutas (retirar y métricas).
 
 ## Conocimiento
 
