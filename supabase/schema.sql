@@ -959,3 +959,54 @@ revoke truncate, trigger on public.eventos_sesion from anon, authenticated;
 -- anotar un lead por voz con lo poco que le dictaron. La obligatoriedad vive en
 -- el formulario, que avisa qué falta y pregunta si se guarda igual.
 alter table public.clientes add column if not exists domicilio text;
+
+-- ============================================================
+-- Publicaciones programadas
+-- ============================================================
+-- "Publicá el Corolla el sábado a las 10". Una fila por publicación pendiente;
+-- un cron de Vercel pasa cada tanto, junta las vencidas y las publica.
+--
+-- El texto y las fotos se congelan acá al programar, no se leen del vehículo al
+-- publicar: si mañana alguien le cambia el precio o borra una foto, lo que sale
+-- tiene que ser lo que se aprobó, no una versión distinta que nadie revisó.
+create table if not exists public.publicaciones_programadas (
+  id uuid primary key default gen_random_uuid(),
+  agencia_id uuid not null references public.agencias (id) on delete cascade,
+  vehiculo_id uuid references public.vehiculos (id) on delete set null,
+  red text not null check (red in ('facebook', 'instagram')),
+  formato text not null check (formato in ('feed', 'historia', 'reel', 'carrusel')),
+  texto text,
+  imagen_url text,
+  imagen_urls text[],
+  video_url text,
+  programada_para timestamptz not null,
+  estado text not null default 'pendiente'
+    check (estado in ('pendiente', 'publicada', 'fallida', 'cancelada')),
+  post_id text,
+  error text,
+  intentos int not null default 0,
+  publicada_en timestamptz,
+  creado_por uuid,
+  creado_en timestamptz not null default now()
+);
+
+-- El cron busca por estado + fecha: este índice es el que usa.
+create index if not exists publicaciones_programadas_pendientes_idx
+  on public.publicaciones_programadas (estado, programada_para);
+create index if not exists publicaciones_programadas_agencia_idx
+  on public.publicaciones_programadas (agencia_id, programada_para desc);
+
+alter table public.publicaciones_programadas enable row level security;
+
+drop policy if exists "programadas de mi agencia" on public.publicaciones_programadas;
+create policy "programadas de mi agencia" on public.publicaciones_programadas
+  for all using (agencia_id = public.mi_agencia_id())
+  with check (agencia_id = public.mi_agencia_id());
+
+-- Se audita como todo lo demás: programar y cancelar quedan registrados.
+drop trigger if exists auditar_publicaciones_programadas on public.publicaciones_programadas;
+create trigger auditar_publicaciones_programadas
+  after insert or update or delete on public.publicaciones_programadas
+  for each row execute function public.registrar_auditoria();
+
+revoke truncate, trigger on public.publicaciones_programadas from anon, authenticated;

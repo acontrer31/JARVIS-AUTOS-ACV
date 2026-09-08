@@ -10,8 +10,14 @@ export const ETIQUETA_RED: Record<Red, string> = {
   instagram: "Instagram",
 };
 
-// feed = post normal; historia = IG Stories; reel = video (FB/IG Reels).
-export type Formato = "feed" | "historia" | "reel";
+// feed = post normal; historia = IG Stories; reel = video (FB/IG Reels);
+// carrusel = varias fotos en un solo post (IG nativo, FB como galería).
+export type Formato = "feed" | "historia" | "reel" | "carrusel";
+
+// Instagram acepta entre 2 y 10 fotos por carrusel. El mismo tope se aplica a
+// Facebook para que las dos redes se comporten igual.
+export const CARRUSEL_MIN = 2;
+export const CARRUSEL_MAX = 10;
 
 export interface ResultadoPublicacion {
   ok: boolean;
@@ -23,9 +29,15 @@ export interface ResultadoPublicacion {
 export async function publicarEnRedes(
   red: Red,
   texto: string,
-  opciones: { imagenUrl?: string | null; videoUrl?: string | null; formato?: Formato } = {}
+  opciones: {
+    imagenUrl?: string | null;
+    /** Fotos del carrusel, en el orden en que se van a ver. */
+    imagenUrls?: string[];
+    videoUrl?: string | null;
+    formato?: Formato;
+  } = {}
 ): Promise<ResultadoPublicacion> {
-  const { imagenUrl = null, videoUrl = null, formato = "feed" } = opciones;
+  const { imagenUrl = null, imagenUrls = [], videoUrl = null, formato = "feed" } = opciones;
   const { data: sesion } = await supabase.auth.getSession();
   const token = sesion.session?.access_token;
   if (!token) throw new Error("Tu sesión venció. Volvé a iniciar sesión.");
@@ -33,7 +45,14 @@ export async function publicarEnRedes(
   const resp = await fetch("/api/redes/publicar", {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ red, texto, imagen_url: imagenUrl, video_url: videoUrl, formato }),
+    body: JSON.stringify({
+      red,
+      texto,
+      imagen_url: imagenUrl,
+      imagen_urls: imagenUrls,
+      video_url: videoUrl,
+      formato,
+    }),
   });
   const data = await resp.json();
   if (!resp.ok || !data.ok) throw new Error(data.error || "No se pudo publicar.");

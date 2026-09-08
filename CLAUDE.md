@@ -104,6 +104,12 @@ recién ahí usa el secreto.
   solo elige `tipo`.
 - `POST /api/redes/publicar` — publica en Facebook/Instagram.
 - `POST /api/redes/retirar` — retira las publicaciones de un vehículo vendido.
+- `GET /api/redes/cron` — publica las programadas que vencieron. Se autentica
+  con `CRON_SECRET`, no con sesión: no hay usuario del otro lado. Sin esa
+  variable no hace nada.
+  **Lo dispara `pg_cron` desde Supabase cada 5 min, no Vercel Cron**: el plan
+  Hobby limita los cron a uno por día y un schedule más frecuente hace fallar el
+  deploy. Ver `supabase/cron-publicaciones.sql`.
 
 ## Voz (ElevenLabs)
 
@@ -131,7 +137,16 @@ entiende — ahí JARVIS pregunta en vez de agendar un día equivocado.
 
 ## Redes sociales
 
-- Formatos: Facebook (Post, Reel) · Instagram (Feed, Historia, Reel).
+- Formatos: Facebook (Post, **Carrusel**, Reel) · Instagram (Feed, **Carrusel**,
+  Historia, Reel). El carrusel va de 2 a 10 fotos; el orden de tildado es el
+  orden en que se ven.
+- **Publicaciones programadas**: `publicaciones_programadas` guarda el texto y
+  las fotos *congelados* al programar — no se releen del vehículo al publicar,
+  para que salga lo que se aprobó y no una versión que nadie revisó. El cron las
+  marca como publicadas ANTES de intentar (condicionado a que sigan pendientes),
+  así dos corridas superpuestas no publican dos veces.
+- La lógica de Meta vive en `web/lib/server/meta.ts`, compartida por la ruta que
+  dispara el usuario y la del cron: dos copias terminarían publicando distinto.
 - Las fotos salen del stock (URL pública de Supabase Storage). Los Reels usan un
   video: se puede pegar la URL o subirlo desde la compu (`subirVideo` en
   `web/lib/media.ts`).
