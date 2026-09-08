@@ -51,7 +51,12 @@ export const MODULOS: Modulo[] = [
     descripcion: "Trámites, precios y políticas: lo que hoy está en un cuaderno",
     real: true,
   },
-  { id: "voz", label: "Voz", descripcion: "Asistente conversacional JARVIS", real: false },
+  {
+    id: "voz",
+    label: "Voz",
+    descripcion: "Qué le podés pedir a JARVIS y qué pasó en cada conversación",
+    real: true,
+  },
   {
     id: "automatizacion",
     label: "Automatización",

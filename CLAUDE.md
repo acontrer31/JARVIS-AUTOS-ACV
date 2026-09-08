@@ -47,10 +47,11 @@ Command Center) → `ModuleWorkspace` (overlay que despacha por `moduloId`).
 - **Registro de módulos**: `web/lib/modules.ts`. Cada módulo tiene
   `real: true|false`. Los `real: false` muestran un placeholder explícito — la
   regla es **nunca inventar datos ni simular funciones que no existen**
-  ("no fake buttons").
-- **Módulos reales**: Vehículos, Financiación, Clientes, Tareas, Operaciones,
-  Caja, Compras, Reportes (id `analitica`), Redes (id `comunicaciones`),
-  Automatización, Administración, Seguridad.
+  ("no fake buttons"). El mecanismo se conserva para lo que venga, pero **hoy
+  los 16 módulos son `real: true`**: no queda ningún placeholder.
+- Los 16: Vehículos, Financiación, Clientes, Tareas, Operaciones, Caja,
+  Compras, CRM, Redes (id `comunicaciones`), Marketing, Conocimiento, Voz,
+  Automatización, Reportes (id `analitica`), Administración, Seguridad.
 - **Command Center**: `web/components/jarvis/*` (núcleo, red de nodos,
   conexiones, panel). Respeta `prefers-reduced-motion` y pausa con la pestaña
   oculta.
@@ -107,6 +108,11 @@ recién ahí usa el secreto.
 - `POST /api/redes/metricas` — refresca desde Meta los contadores de lo que
   sigue publicado, de a 25 por llamada (exige sesión). Lo dispara el usuario
   desde Marketing.
+- `GET /api/voz/conversaciones` — historial del agente de ElevenLabs (exige
+  sesión). Con `?id=` devuelve la transcripción de una. Pasa por el servidor
+  porque `ELEVENLABS_API_KEY` es la misma llave que gasta créditos. Si falta
+  configuración contesta **200 con el motivo**, no 500: el panel lo explica en
+  vez de mostrar una pantalla rota.
 - `GET /api/redes/cron` — publica las programadas que vencieron. Se autentica
   con `CRON_SECRET`, no con sesión: no hay usuario del otro lado. Sin esa
   variable no hace nada.
@@ -155,6 +161,15 @@ Las 24 tools actuales, por lo que hacen:
   `cambiar_estado_lead`, `agendar_seguimiento`, `publicar_en_redes`,
   `publicar_vehiculo_en_redes`.
 - **Interfaz**: `mostrar_modulo`, `cambiar_tema`.
+
+El **módulo Voz** publica ese catálogo con una frase de ejemplo por herramienta
+(`CATALOGO_VOZ` en `web/lib/voz.ts`) y el historial real de conversaciones vía
+`GET /api/voz/conversaciones`. Un catálogo desactualizado sería peor que no
+tenerlo, así que `JarvisCore.tsx` termina con una **guarda de tipos**: el tipo
+`MismasTools` vale `true` solo si las claves de `clientTools` y `NOMBRES_TOOL`
+son el mismo conjunto — agregar una tool en un lado y no en el otro **no
+compila**. Lo que ningún tipo puede garantizar es la declaración en el
+dashboard de ElevenLabs; por eso el panel muestra los nombres.
 
 Todas devuelven **texto hablado sobre datos reales**; si falta un dato lo dicen,
 no lo inventan. Las fechas habladas ("mañana", "en tres días", "el jueves") las

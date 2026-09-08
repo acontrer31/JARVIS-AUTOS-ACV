@@ -16,6 +16,7 @@ import AdministracionWorkspace from "@/components/modules/AdministracionWorkspac
 import AutomatizacionWorkspace from "@/components/modules/AutomatizacionWorkspace";
 import ConocimientoWorkspace from "@/components/modules/ConocimientoWorkspace";
 import MarketingWorkspace from "@/components/modules/MarketingWorkspace";
+import VozWorkspace from "@/components/modules/VozWorkspace";
 import PlaceholderWorkspace from "@/components/modules/PlaceholderWorkspace";
 
 export default function ModuleWorkspace({
@@ -67,6 +68,7 @@ export default function ModuleWorkspace({
         {modulo.id === "automatizacion" && <AutomatizacionWorkspace />}
         {modulo.id === "conocimiento" && <ConocimientoWorkspace />}
         {modulo.id === "marketing" && <MarketingWorkspace />}
+        {modulo.id === "voz" && <VozWorkspace />}
         {!modulo.real && <PlaceholderWorkspace modulo={modulo} />}
       </div>
     </div>

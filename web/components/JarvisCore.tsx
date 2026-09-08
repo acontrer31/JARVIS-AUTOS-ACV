@@ -40,6 +40,7 @@ import { cargarFotos } from "@/lib/media";
 import { registrarPublicacion } from "@/lib/publicacionesRedes";
 import { cargarAuditoria, cargarUsuarios, resumenPorUsuario } from "@/lib/seguridad";
 import { buscarParaVoz } from "@/lib/documentos";
+import type { NombreTool } from "@/lib/voz";
 
 export type EstadoJarvis = "standby" | "escuchando" | "activando" | "trabajando" | "error";
 
@@ -733,6 +734,19 @@ export default function JarvisCore({
       }
     },
   };
+
+  // El módulo Voz publica el catálogo de lo que se le puede pedir a JARVIS, y
+  // un catálogo desactualizado es peor que no tenerlo: promete cosas que no
+  // existen o esconde las que sí. Este tipo vale `true` solo si las claves de
+  // acá y los nombres de `NOMBRES_TOOL` son exactamente los mismos conjuntos —
+  // si alguien agrega una tool en un lado y no en el otro, no compila.
+  type MismasTools = keyof typeof clientTools extends NombreTool
+    ? NombreTool extends keyof typeof clientTools
+      ? true
+      : never
+    : never;
+  const catalogoAlDia: MismasTools = true;
+  void catalogoAlDia;
 
   if (!AGENT_ID) {
     return (
