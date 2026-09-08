@@ -39,6 +39,7 @@ import { publicarEnRedes, type Red } from "@/lib/redes";
 import { cargarFotos } from "@/lib/media";
 import { registrarPublicacion } from "@/lib/publicacionesRedes";
 import { cargarAuditoria, cargarUsuarios, resumenPorUsuario } from "@/lib/seguridad";
+import { buscarParaVoz } from "@/lib/documentos";
 
 export type EstadoJarvis = "standby" | "escuchando" | "activando" | "trabajando" | "error";
 
@@ -365,6 +366,22 @@ export default function JarvisCore({
     // ciudad, JARVIS la pregunta.
     consultar_clima: async (parametros: { ciudad?: string }) => {
       return await consultarClima(parametros?.ciudad || "");
+    },
+    // Busca en la base de conocimiento de la agencia (módulo Conocimiento).
+    // Lee lo que está cargado y nada más: si no encuentra, lo dice — inventar
+    // el costo de un trámite es peor que no contestar.
+    consultar_conocimiento: async (parametros: { consulta?: string }) => {
+      const consulta = (parametros?.consulta || "").trim();
+      if (!consulta) return "¿Sobre qué querés que busque en el conocimiento de la agencia?";
+      try {
+        const encontrados = await buscarParaVoz(consulta);
+        if (!encontrados.length) {
+          return `No encontré nada sobre "${consulta}" en el conocimiento de la agencia. Si querés, cargalo en el módulo Conocimiento y la próxima te lo contesto.`;
+        }
+        return encontrados.map((d) => `${d.titulo}: ${d.extracto}`).join(" — ");
+      } catch {
+        return "No pude buscar en el conocimiento ahora mismo. Probá de nuevo.";
+      }
     },
     // Tareas pendientes del usuario (las lee de su lista en JARVIS; la RLS ya
     // limita a las propias).

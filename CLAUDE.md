@@ -141,12 +141,12 @@ el nombre debe coincidir **exacto** con la clave del objeto `clientTools` en
 `web/components/JarvisCore.tsx`. Patrón: "Esperar respuesta" ON, parámetros
 `String` con tipo de valor **LLM Prompt** y no requeridos.
 
-Las 23 tools actuales, por lo que hacen:
+Las 24 tools actuales, por lo que hacen:
 
 - **Consulta**: `consultar_inventario`, `simular_financiacion`,
   `estimar_transferencia_dnrpa`, `datos_cliente`, `resumen_del_dia`,
   `estado_caja`, `reporte_del_mes`, `mis_tareas`, `mis_seguimientos`,
-  `auditoria_usuario`, `consultar_clima`.
+  `auditoria_usuario`, `consultar_clima`, `consultar_conocimiento`.
 - **Acción**: `agregar_tarea`, `agregar_cliente`, `registrar_movimiento_caja`,
   `registrar_operacion`, `cambiar_estado_vehiculo`, `cambiar_estado_operacion`,
   `cambiar_estado_lead`, `agendar_seguimiento`, `publicar_en_redes`,
@@ -157,6 +157,28 @@ Todas devuelven **texto hablado sobre datos reales**; si falta un dato lo dicen,
 no lo inventan. Las fechas habladas ("mañana", "en tres días", "el jueves") las
 resuelve `interpretarFecha` en `web/lib/crm.ts`, que devuelve `null` cuando no
 entiende — ahí JARVIS pregunta en vez de agendar un día equivocado.
+
+## Conocimiento
+
+`documentos` es la base de conocimiento de la agencia: trámites, precios,
+políticas, proveedores. Un documento es una nota escrita adentro, un archivo, o
+las dos cosas (un `check` impide la fila vacía con solo título).
+
+- La búsqueda es **full-text en castellano** sobre una **columna generada**
+  `busqueda tsvector`, no sobre un índice de expresión: desde PostgREST solo se
+  puede buscar sobre una columna, así que con la expresión suelta el índice
+  existía pero el cliente no lo usaba. Se consulta con
+  `textSearch("busqueda", …, { type: "websearch", config: "spanish" })` —
+  `websearch` aguanta lo que la gente tipea de verdad, donde `plain` explota con
+  un guion suelto.
+- El bucket `documentos` es **privado**, al revés que el de fotos: una lista de
+  precios o un contrato no tiene por qué leerse sin login. Se abre con
+  `createSignedUrl` a 5 minutos. Las rutas arrancan igual con `<agencia_id>/`.
+- Borrar es **solo del admin**; corregir lo puede hacer cualquiera y queda en la
+  auditoría con su antes → después. Borrar no deja qué comparar.
+- `consultar_conocimiento` (voz) busca acá y devuelve un extracto recortado
+  alrededor de lo buscado. Si no encuentra, lo dice: inventar el costo de un
+  trámite es peor que no contestar.
 
 ## Redes sociales
 

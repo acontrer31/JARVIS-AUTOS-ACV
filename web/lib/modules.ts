@@ -40,7 +40,12 @@ export const MODULOS: Modulo[] = [
   { id: "crm", label: "CRM", descripcion: "Embudo de leads, vendedor asignado y agenda de seguimiento", real: true },
   { id: "comunicaciones", label: "Redes", descripcion: "Publicar en Facebook e Instagram", real: true },
   { id: "marketing", label: "Marketing", descripcion: "Piezas y campañas por vehículo", real: false },
-  { id: "conocimiento", label: "Conocimiento", descripcion: "Documentos e información de referencia", real: false },
+  {
+    id: "conocimiento",
+    label: "Conocimiento",
+    descripcion: "Trámites, precios y políticas: lo que hoy está en un cuaderno",
+    real: true,
+  },
   { id: "voz", label: "Voz", descripcion: "Asistente conversacional JARVIS", real: false },
   {
     id: "automatizacion",

@@ -1078,3 +1078,76 @@ cross join (
     ('stock_estancado', '{"dias": 60}'::jsonb)
 ) as r (clave, parametros)
 on conflict (agencia_id, clave) do nothing;
+
+-- ============================================================
+-- Base de conocimiento
+-- ============================================================
+-- Lo que hoy vive en un cuaderno, en un chat de WhatsApp o en la cabeza de una
+-- sola persona: cuánto sale un trámite, qué pide cada compañía, cómo se toma un
+-- usado. Dos formas en la misma tabla porque se buscan juntas:
+--   - nota: el texto escrito acá adentro, buscable de una.
+--   - archivo: un PDF o una foto en el bucket privado `documentos`.
+create table if not exists public.documentos (
+  id uuid primary key default gen_random_uuid(),
+  agencia_id uuid not null references public.agencias (id) on delete cascade,
+  titulo text not null,
+  categoria text not null default 'otros'
+    check (categoria in ('tramites', 'precios', 'politicas', 'proveedores', 'manuales', 'otros')),
+  contenido text,
+  -- Ruta dentro del bucket. Arranca con <agencia_id>/ igual que las fotos: es
+  -- lo que las policies de Storage comparan para que una agencia no lea los
+  -- papeles de otra.
+  archivo_ruta text,
+  archivo_nombre text,
+  archivo_tipo text,
+  archivo_bytes bigint,
+  creado_por uuid,
+  creado_en timestamptz not null default now(),
+  actualizado_en timestamptz not null default now(),
+  -- Un documento sin texto ni archivo sería una fila vacía con título.
+  constraint documentos_con_algo check (contenido is not null or archivo_ruta is not null)
+);
+
+create index if not exists documentos_agencia_idx
+  on public.documentos (agencia_id, categoria, actualizado_en desc);
+
+-- Búsqueda por texto en castellano sobre título + contenido. Va como columna
+-- generada y no como índice sobre la expresión porque desde PostgREST solo se
+-- puede buscar sobre una COLUMNA: con la expresión suelta, el índice existía
+-- pero el cliente no podía usarlo.
+alter table public.documentos
+  add column if not exists busqueda tsvector
+  generated always as (
+    to_tsvector('spanish', coalesce(titulo, '') || ' ' || coalesce(contenido, ''))
+  ) stored;
+
+create index if not exists documentos_busqueda_idx
+  on public.documentos using gin (busqueda);
+
+alter table public.documentos enable row level security;
+
+drop policy if exists "documentos de mi agencia" on public.documentos;
+create policy "documentos de mi agencia" on public.documentos
+  for select using (agencia_id = public.mi_agencia_id());
+
+drop policy if exists "cargar documentos en mi agencia" on public.documentos;
+create policy "cargar documentos en mi agencia" on public.documentos
+  for insert with check (agencia_id = public.mi_agencia_id());
+
+drop policy if exists "corregir documentos de mi agencia" on public.documentos;
+create policy "corregir documentos de mi agencia" on public.documentos
+  for update using (agencia_id = public.mi_agencia_id())
+  with check (agencia_id = public.mi_agencia_id());
+
+-- Borrar sí es solo del admin: el resto puede corregir, y toda corrección queda
+-- en la auditoría con su antes → después. Borrar no deja qué comparar.
+drop policy if exists "solo admin borra documentos" on public.documentos;
+create policy "solo admin borra documentos" on public.documentos
+  for delete using (agencia_id = public.mi_agencia_id() and public.mi_rol() = 'admin');
+
+drop trigger if exists auditar_documentos on public.documentos;
+create trigger auditar_documentos
+  after insert or update or delete on public.documentos
+  for each row execute function public.registrar_auditoria();
+
+revoke truncate, trigger on public.documentos from anon, authenticated;
