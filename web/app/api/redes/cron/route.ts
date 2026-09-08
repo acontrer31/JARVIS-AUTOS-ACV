@@ -76,10 +76,37 @@ export async function GET(request: Request) {
   }
 
   const pendientes = (data ?? []) as Programada[];
+
+  // Una agencia puede tener apagada la publicación automática desde el módulo
+  // Automatización. Se consulta una sola vez por corrida y solo para las
+  // agencias que aparecen en esta tanda. Falta la fila = encendida.
+  const apagadas = new Set<string>();
+  if (pendientes.length) {
+    const { data: reglas } = await admin
+      .from("automatizaciones")
+      .select("agencia_id, activa")
+      .eq("clave", "publicar_programadas")
+      .in("agencia_id", [...new Set(pendientes.map((p) => p.agencia_id))]);
+    for (const r of (reglas ?? []) as { agencia_id: string; activa: boolean }[]) {
+      if (!r.activa) apagadas.add(r.agencia_id);
+    }
+  }
+
   let publicadas = 0;
   let fallidas = 0;
+  let omitidas = 0;
+  const agenciasTocadas = new Set<string>();
 
   for (const p of pendientes) {
+    if (apagadas.has(p.agencia_id)) {
+      // Se deja pendiente, no se descarta: si el admin vuelve a encender la
+      // regla, la publicación sale — atrasada, pero sale. Descartarla acá
+      // borraría algo que alguien programó a propósito.
+      omitidas++;
+      continue;
+    }
+    agenciasTocadas.add(p.agencia_id);
+
     // Se marca como publicada ANTES de intentar, condicionado a que siga
     // pendiente. Si dos corridas del cron se pisan, la segunda no encuentra la
     // fila y no vuelve a publicar: es preferible perder una publicación a
@@ -139,5 +166,21 @@ export async function GET(request: Request) {
     }
   }
 
-  return NextResponse.json({ ok: true, revisadas: pendientes.length, publicadas, fallidas });
+  // Solo se anota la corrida de las agencias que efectivamente tenían algo que
+  // publicar. Marcar a todas cada 5 minutos sería escribir de más para decir
+  // "no hice nada", y en el panel `ultima_corrida` significa justamente la
+  // última vez que esta regla trabajó.
+  for (const agencia_id of agenciasTocadas) {
+    await admin.from("automatizaciones").upsert(
+      {
+        agencia_id,
+        clave: "publicar_programadas",
+        ultima_corrida: new Date().toISOString(),
+        ultimo_resultado: `${publicadas} publicada${publicadas === 1 ? "" : "s"} · ${fallidas} con error`,
+      },
+      { onConflict: "agencia_id,clave" }
+    );
+  }
+
+  return NextResponse.json({ ok: true, revisadas: pendientes.length, publicadas, fallidas, omitidas });
 }

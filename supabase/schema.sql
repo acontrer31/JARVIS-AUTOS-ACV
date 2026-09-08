@@ -1010,3 +1010,71 @@ create trigger auditar_publicaciones_programadas
   for each row execute function public.registrar_auditoria();
 
 revoke truncate, trigger on public.publicaciones_programadas from anon, authenticated;
+
+-- ============================================================
+-- Automatizaciones
+-- ============================================================
+-- Una fila por regla automática y agencia. Guarda si está encendida, sus
+-- parámetros y cómo le fue la última vez que corrió.
+--
+-- Que falte la fila significa ENCENDIDA: una agencia nueva arranca con todas
+-- las automatizaciones andando y el admin apaga la que no quiera. Al revés
+-- (falta = apagada) una agencia recién creada tendría el sistema mudo sin que
+-- nadie lo haya decidido.
+create table if not exists public.automatizaciones (
+  id uuid primary key default gen_random_uuid(),
+  agencia_id uuid not null references public.agencias (id) on delete cascade,
+  clave text not null check (
+    clave in ('publicar_programadas', 'retirar_al_vender', 'seguimientos_vencidos', 'stock_estancado')
+  ),
+  activa boolean not null default true,
+  parametros jsonb not null default '{}'::jsonb,
+  ultima_corrida timestamptz,
+  ultimo_resultado text,
+  creado_en timestamptz not null default now(),
+  unique (agencia_id, clave)
+);
+
+alter table public.automatizaciones enable row level security;
+
+-- Todos ven qué hay automatizado (les explica de dónde salen las tareas que les
+-- aparecen solas); solo un admin enciende, apaga o cambia parámetros.
+drop policy if exists "automatizaciones de mi agencia" on public.automatizaciones;
+create policy "automatizaciones de mi agencia" on public.automatizaciones
+  for select using (agencia_id = public.mi_agencia_id());
+
+drop policy if exists "solo admin configura automatizaciones" on public.automatizaciones;
+create policy "solo admin configura automatizaciones" on public.automatizaciones
+  for all using (agencia_id = public.mi_agencia_id() and public.mi_rol() = 'admin')
+  with check (agencia_id = public.mi_agencia_id() and public.mi_rol() = 'admin');
+
+-- Se audita encender, apagar y cambiar parámetros — no el latido del cron.
+-- Sin el `when`, marcar `ultima_corrida` cada 5 minutos llenaría la auditoría de
+-- ruido y taparía justamente lo que interesa mirar.
+drop trigger if exists auditar_automatizaciones on public.automatizaciones;
+create trigger auditar_automatizaciones
+  after insert or delete on public.automatizaciones
+  for each row execute function public.registrar_auditoria();
+
+drop trigger if exists auditar_automatizaciones_cambio on public.automatizaciones;
+create trigger auditar_automatizaciones_cambio
+  after update on public.automatizaciones
+  for each row
+  when (old.activa is distinct from new.activa or old.parametros is distinct from new.parametros)
+  execute function public.registrar_auditoria();
+
+revoke truncate, trigger on public.automatizaciones from anon, authenticated;
+
+-- Las agencias que ya existen arrancan con las cuatro reglas visibles en el
+-- panel. `on conflict do nothing` para que esta migración se pueda repetir.
+insert into public.automatizaciones (agencia_id, clave, parametros)
+select a.id, r.clave, r.parametros
+from public.agencias a
+cross join (
+  values
+    ('publicar_programadas', '{}'::jsonb),
+    ('retirar_al_vender', '{}'::jsonb),
+    ('seguimientos_vencidos', '{}'::jsonb),
+    ('stock_estancado', '{"dias": 60}'::jsonb)
+) as r (clave, parametros)
+on conflict (agencia_id, clave) do nothing;

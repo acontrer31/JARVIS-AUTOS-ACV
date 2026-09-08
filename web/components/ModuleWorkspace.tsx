@@ -13,6 +13,7 @@ import RedesWorkspace from "@/components/modules/RedesWorkspace";
 import CrmWorkspace from "@/components/modules/CrmWorkspace";
 import SeguridadWorkspace from "@/components/modules/SeguridadWorkspace";
 import AdministracionWorkspace from "@/components/modules/AdministracionWorkspace";
+import AutomatizacionWorkspace from "@/components/modules/AutomatizacionWorkspace";
 import PlaceholderWorkspace from "@/components/modules/PlaceholderWorkspace";
 
 export default function ModuleWorkspace({
@@ -61,6 +62,7 @@ export default function ModuleWorkspace({
         {modulo.id === "crm" && <CrmWorkspace />}
         {modulo.id === "seguridad" && <SeguridadWorkspace />}
         {modulo.id === "administracion" && <AdministracionWorkspace />}
+        {modulo.id === "automatizacion" && <AutomatizacionWorkspace />}
         {!modulo.real && <PlaceholderWorkspace modulo={modulo} />}
       </div>
     </div>

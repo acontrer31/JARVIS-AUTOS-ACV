@@ -50,7 +50,7 @@ Command Center) → `ModuleWorkspace` (overlay que despacha por `moduloId`).
   ("no fake buttons").
 - **Módulos reales**: Vehículos, Financiación, Clientes, Tareas, Operaciones,
   Caja, Compras, Reportes (id `analitica`), Redes (id `comunicaciones`),
-  Administración, Seguridad.
+  Automatización, Administración, Seguridad.
 - **Command Center**: `web/components/jarvis/*` (núcleo, red de nodos,
   conexiones, panel). Respeta `prefers-reduced-motion` y pausa con la pestaña
   oculta.
@@ -110,6 +110,29 @@ recién ahí usa el secreto.
   **Lo dispara `pg_cron` desde Supabase cada 5 min, no Vercel Cron**: el plan
   Hobby limita los cron a uno por día y un schedule más frecuente hace fallar el
   deploy. Ver `supabase/cron-publicaciones.sql`.
+- `GET /api/automatizaciones/cron` — las reglas diarias (seguimientos vencidos y
+  stock estancado). Mismo `CRON_SECRET`; lo dispara `pg_cron` a las 11:00 UTC
+  (8:00 de Argentina). Ver `supabase/cron-automatizaciones.sql`.
+
+## Automatización
+
+`automatizaciones` guarda una fila por regla y agencia (`activa`, `parametros`,
+`ultima_corrida`, `ultimo_resultado`). **Que falte la fila significa
+encendida**: una agencia nueva arranca con todo andando y el admin apaga lo que
+no quiera. Esa misma regla vale en el panel y en los dos crons — si divergieran,
+la pantalla diría una cosa y el servidor haría otra.
+
+- `publicar_programadas` y `retirar_al_vender` ya existían escondidas; ahora se
+  ven y se pueden apagar. Apagar la primera **no descarta** lo programado: lo
+  deja pendiente para cuando se vuelva a encender.
+- `seguimientos_vencidos` y `stock_estancado` crean **tareas reales** (una por
+  lead o por auto), deduplicadas por título contra las tareas no hechas. Sin
+  vendedor asignado no se inventa un destinatario: se cuenta aparte.
+- El trigger de auditoría lleva un `when`: registra encender/apagar y el cambio
+  de parámetros, **no** el latido de `ultima_corrida` cada 5 minutos.
+- El panel no confía solo en `ultima_corrida`: cuenta contra las tablas del
+  negocio (programadas vencidas, pendientes de retiro, leads vencidos, autos
+  pasados de tiempo). Si el cron se cuelga, el número acumulado lo delata.
 
 ## Voz (ElevenLabs)
 

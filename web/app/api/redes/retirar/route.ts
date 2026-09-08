@@ -79,6 +79,18 @@ export async function POST(request: Request) {
   const vehiculoId = cuerpo.vehiculo_id;
   if (!vehiculoId) return NextResponse.json({ error: "Falta vehiculo_id." }, { status: 400 });
 
+  // El admin puede apagar el retiro automático desde el módulo Automatización
+  // (por ejemplo para dejar la publicación con el cartel de "vendido" un par de
+  // días). Falta la fila = encendida, igual que en el panel y en el cron.
+  const { data: regla } = await supabase
+    .from("automatizaciones")
+    .select("activa")
+    .eq("clave", "retirar_al_vender")
+    .maybeSingle();
+  if (regla && (regla as { activa: boolean }).activa === false) {
+    return NextResponse.json({ ok: true, desactivada: true, facebook_borradas: 0, pendientes: 0 });
+  }
+
   const { data: pubs, error } = await supabase
     .from("publicaciones_redes")
     .select("id, red, formato, post_id")
