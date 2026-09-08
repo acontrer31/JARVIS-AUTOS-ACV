@@ -277,3 +277,22 @@ producción.
 3. PR contra `main`; mergear a producción solo cuando el usuario lo pide.
 4. Las migraciones de base se aplican al proyecto de Supabase **y** se agregan a
    `supabase/schema.sql` para que queden versionadas.
+
+## Catálogo público (sitio oficial de la agencia)
+
+`GET /api/catalogo?agencia=<uuid>` devuelve el stock publicable en JSON, **sin
+sesión**, con CORS abierto, para que `alcoverautomotores.com.ar` lo lea.
+
+- **Es un endpoint y no una policy pública en `vehiculos`** a propósito: darle
+  `select` a `anon` sobre la tabla dejaría ver todas las columnas de todas las
+  filas — notas internas, el dominio (la patente), borradores y vendidos. Acá
+  se elige qué sale, con la lista de campos escrita a mano y **nunca**
+  `select("*")`, que filtraría una columna nueva sin que nadie lo note.
+- **La regla de negocio**: el catálogo son los `disponible` y `reservado`. Por
+  eso marcar un auto como vendido en JARVIS lo saca del sitio solo — el mismo
+  hook que ya retira las publicaciones de redes.
+- Caché de 60 s en el borde con `stale-while-revalidate`: sin eso cada visita
+  al sitio pega en la base.
+- **La dirección es Jarvis → sitio, nunca al revés.** Ver "Fuente de verdad del
+  stock" en `docs/architecture/decisiones.md`: una sincronización que lea del
+  sitio pisaría cada edición hecha en el CRUD y lo dejaría de adorno.
