@@ -1,0 +1,29 @@
+# Actualización de dependencias.
+#
+# Es el punto de "alguna dependencia que no tocaste en 6 meses": sin esto, un
+# parche de seguridad en una librería no llega nunca porque nadie revisa a mano
+# el árbol de npm.
+#
+# Mensual y agrupado a propósito. Semanal en un proyecto de este tamaño produce
+# más PRs de los que alguien va a leer, y un PR que nadie lee no actualiza nada.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /web
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 3
+    groups:
+      # Un PR por mes con todo lo menor junto: son las que casi nunca rompen.
+      menores:
+        update-types: [minor, patch]
+    commit-message:
+      prefix: "deps"
+
+  # Las propias actions del CI también envejecen.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: "ci"

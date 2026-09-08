@@ -72,3 +72,54 @@ create policy "fotos: borrar solo en mi agencia"
 -- ("Public vehicle images"), y NINGUNA de las tres viejas
 -- ("Authenticated users can ...").
 -- ============================================================
+
+-- ============================================================
+-- Bucket privado `documentos` (base de conocimiento)
+-- ============================================================
+-- A diferencia del de fotos, este bucket NO es público. Las fotos del catálogo
+-- tienen que verse sin login; una lista de precios, un contrato o la política
+-- de toma de usados, no. Se accede con URLs firmadas de corta duración desde
+-- web/lib/documentos.ts.
+--
+-- El bucket se crea con:
+--   insert into storage.buckets (id, name, public, file_size_limit)
+--   values ('documentos', 'documentos', false, 26214400)
+--   on conflict (id) do nothing;
+--
+-- Misma regla que las fotos: la primera carpeta de la ruta es el agencia_id.
+
+drop policy if exists "documentos: leer solo los de mi agencia" on storage.objects;
+create policy "documentos: leer solo los de mi agencia"
+  on storage.objects for select to authenticated
+  using (
+    bucket_id = 'documentos'
+    and (storage.foldername(name))[1] = public.mi_agencia_id()::text
+  );
+
+drop policy if exists "documentos: subir solo en mi agencia" on storage.objects;
+create policy "documentos: subir solo en mi agencia"
+  on storage.objects for insert to authenticated
+  with check (
+    bucket_id = 'documentos'
+    and (storage.foldername(name))[1] = public.mi_agencia_id()::text
+  );
+
+drop policy if exists "documentos: reemplazar solo en mi agencia" on storage.objects;
+create policy "documentos: reemplazar solo en mi agencia"
+  on storage.objects for update to authenticated
+  using (
+    bucket_id = 'documentos'
+    and (storage.foldername(name))[1] = public.mi_agencia_id()::text
+  )
+  with check (
+    bucket_id = 'documentos'
+    and (storage.foldername(name))[1] = public.mi_agencia_id()::text
+  );
+
+drop policy if exists "documentos: borrar solo en mi agencia" on storage.objects;
+create policy "documentos: borrar solo en mi agencia"
+  on storage.objects for delete to authenticated
+  using (
+    bucket_id = 'documentos'
+    and (storage.foldername(name))[1] = public.mi_agencia_id()::text
+  );

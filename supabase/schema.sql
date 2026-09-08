@@ -1010,3 +1010,159 @@ create trigger auditar_publicaciones_programadas
   for each row execute function public.registrar_auditoria();
 
 revoke truncate, trigger on public.publicaciones_programadas from anon, authenticated;
+
+-- ============================================================
+-- Automatizaciones
+-- ============================================================
+-- Una fila por regla automática y agencia. Guarda si está encendida, sus
+-- parámetros y cómo le fue la última vez que corrió.
+--
+-- Que falte la fila significa ENCENDIDA: una agencia nueva arranca con todas
+-- las automatizaciones andando y el admin apaga la que no quiera. Al revés
+-- (falta = apagada) una agencia recién creada tendría el sistema mudo sin que
+-- nadie lo haya decidido.
+create table if not exists public.automatizaciones (
+  id uuid primary key default gen_random_uuid(),
+  agencia_id uuid not null references public.agencias (id) on delete cascade,
+  clave text not null check (
+    clave in ('publicar_programadas', 'retirar_al_vender', 'seguimientos_vencidos', 'stock_estancado')
+  ),
+  activa boolean not null default true,
+  parametros jsonb not null default '{}'::jsonb,
+  ultima_corrida timestamptz,
+  ultimo_resultado text,
+  creado_en timestamptz not null default now(),
+  unique (agencia_id, clave)
+);
+
+alter table public.automatizaciones enable row level security;
+
+-- Todos ven qué hay automatizado (les explica de dónde salen las tareas que les
+-- aparecen solas); solo un admin enciende, apaga o cambia parámetros.
+drop policy if exists "automatizaciones de mi agencia" on public.automatizaciones;
+create policy "automatizaciones de mi agencia" on public.automatizaciones
+  for select using (agencia_id = public.mi_agencia_id());
+
+drop policy if exists "solo admin configura automatizaciones" on public.automatizaciones;
+create policy "solo admin configura automatizaciones" on public.automatizaciones
+  for all using (agencia_id = public.mi_agencia_id() and public.mi_rol() = 'admin')
+  with check (agencia_id = public.mi_agencia_id() and public.mi_rol() = 'admin');
+
+-- Se audita encender, apagar y cambiar parámetros — no el latido del cron.
+-- Sin el `when`, marcar `ultima_corrida` cada 5 minutos llenaría la auditoría de
+-- ruido y taparía justamente lo que interesa mirar.
+drop trigger if exists auditar_automatizaciones on public.automatizaciones;
+create trigger auditar_automatizaciones
+  after insert or delete on public.automatizaciones
+  for each row execute function public.registrar_auditoria();
+
+drop trigger if exists auditar_automatizaciones_cambio on public.automatizaciones;
+create trigger auditar_automatizaciones_cambio
+  after update on public.automatizaciones
+  for each row
+  when (old.activa is distinct from new.activa or old.parametros is distinct from new.parametros)
+  execute function public.registrar_auditoria();
+
+revoke truncate, trigger on public.automatizaciones from anon, authenticated;
+
+-- Las agencias que ya existen arrancan con las cuatro reglas visibles en el
+-- panel. `on conflict do nothing` para que esta migración se pueda repetir.
+insert into public.automatizaciones (agencia_id, clave, parametros)
+select a.id, r.clave, r.parametros
+from public.agencias a
+cross join (
+  values
+    ('publicar_programadas', '{}'::jsonb),
+    ('retirar_al_vender', '{}'::jsonb),
+    ('seguimientos_vencidos', '{}'::jsonb),
+    ('stock_estancado', '{"dias": 60}'::jsonb)
+) as r (clave, parametros)
+on conflict (agencia_id, clave) do nothing;
+
+-- ============================================================
+-- Base de conocimiento
+-- ============================================================
+-- Lo que hoy vive en un cuaderno, en un chat de WhatsApp o en la cabeza de una
+-- sola persona: cuánto sale un trámite, qué pide cada compañía, cómo se toma un
+-- usado. Dos formas en la misma tabla porque se buscan juntas:
+--   - nota: el texto escrito acá adentro, buscable de una.
+--   - archivo: un PDF o una foto en el bucket privado `documentos`.
+create table if not exists public.documentos (
+  id uuid primary key default gen_random_uuid(),
+  agencia_id uuid not null references public.agencias (id) on delete cascade,
+  titulo text not null,
+  categoria text not null default 'otros'
+    check (categoria in ('tramites', 'precios', 'politicas', 'proveedores', 'manuales', 'otros')),
+  contenido text,
+  -- Ruta dentro del bucket. Arranca con <agencia_id>/ igual que las fotos: es
+  -- lo que las policies de Storage comparan para que una agencia no lea los
+  -- papeles de otra.
+  archivo_ruta text,
+  archivo_nombre text,
+  archivo_tipo text,
+  archivo_bytes bigint,
+  creado_por uuid,
+  creado_en timestamptz not null default now(),
+  actualizado_en timestamptz not null default now(),
+  -- Un documento sin texto ni archivo sería una fila vacía con título.
+  constraint documentos_con_algo check (contenido is not null or archivo_ruta is not null)
+);
+
+create index if not exists documentos_agencia_idx
+  on public.documentos (agencia_id, categoria, actualizado_en desc);
+
+-- Búsqueda por texto en castellano sobre título + contenido. Va como columna
+-- generada y no como índice sobre la expresión porque desde PostgREST solo se
+-- puede buscar sobre una COLUMNA: con la expresión suelta, el índice existía
+-- pero el cliente no podía usarlo.
+alter table public.documentos
+  add column if not exists busqueda tsvector
+  generated always as (
+    to_tsvector('spanish', coalesce(titulo, '') || ' ' || coalesce(contenido, ''))
+  ) stored;
+
+create index if not exists documentos_busqueda_idx
+  on public.documentos using gin (busqueda);
+
+alter table public.documentos enable row level security;
+
+drop policy if exists "documentos de mi agencia" on public.documentos;
+create policy "documentos de mi agencia" on public.documentos
+  for select using (agencia_id = public.mi_agencia_id());
+
+drop policy if exists "cargar documentos en mi agencia" on public.documentos;
+create policy "cargar documentos en mi agencia" on public.documentos
+  for insert with check (agencia_id = public.mi_agencia_id());
+
+drop policy if exists "corregir documentos de mi agencia" on public.documentos;
+create policy "corregir documentos de mi agencia" on public.documentos
+  for update using (agencia_id = public.mi_agencia_id())
+  with check (agencia_id = public.mi_agencia_id());
+
+-- Borrar sí es solo del admin: el resto puede corregir, y toda corrección queda
+-- en la auditoría con su antes → después. Borrar no deja qué comparar.
+drop policy if exists "solo admin borra documentos" on public.documentos;
+create policy "solo admin borra documentos" on public.documentos
+  for delete using (agencia_id = public.mi_agencia_id() and public.mi_rol() = 'admin');
+
+drop trigger if exists auditar_documentos on public.documentos;
+create trigger auditar_documentos
+  after insert or update or delete on public.documentos
+  for each row execute function public.registrar_auditoria();
+
+revoke truncate, trigger on public.documentos from anon, authenticated;
+
+-- ============================================================
+-- Métricas de publicaciones vivas
+-- ============================================================
+-- Hasta ahora `metricas` solo se llenaba al retirar la publicación, o sea justo
+-- cuando el auto ya se había vendido: servía para el historial pero no para
+-- decidir nada. Con esta columna se refrescan mientras el aviso sigue publicado
+-- y se sabe de cuándo es cada número — sin la fecha, "12 likes" no dice si es
+-- de hoy o del mes pasado.
+alter table public.publicaciones_redes
+  add column if not exists metricas_actualizadas_en timestamptz;
+
+-- El refresco (POST /api/redes/metricas) pide las más desactualizadas primero.
+create index if not exists publicaciones_redes_metricas_idx
+  on public.publicaciones_redes (agencia_id, estado, metricas_actualizadas_en nulls first);

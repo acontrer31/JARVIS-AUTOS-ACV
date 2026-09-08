@@ -47,10 +47,11 @@ Command Center) → `ModuleWorkspace` (overlay que despacha por `moduloId`).
 - **Registro de módulos**: `web/lib/modules.ts`. Cada módulo tiene
   `real: true|false`. Los `real: false` muestran un placeholder explícito — la
   regla es **nunca inventar datos ni simular funciones que no existen**
-  ("no fake buttons").
-- **Módulos reales**: Vehículos, Financiación, Clientes, Tareas, Operaciones,
-  Caja, Compras, Reportes (id `analitica`), Redes (id `comunicaciones`),
-  Administración, Seguridad.
+  ("no fake buttons"). El mecanismo se conserva para lo que venga, pero **hoy
+  los 16 módulos son `real: true`**: no queda ningún placeholder.
+- Los 16: Vehículos, Financiación, Clientes, Tareas, Operaciones, Caja,
+  Compras, CRM, Redes (id `comunicaciones`), Marketing, Conocimiento, Voz,
+  Automatización, Reportes (id `analitica`), Administración, Seguridad.
 - **Command Center**: `web/components/jarvis/*` (núcleo, red de nodos,
   conexiones, panel). Respeta `prefers-reduced-motion` y pausa con la pestaña
   oculta.
@@ -104,12 +105,43 @@ recién ahí usa el secreto.
   solo elige `tipo`.
 - `POST /api/redes/publicar` — publica en Facebook/Instagram.
 - `POST /api/redes/retirar` — retira las publicaciones de un vehículo vendido.
+- `POST /api/redes/metricas` — refresca desde Meta los contadores de lo que
+  sigue publicado, de a 25 por llamada (exige sesión). Lo dispara el usuario
+  desde Marketing.
+- `GET /api/voz/conversaciones` — historial del agente de ElevenLabs (exige
+  sesión). Con `?id=` devuelve la transcripción de una. Pasa por el servidor
+  porque `ELEVENLABS_API_KEY` es la misma llave que gasta créditos. Si falta
+  configuración contesta **200 con el motivo**, no 500: el panel lo explica en
+  vez de mostrar una pantalla rota.
 - `GET /api/redes/cron` — publica las programadas que vencieron. Se autentica
   con `CRON_SECRET`, no con sesión: no hay usuario del otro lado. Sin esa
   variable no hace nada.
   **Lo dispara `pg_cron` desde Supabase cada 5 min, no Vercel Cron**: el plan
   Hobby limita los cron a uno por día y un schedule más frecuente hace fallar el
   deploy. Ver `supabase/cron-publicaciones.sql`.
+- `GET /api/automatizaciones/cron` — las reglas diarias (seguimientos vencidos y
+  stock estancado). Mismo `CRON_SECRET`; lo dispara `pg_cron` a las 11:00 UTC
+  (8:00 de Argentina). Ver `supabase/cron-automatizaciones.sql`.
+
+## Automatización
+
+`automatizaciones` guarda una fila por regla y agencia (`activa`, `parametros`,
+`ultima_corrida`, `ultimo_resultado`). **Que falte la fila significa
+encendida**: una agencia nueva arranca con todo andando y el admin apaga lo que
+no quiera. Esa misma regla vale en el panel y en los dos crons — si divergieran,
+la pantalla diría una cosa y el servidor haría otra.
+
+- `publicar_programadas` y `retirar_al_vender` ya existían escondidas; ahora se
+  ven y se pueden apagar. Apagar la primera **no descarta** lo programado: lo
+  deja pendiente para cuando se vuelva a encender.
+- `seguimientos_vencidos` y `stock_estancado` crean **tareas reales** (una por
+  lead o por auto), deduplicadas por título contra las tareas no hechas. Sin
+  vendedor asignado no se inventa un destinatario: se cuenta aparte.
+- El trigger de auditoría lleva un `when`: registra encender/apagar y el cambio
+  de parámetros, **no** el latido de `ultima_corrida` cada 5 minutos.
+- El panel no confía solo en `ultima_corrida`: cuenta contra las tablas del
+  negocio (programadas vencidas, pendientes de retiro, leads vencidos, autos
+  pasados de tiempo). Si el cron se cuelga, el número acumulado lo delata.
 
 ## Voz (ElevenLabs)
 
@@ -118,22 +150,71 @@ el nombre debe coincidir **exacto** con la clave del objeto `clientTools` en
 `web/components/JarvisCore.tsx`. Patrón: "Esperar respuesta" ON, parámetros
 `String` con tipo de valor **LLM Prompt** y no requeridos.
 
-Las 23 tools actuales, por lo que hacen:
+Las 24 tools actuales, por lo que hacen:
 
 - **Consulta**: `consultar_inventario`, `simular_financiacion`,
   `estimar_transferencia_dnrpa`, `datos_cliente`, `resumen_del_dia`,
   `estado_caja`, `reporte_del_mes`, `mis_tareas`, `mis_seguimientos`,
-  `auditoria_usuario`, `consultar_clima`.
+  `auditoria_usuario`, `consultar_clima`, `consultar_conocimiento`.
 - **Acción**: `agregar_tarea`, `agregar_cliente`, `registrar_movimiento_caja`,
   `registrar_operacion`, `cambiar_estado_vehiculo`, `cambiar_estado_operacion`,
   `cambiar_estado_lead`, `agendar_seguimiento`, `publicar_en_redes`,
   `publicar_vehiculo_en_redes`.
 - **Interfaz**: `mostrar_modulo`, `cambiar_tema`.
 
+El **módulo Voz** publica ese catálogo con una frase de ejemplo por herramienta
+(`CATALOGO_VOZ` en `web/lib/voz.ts`) y el historial real de conversaciones vía
+`GET /api/voz/conversaciones`. Un catálogo desactualizado sería peor que no
+tenerlo, así que `JarvisCore.tsx` termina con una **guarda de tipos**: el tipo
+`MismasTools` vale `true` solo si las claves de `clientTools` y `NOMBRES_TOOL`
+son el mismo conjunto — agregar una tool en un lado y no en el otro **no
+compila**. Lo que ningún tipo puede garantizar es la declaración en el
+dashboard de ElevenLabs; por eso el panel muestra los nombres.
+
 Todas devuelven **texto hablado sobre datos reales**; si falta un dato lo dicen,
 no lo inventan. Las fechas habladas ("mañana", "en tres días", "el jueves") las
 resuelve `interpretarFecha` en `web/lib/crm.ts`, que devuelve `null` cuando no
 entiende — ahí JARVIS pregunta en vez de agendar un día equivocado.
+
+## Marketing
+
+Las dos preguntas que Redes no contesta: qué escribo, y qué pasó con lo que ya
+publiqué (`web/lib/marketing.ts`).
+
+- `armarPieza(vehiculo, tono, agencia)` compone el texto **desde la ficha**, en
+  tres tonos (ficha / aviso / historia). Cada dato entra solo si está cargado:
+  un aviso que dice "0 km" sobre un usado sin kilometraje cargado es peor que
+  uno que no lo menciona. No hay LLM ni relleno.
+- El rendimiento agrupa `publicaciones_redes` por vehículo, **incluidas las
+  retiradas**: saber que un auto necesitó seis publicaciones antes de venderse
+  es el dato que sirve para el próximo parecido.
+- Sin métricas se muestra "sin datos todavía", **nunca un cero** — un cero
+  diría "nadie lo tocó" cuando en realidad nunca se preguntó. Igual del lado
+  del servidor: si Meta no contesta, no se pisa el último número bueno.
+- `metricasFacebook` / `datosInstagram` viven en `lib/server/meta.ts` porque
+  ahora las usan dos rutas (retirar y métricas).
+
+## Conocimiento
+
+`documentos` es la base de conocimiento de la agencia: trámites, precios,
+políticas, proveedores. Un documento es una nota escrita adentro, un archivo, o
+las dos cosas (un `check` impide la fila vacía con solo título).
+
+- La búsqueda es **full-text en castellano** sobre una **columna generada**
+  `busqueda tsvector`, no sobre un índice de expresión: desde PostgREST solo se
+  puede buscar sobre una columna, así que con la expresión suelta el índice
+  existía pero el cliente no lo usaba. Se consulta con
+  `textSearch("busqueda", …, { type: "websearch", config: "spanish" })` —
+  `websearch` aguanta lo que la gente tipea de verdad, donde `plain` explota con
+  un guion suelto.
+- El bucket `documentos` es **privado**, al revés que el de fotos: una lista de
+  precios o un contrato no tiene por qué leerse sin login. Se abre con
+  `createSignedUrl` a 5 minutos. Las rutas arrancan igual con `<agencia_id>/`.
+- Borrar es **solo del admin**; corregir lo puede hacer cualquiera y queda en la
+  auditoría con su antes → después. Borrar no deja qué comparar.
+- `consultar_conocimiento` (voz) busca acá y devuelve un extracto recortado
+  alrededor de lo buscado. Si no encuentra, lo dice: inventar el costo de un
+  trámite es peor que no contestar.
 
 ## Redes sociales
 
@@ -196,3 +277,22 @@ producción.
 3. PR contra `main`; mergear a producción solo cuando el usuario lo pide.
 4. Las migraciones de base se aplican al proyecto de Supabase **y** se agregan a
    `supabase/schema.sql` para que queden versionadas.
+
+## Catálogo público (sitio oficial de la agencia)
+
+`GET /api/catalogo?agencia=<uuid>` devuelve el stock publicable en JSON, **sin
+sesión**, con CORS abierto, para que `alcoverautomotores.com.ar` lo lea.
+
+- **Es un endpoint y no una policy pública en `vehiculos`** a propósito: darle
+  `select` a `anon` sobre la tabla dejaría ver todas las columnas de todas las
+  filas — notas internas, el dominio (la patente), borradores y vendidos. Acá
+  se elige qué sale, con la lista de campos escrita a mano y **nunca**
+  `select("*")`, que filtraría una columna nueva sin que nadie lo note.
+- **La regla de negocio**: el catálogo son los `disponible` y `reservado`. Por
+  eso marcar un auto como vendido en JARVIS lo saca del sitio solo — el mismo
+  hook que ya retira las publicaciones de redes.
+- Caché de 60 s en el borde con `stale-while-revalidate`: sin eso cada visita
+  al sitio pega en la base.
+- **La dirección es Jarvis → sitio, nunca al revés.** Ver "Fuente de verdad del
+  stock" en `docs/architecture/decisiones.md`: una sincronización que lea del
+  sitio pisaría cada edición hecha en el CRUD y lo dejaría de adorno.
