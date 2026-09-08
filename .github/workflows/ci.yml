@@ -1,0 +1,56 @@
+name: CI
+
+# Corre el lint y el build en cada PR y en cada push a main.
+#
+# Hasta ahora esto se hacía a mano antes de cada commit. Funcionaba mientras
+# alguien se acordara: el día que no, el error aparecía recién en el deploy de
+# producción. Acá el PR queda en rojo antes de que nadie lo mergee.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# Si se pushea dos veces seguidas a la misma rama, la corrida vieja se cancela:
+# no tiene sentido esperar el resultado de un commit que ya quedó atrás.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verificar:
+    name: Lint y build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      # `npm ci` y no `npm install`: instala exactamente lo que dice el
+      # package-lock. Si el lock quedó desactualizado, falla acá en vez de
+      # instalar en silencio una versión distinta de la que se probó.
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Lint
+        run: npx eslint .
+
+      # El build necesita las variables públicas de Supabase: lib/supabase.ts
+      # tira un error si faltan, y la página se prerenderiza durante el build.
+      # Son valores de compilación, no secretos de producción — la anon key es
+      # pública por diseño y la protege la RLS. Aun así van por `secrets` para
+      # que el repo no las lleve escritas.
+      - name: Build
+        run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          NEXT_PUBLIC_ELEVENLABS_AGENT_ID: ${{ secrets.NEXT_PUBLIC_ELEVENLABS_AGENT_ID }}
