@@ -4,6 +4,10 @@
 -- Seguimientos vencidos y stock estancado: una pasada por día que revisa el
 -- estado del negocio y crea las tareas que correspondan.
 --
+-- APLICADO en septiembre de 2026 (jobid 2). Verificar con:
+--   select jobname, schedule, active from cron.job;
+-- Tienen que aparecer los dos: `publicar-programadas` y `automatizaciones-diarias`.
+--
 -- Reusa el secreto que ya dejó `cron-publicaciones.sql` en el Vault
 -- (`cron_secret_jarvis`). Si todavía no se corrió ese archivo, correrlo primero:
 -- acá no se vuelve a crear el secreto porque `vault.create_secret` falla si el

@@ -43,6 +43,12 @@ jobs:
       - name: Lint
         run: npx eslint .
 
+      # Antes del build a propósito: tardan menos de un segundo y son lo que
+      # protege las cuentas de plata. Si se rompió una fórmula, se sabe ya y no
+      # después de esperar el build entero.
+      - name: Tests
+        run: npm test
+
       # `lib/supabase.ts` corta si faltan las variables públicas, y la página se
       # prerenderiza durante el build — así que sin ellas el build falla.
       #
