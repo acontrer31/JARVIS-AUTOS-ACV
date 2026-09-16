@@ -73,6 +73,14 @@ Command Center) → `ModuleWorkspace` (overlay que despacha por `moduloId`).
   `vehiculos`.
 - Storage: bucket público `vehiculos`; las rutas arrancan con `<agencia_id>/…` y
   las policies de escritura comparan esa primera carpeta contra la agencia.
+- **Las advertencias del Security Advisor que quedan abiertas son a propósito.**
+  El objetivo **no** es dejar el panel en cero: tres de las cinco son decisiones
+  correctas que el linter no puede saber que lo son, y perseguir el cero
+  rompería el catálogo público y la publicación en redes. El detalle de cada
+  una, con lo que se verificó, está en `docs/phases/pendientes.md` §6. Lo único
+  que hay que sostener: **nunca agregar el esquema `net` a los Exposed schemas**
+  de Supabase — es la única mitigación del `pg_net` que está en nuestras manos.
+
 - **SQL siempre idempotente**: `create table if not exists`,
   `alter … add column if not exists`, `drop policy if exists` antes de
   `create policy`.

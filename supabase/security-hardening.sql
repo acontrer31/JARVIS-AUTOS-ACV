@@ -63,3 +63,35 @@ end $$;
 --   mi_agencia_id / mi_rol        -> anon = false, auth = true
 --   registrar_auditoria / rls_... -> anon = false, auth = false
 -- ============================================================
+
+-- ============================================================
+-- pg_net: por qué NO se le revoca el permiso a PUBLIC
+-- ============================================================
+-- El Security Advisor marca `pg_net` por estar registrada en el esquema
+-- `public`. Sus 12 funciones viven en el esquema `net` con el ACL por defecto
+-- `{=X/supabase_admin}` — o sea EXECUTE para PUBLIC, que `anon` y
+-- `authenticated` heredan. Entre ellas `http_get`, `http_post` y también
+-- `wake` / `worker_restart`.
+--
+-- El riesgo, si alguna vez fuera alcanzable, sería SSRF: cualquiera con la anon
+-- key (que vive en el navegador) haciendo que la base dispare pedidos HTTP
+-- arbitrarios desde la red de Supabase.
+--
+-- HOY NO ES ALCANZABLE: PostgREST solo expone `public`, `graphql_public` y
+-- `storage`. **No agregar `net` a los Exposed schemas nunca.** Esa es la única
+-- mitigación que está en nuestras manos, y es la que hay que sostener.
+--
+-- NO SE PUEDE REVOCAR desde este proyecto. Se intentó y las migraciones
+-- devuelven "éxito" sin cambiar nada: en Postgres solo el dueño de un objeto
+-- puede revocarle privilegios, el dueño es `supabase_admin`, y el rol que da
+-- Supabase (`postgres`) no es superusuario ni miembro de ese rol.
+--
+-- Para comprobarlo (debe dar postgres / false / false):
+--   select current_user,
+--          (select rolsuper from pg_roles where rolname = current_user) as superusuario,
+--          pg_has_role(current_user, 'supabase_admin', 'member') as miembro_del_dueno;
+--
+-- Y para ver el ACL sin tocar (debe seguir diciendo `=X/supabase_admin`):
+--   select proname, proacl::text from pg_proc p
+--   join pg_namespace n on n.oid = p.pronamespace
+--   where n.nspname = 'net' and proname = 'http_get';

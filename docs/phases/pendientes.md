@@ -78,21 +78,70 @@ va contra la regla base del proyecto.
 
 ---
 
-## 5. Función `rls_auto_enable()` marcada por el Security Advisor de Supabase — bloquea el cierre de Fase 12
+## 5. ~~Función `rls_auto_enable()` marcada por el Security Advisor~~ — RESUELTO
 
-El Security Advisor de Supabase marca esta función. **No fue creada por este proyecto** — no aparece en
-`supabase/schema.sql`.
-
-**Qué falta (lo hace el usuario):** compartir su definición desde el dashboard de Supabase (SQL Editor)
-para revisarla juntos y decidir si se corrige o se elimina.
+Ya no aparece en el Security Advisor (verificado con `get_advisors` en septiembre de 2026). La función no
+existe más en la base. Se cierra.
 
 ---
 
-## 6. Protección de contraseña filtrada en Supabase — bloquea el cierre de Fase 12
+## 6. Las advertencias del Security Advisor que quedan abiertas **a propósito**
 
-Es un toggle del dashboard (Authentication → Policies), no algo que se configure por SQL.
+Revisadas una por una en septiembre de 2026, con la base en la mano. **El objetivo NO es dejar el panel en
+cero**: tres de las cinco son decisiones correctas que el linter no puede saber que son correctas, y
+perseguir el cero rompería cosas que hoy funcionan.
 
-**Qué falta (lo hace el usuario):** activarlo manualmente en el dashboard de Supabase.
+### 6.1 `pg_net` en el esquema `public` — NO SE PUEDE CORREGIR
+
+Las 12 funciones del esquema `net` tienen el ACL por defecto `{=X/supabase_admin}`, o sea **EXECUTE para
+`PUBLIC`**, que `anon` y `authenticated` heredan. Entre ellas `http_get`, `http_post` y también
+`wake`/`worker_restart`.
+
+**El riesgo, si alguna vez fuera alcanzable, es SSRF**: cualquiera con la anon key —que vive en el
+navegador— haciendo que la base dispare pedidos HTTP arbitrarios desde la red de Supabase.
+
+**Hoy no es alcanzable**: PostgREST solo expone `public`, `graphql_public` y `storage`. `net` no está en
+esa lista y no hay que agregarlo nunca.
+
+**No se puede revocar desde acá.** Se intentó dos veces y las dos migraciones devolvieron "éxito" sin
+cambiar nada: en Postgres solo el dueño de un objeto puede revocarle permisos, el dueño es
+`supabase_admin`, y el rol que nos da Supabase (`postgres`) no es superusuario ni miembro de ese rol.
+Verificado con `pg_has_role` y comparando el `proacl` antes y después. Es un permiso por defecto de
+Supabase sobre su propia extensión.
+
+**Lo único que hay que sostener:** no exponer el esquema `net` en Settings → API → Exposed schemas.
+
+### 6.2 Bucket `vehiculos` público — ES POR DISEÑO
+
+Las fotos del catálogo tienen que verse sin login. Y hay una segunda razón más dura: **cuando se publica
+en Facebook o Instagram, Meta descarga la foto desde esa URL pública**. Hacer el bucket privado rompe el
+catálogo del sitio *y* la publicación en redes.
+
+Para contraste, el bucket `documentos` (base de conocimiento) **sí es privado**, con URLs firmadas a 5
+minutos. Ahí sí correspondía.
+
+### 6.3 y 6.4 `mi_agencia_id()` / `mi_rol()` ejecutables — FALSO POSITIVO
+
+El linter detecta el patrón "función `security definer` invocable por un usuario logueado" sin mirar qué
+hace. Estas dos **no reciben argumentos**: devuelven la agencia y el rol *del que llama*. Invocarlas por
+RPC no revela nada de nadie más.
+
+Y **revocarles el `execute` a `authenticated` rompe toda la RLS del sistema**, porque las policies las
+llaman en cada consulta. Ya está escrito en `security-hardening.sql` y en `CLAUDE.md`.
+
+Si algún día se quiere la advertencia en cero, la forma correcta es moverlas a un esquema no expuesto y
+actualizar todas las policies que las referencian. Es un cambio delicado: si queda a medias, la base deja
+de devolver datos.
+
+### 6.5 Protección de contraseña filtrada — REQUIERE PLAN PRO
+
+Corrección de una nota anterior que decía que era "un toggle del dashboard". Lo es, pero la documentación
+de Supabase es explícita: *"Leaked password protection is available on the Pro Plan and above."* La
+organización está en plan Gratis.
+
+**Qué falta (lo decide el usuario):** pasar a Pro (US$25/mes) si se quiere. Vale aclarar que si alguna vez
+se pasa a Pro va a ser por los backups con recuperación a un punto en el tiempo, no por esto — la
+protección de contraseñas vendría de regalo.
 
 ---
 
