@@ -54,6 +54,28 @@ export function calcularCostoTransferenciaDNRPA(
   return { arancel, fijo, total: arancel + fijo };
 }
 
+/**
+ * Cómo se saca el presupuesto en el sitio del registro.
+ *
+ * Esto no es un detalle de implementación: es el paso que hace que toda la
+ * cuenta sea real. JARVIS no puede entrar a DNRPA —no hay API pública y el
+ * trámite es por formulario— así que el Valor Tabla y el total del presupuesto
+ * los trae una persona. Si esa persona no está, o no sabe que "valor declarado"
+ * va siempre en 1, la cotización sale mal o no sale.
+ *
+ * Confirmado por la agencia en septiembre de 2026. Está escrito acá y también
+ * cargado como documento en el módulo Conocimiento, que es donde lo va a
+ * buscar alguien que no lee el código.
+ */
+export const CONSULTA_DNRPA_PASOS = [
+  "Entrá al sitio del registro (dnrpa.gov.ar) y abrí la consulta de aranceles.",
+  "Tipo de trámite: Transferencia.",
+  "Patente: el dominio del vehículo.",
+  "Valor declarado: 1. Siempre 1 — el arancel se calcula sobre el valor de tabla, no sobre lo que se declare.",
+  "Provincia: Salta.",
+  "De la respuesta anotá dos números: el Valor Tabla y el TOTAL del presupuesto.",
+] as const;
+
 export const DNRPA_DISCLAIMER =
   "Al valor estimado pueden sumarse costos de: formularios de rentas, certificación de firmas, expedición de cédulas adicionales y moras de firma (20% del arancel si se excede el plazo de 90 días desde la certificación del formulario 08). Esto es una estimación, no un presupuesto oficial.";
 
@@ -92,17 +114,33 @@ export function calcularTransferenciaTotal(params: {
   gestoria?: number;
   /** Los items fijos del presupuesto de DNRPA (ver ARANCEL_FIJO_DEFAULT). */
   arancelFijo?: number;
+  /**
+   * El total del presupuesto tal como lo imprime el sitio del registro. Si
+   * viene, MANDA sobre la estimación de `1% + fijo`.
+   *
+   * La estimación acierta casi siempre, pero el fijo cambia y no todos los
+   * trámites llevan los mismos items —un presupuesto viejo daba $1.300 donde
+   * hoy hay $3.080—, así que el único número que no discute nadie es el que
+   * quien consultó leyó en la pantalla. Ver CONSULTA_DNRPA_PASOS.
+   */
+  totalDNRPA?: number | null;
 }): TransferenciaTotal | null {
-  const dnrpa = calcularCostoTransferenciaDNRPA(params.valorTabla, params.arancelFijo);
-  if (!dnrpa || !params.valorTabla) return null;
+  if (!params.valorTabla || params.valorTabla <= 0) return null;
+  const estimado = calcularCostoTransferenciaDNRPA(params.valorTabla, params.arancelFijo);
+  // `>= 0` y no `> 0`: un presupuesto en cero no existe, pero tampoco hay que
+  // taparlo con la estimación. Lo que sí se ignora es un número negativo, que
+  // solo puede ser un error de tipeo.
+  const totalDNRPA =
+    params.totalDNRPA != null && params.totalDNRPA >= 0 ? params.totalDNRPA : estimado?.total;
+  if (totalDNRPA == null) return null;
   const ajuste = params.ajuste ?? AJUSTE_DEFAULT;
   const gestoria = params.gestoria ?? GESTORIA_DEFAULT;
   const honorario = Math.round(params.valorTabla * ajuste);
   return {
     honorario,
-    totalDNRPA: dnrpa.total,
+    totalDNRPA,
     gestoria,
-    total: honorario + dnrpa.total + gestoria,
+    total: honorario + totalDNRPA + gestoria,
   };
 }
 
@@ -180,6 +218,8 @@ export function calcularOperacion(params: {
   ajuste?: number;
   gestoria?: number;
   arancelFijo?: number;
+  /** El total real del presupuesto, si quien consultó lo copió. */
+  totalDNRPA?: number | null;
   /** Financiación: si no se pasan, la operación va sin prenda. */
   valorCuota?: number | null;
   meses?: number | null;
@@ -188,6 +228,7 @@ export function calcularOperacion(params: {
     valorTabla: params.valorTabla,
     ajuste: params.ajuste,
     arancelFijo: params.arancelFijo,
+    totalDNRPA: params.totalDNRPA,
     gestoria: 0,
   });
   if (!transferencia) return null;
