@@ -151,3 +151,59 @@ export function calcularPrenda(params: {
     total: costoPrenda + gestoria,
   };
 }
+
+export interface Operacion {
+  /** Transferencia SIN gestoría: honorario + presupuesto de DNRPA. */
+  transferencia: TransferenciaTotal;
+  /** Prenda SIN gestoría, o null si el cliente no financia. */
+  prenda: Prenda | null;
+  /** Una sola vez, aunque la operación tenga transferencia y prenda. */
+  gestoria: number;
+  total: number;
+}
+
+/**
+ * La operación completa: transferencia, la prenda si el cliente financia, y la
+ * gestoría UNA SOLA VEZ.
+ *
+ * Existe justamente por eso último. Antes la pantalla sumaba
+ * `transferencia.total + prenda.total`, y como las dos traían su gestoría
+ * adentro, una operación financiada cobraba $400.000 de gestoría en vez de
+ * $200.000. La regla vivía en el armado de la vista, que es donde nadie la
+ * busca; ahora vive acá, con un test que la cuida.
+ *
+ * A las dos funciones internas se les pasa `gestoria: 0` y se suma una sola al
+ * final.
+ */
+export function calcularOperacion(params: {
+  valorTabla: number | null;
+  ajuste?: number;
+  gestoria?: number;
+  arancelFijo?: number;
+  /** Financiación: si no se pasan, la operación va sin prenda. */
+  valorCuota?: number | null;
+  meses?: number | null;
+}): Operacion | null {
+  const transferencia = calcularTransferenciaTotal({
+    valorTabla: params.valorTabla,
+    ajuste: params.ajuste,
+    arancelFijo: params.arancelFijo,
+    gestoria: 0,
+  });
+  if (!transferencia) return null;
+
+  const prenda = calcularPrenda({
+    valorCuota: params.valorCuota ?? null,
+    meses: params.meses ?? null,
+    ajuste: params.ajuste,
+    gestoria: 0,
+  });
+
+  const gestoria = params.gestoria ?? GESTORIA_DEFAULT;
+  return {
+    transferencia,
+    prenda,
+    gestoria,
+    total: transferencia.total + (prenda?.total ?? 0) + gestoria,
+  };
+}
