@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { cargarVehiculos, formatearMoneda, nombreVehiculo, type Vehiculo } from "@/lib/vehiculos";
 import {
   AJUSTE_DEFAULT,
+  CONSULTA_DNRPA_PASOS,
   DNRPA_DISCLAIMER,
   GESTORIA_DEFAULT,
   calcularCostoTransferenciaDNRPA,
@@ -24,6 +25,12 @@ export default function FinanciacionWorkspace() {
   const [valorCuotaMG, setValorCuotaMG] = useState<number | null>(null);
   const [mesesPrenda, setMesesPrenda] = useState(24);
 
+  // Lo que quien consultó copió del sitio del registro. No se guardan en el
+  // vehículo: son de esta cotización. Para dejarlos cargados de verdad hay que
+  // editar el vehículo, y así se avisa abajo.
+  const [valorTablaManual, setValorTablaManual] = useState<number | null>(null);
+  const [totalDNRPAManual, setTotalDNRPAManual] = useState<number | null>(null);
+
   useEffect(() => {
     cargarVehiculos()
       .then(setVehiculos)
@@ -35,17 +42,33 @@ export default function FinanciacionWorkspace() {
     [vehiculos, seleccionId]
   );
 
+  // Cambiar de auto limpia lo copiado del registro: son números de ESE
+  // dominio. Arrastrarlos al vehículo siguiente sería cotizar un auto con el
+  // presupuesto de otro, y nadie lo notaría.
+  function elegirVehiculo(id: string) {
+    setSeleccionId(id);
+    setValorTablaManual(null);
+    setTotalDNRPAManual(null);
+  }
+
   const cuotasResultado = seleccionado ? simularCuotas(seleccionado.precio, cuotas) : null;
-  const dnrpaResultado = seleccionado ? calcularCostoTransferenciaDNRPA(seleccionado.valor_tabla_dnrpa) : null;
+
+  // El valor de tabla del vehículo, salvo que se haya pegado uno recién
+  // consultado. Muchos autos todavía no lo tienen cargado: sin esto la pantalla
+  // no puede cotizarlos aunque la persona tenga el presupuesto en la mano.
+  const valorTabla = seleccionado ? valorTablaManual ?? seleccionado.valor_tabla_dnrpa : null;
+  const dnrpaResultado = calcularCostoTransferenciaDNRPA(valorTabla);
+  const usaPresupuestoReal = totalDNRPAManual != null && totalDNRPAManual >= 0;
 
   const ajuste = ajustePct / 100;
   // La operación la arma la lib, no esta pantalla: es la que sabe que la
   // gestoría se cobra UNA sola vez aunque haya prenda. Cuando esa suma se hacía
   // acá, una operación financiada cobraba dos gestorías.
   const operacion = calcularOperacion({
-    valorTabla: seleccionado?.valor_tabla_dnrpa ?? null,
+    valorTabla,
     ajuste,
     gestoria,
+    totalDNRPA: totalDNRPAManual,
     valorCuota: financia ? valorCuotaMG : null,
     meses: financia ? mesesPrenda : null,
   });
@@ -61,7 +84,7 @@ export default function FinanciacionWorkspace() {
       <div className="flex flex-col gap-2 sm:flex-row">
         <select
           value={seleccionId}
-          onChange={(e) => setSeleccionId(e.target.value)}
+          onChange={(e) => elegirVehiculo(e.target.value)}
           className="flex-1 rounded-lg border px-3 py-2 text-sm"
           style={{ borderColor: "var(--border)", background: "var(--panel)" }}
         >
@@ -123,19 +146,86 @@ export default function FinanciacionWorkspace() {
             {dnrpaResultado ? (
               <>
                 <p className="text-lg font-semibold" style={{ color: "var(--dorado)" }}>
-                  {formatearMoneda(dnrpaResultado.total)}
+                  {formatearMoneda(usaPresupuestoReal ? totalDNRPAManual! : dnrpaResultado.total)}
                 </p>
                 <p className="text-xs" style={{ color: "var(--muted)" }}>
-                  1% del valor tabla ({formatearMoneda(dnrpaResultado.arancel)}) + arancel fijo (
-                  {formatearMoneda(dnrpaResultado.fijo)}). {DNRPA_DISCLAIMER}
+                  {usaPresupuestoReal ? (
+                    <>
+                      Total del presupuesto, copiado del registro. La estimación de JARVIS para este valor de
+                      tabla daba {formatearMoneda(dnrpaResultado.total)}.
+                    </>
+                  ) : (
+                    <>
+                      1% del valor tabla ({formatearMoneda(dnrpaResultado.arancel)}) + arancel fijo (
+                      {formatearMoneda(dnrpaResultado.fijo)}). {DNRPA_DISCLAIMER}
+                    </>
+                  )}
                 </p>
               </>
             ) : (
               <p className="text-sm" style={{ color: "var(--muted)" }}>
-                {nombreVehiculo(seleccionado)} todavía no tiene el Valor Tabla de DNRPA cargado, no se puede
-                estimar la transferencia.
+                {nombreVehiculo(seleccionado)} todavía no tiene el Valor Tabla de DNRPA cargado. Consultalo en
+                el registro y pegalo acá abajo para poder cotizar.
               </p>
             )}
+
+            {/* Los dos números que salen de la consulta. JARVIS no puede
+                entrar a DNRPA —es un formulario, no una API—, así que los trae
+                una persona. Se piden acá, al lado del resultado, y no en una
+                pantalla aparte. */}
+            <div className="mt-3 flex flex-wrap gap-3">
+              <label className="flex flex-col gap-1">
+                <span className="text-[0.6rem] uppercase tracking-wider" style={{ color: "var(--muted)" }}>
+                  Valor Tabla
+                </span>
+                <input
+                  type="number"
+                  min={0}
+                  value={valorTablaManual ?? seleccionado.valor_tabla_dnrpa ?? ""}
+                  onChange={(e) =>
+                    setValorTablaManual(e.target.value.trim() === "" ? null : Number(e.target.value))
+                  }
+                  placeholder="Del registro"
+                  className="w-40 rounded-lg border px-2 py-1 text-sm"
+                  style={{ borderColor: "var(--border)", background: "var(--background)" }}
+                />
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="text-[0.6rem] uppercase tracking-wider" style={{ color: "var(--muted)" }}>
+                  Total presupuesto
+                </span>
+                <input
+                  type="number"
+                  min={0}
+                  value={totalDNRPAManual ?? ""}
+                  onChange={(e) =>
+                    setTotalDNRPAManual(e.target.value.trim() === "" ? null : Number(e.target.value))
+                  }
+                  placeholder={
+                    dnrpaResultado ? `Estimado: ${formatearMoneda(dnrpaResultado.total)}` : "Del registro"
+                  }
+                  className="w-40 rounded-lg border px-2 py-1 text-sm"
+                  style={{ borderColor: "var(--border)", background: "var(--background)" }}
+                />
+              </label>
+            </div>
+
+            {/* Abierto de entrada cuando no hay valor de tabla: ahí es cuando
+                alguien necesita el instructivo, no cuando ya tiene el número. */}
+            <details className="mt-2" open={!dnrpaResultado}>
+              <summary className="cursor-pointer text-xs" style={{ color: "var(--dorado)" }}>
+                Cómo se consulta en el registro
+              </summary>
+              <ol className="mt-1 list-decimal pl-5 text-xs leading-relaxed" style={{ color: "var(--muted)" }}>
+                {CONSULTA_DNRPA_PASOS.map((paso) => (
+                  <li key={paso}>{paso}</li>
+                ))}
+              </ol>
+              <p className="mt-1 text-[0.7rem]" style={{ color: "var(--muted)" }}>
+                Lo que pegues acá vale para esta cotización nada más. Para que quede cargado en el auto,
+                editalo en Vehículos.
+              </p>
+            </details>
           </div>
 
           {/* Valor final de la operación: transferencia (+ prenda si financia) */}

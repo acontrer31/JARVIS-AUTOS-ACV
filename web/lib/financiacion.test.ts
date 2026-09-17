@@ -6,6 +6,7 @@ import {
   calcularOperacion,
   calcularPrenda,
   calcularTransferenciaTotal,
+  CONSULTA_DNRPA_PASOS,
   GESTORIA_DEFAULT,
   simularCuotas,
 } from "./financiacion";
@@ -147,6 +148,36 @@ describe("calcularTransferenciaTotal", () => {
     expect(r?.gestoria).toBe(0);
     expect(GESTORIA_DEFAULT).toBeGreaterThan(0);
   });
+
+  // El presupuesto que se copia del sitio del registro le gana a la estimación.
+  // El 1% no se movió nunca, pero el fijo sí —$1.300 antes, $3.080 hoy— y no
+  // todos los trámites llevan los mismos items. Si alguien se tomó el trabajo
+  // de consultar, ese número vale más que cualquier cuenta nuestra.
+  it("el total real del presupuesto le gana a la estimación", () => {
+    const r = calcularTransferenciaTotal({ valorTabla: GOL_VALOR_TABLA, totalDNRPA: 91_400 });
+    expect(r?.totalDNRPA).toBe(91_400);
+    expect(r?.total).toBe(180_280 + 91_400 + 200_000);
+  });
+
+  it("sin total cargado sigue estimando 1% + fijo", () => {
+    expect(calcularTransferenciaTotal({ valorTabla: GOL_VALOR_TABLA, totalDNRPA: null })?.totalDNRPA).toBe(
+      75_192
+    );
+    expect(calcularTransferenciaTotal({ valorTabla: GOL_VALOR_TABLA })?.totalDNRPA).toBe(75_192);
+  });
+
+  // Un negativo solo puede ser un tipeo; ahí sí conviene la estimación.
+  it("ignora un total negativo", () => {
+    expect(calcularTransferenciaTotal({ valorTabla: GOL_VALOR_TABLA, totalDNRPA: -5 })?.totalDNRPA).toBe(
+      75_192
+    );
+  });
+
+  // El valor de tabla sigue haciendo falta aunque venga el presupuesto: el
+  // honorario del 2,5% sale de ahí, no del presupuesto.
+  it("el presupuesto solo no alcanza: sin valor de tabla no hay cotización", () => {
+    expect(calcularTransferenciaTotal({ valorTabla: null, totalDNRPA: 75_192 })).toBeNull();
+  });
 });
 
 describe("calcularPrenda", () => {
@@ -217,5 +248,25 @@ describe("calcularOperacion", () => {
     const sin = calcularOperacion({ valorTabla: GOL_VALOR_TABLA });
     const con = calcularOperacion({ valorTabla: GOL_VALOR_TABLA, valorCuota: 100_000, meses: 12 });
     expect(con!.total - sin!.total).toBe(30_000);
+  });
+
+  it("también acepta el total real del presupuesto", () => {
+    const r = calcularOperacion({ valorTabla: GOL_VALOR_TABLA, totalDNRPA: 91_400 });
+    expect(r?.transferencia.totalDNRPA).toBe(91_400);
+    expect(r?.total).toBe(180_280 + 91_400 + 200_000);
+  });
+});
+
+// El instructivo de la consulta es contenido, no decoración: si se pierde, se
+// pierde el único camino por el que entran el valor de tabla y el presupuesto.
+describe("CONSULTA_DNRPA_PASOS", () => {
+  it("dice el único paso que nadie adivina: valor declarado en 1", () => {
+    expect(CONSULTA_DNRPA_PASOS.join(" ")).toMatch(/[Vv]alor declarado: 1\b/);
+  });
+
+  it("nombra el tipo de trámite y la provincia", () => {
+    const texto = CONSULTA_DNRPA_PASOS.join(" ");
+    expect(texto).toContain("Transferencia");
+    expect(texto).toContain("Salta");
   });
 });
