@@ -1,4 +1,4 @@
-import { extracto } from "@/lib/extracto";
+import { extracto, ordenarPorRelevancia, palabrasUtiles } from "@/lib/extracto";
 import { miAgenciaId, supabase } from "@/lib/supabase";
 
 // Base de conocimiento de la agencia: lo que hoy está en un cuaderno, en un
@@ -51,21 +51,49 @@ export async function cargarDocumentos(opciones?: {
   categoria?: Categoria | null;
   texto?: string;
 }): Promise<Documento[]> {
-  let consulta = supabase.from("documentos").select(COLUMNAS).order("actualizado_en", { ascending: false });
+  // La consulta base se arma cada vez: el builder de Supabase se va mutando a
+  // medida que se le encadenan filtros, así que no se puede reutilizar entre
+  // los dos intentos de abajo.
+  const base = () => {
+    const q = supabase.from("documentos").select(COLUMNAS).order("actualizado_en", { ascending: false });
+    return opciones?.categoria ? q.eq("categoria", opciones.categoria) : q;
+  };
 
-  if (opciones?.categoria) consulta = consulta.eq("categoria", opciones.categoria);
+  const buscar = async (q: ReturnType<typeof base>) => {
+    const { data, error } = await q;
+    if (error) throw error;
+    return (data ?? []) as unknown as Documento[];
+  };
 
   const texto = (opciones?.texto ?? "").trim();
-  if (texto) {
-    // `websearch` entiende lo que la gente escribe de verdad ("transferencia
-    // 0km", comillas, -palabra) sin explotar con caracteres sueltos, que es lo
-    // que pasa con el formato `plain` cuando alguien tipea un guion.
-    consulta = consulta.textSearch("busqueda", texto, { type: "websearch", config: "spanish" });
-  }
+  if (!texto) return buscar(base());
 
-  const { data, error } = await consulta;
-  if (error) throw error;
-  return (data ?? []) as unknown as Documento[];
+  // Primero, la búsqueda exacta. `websearch` entiende lo que la gente escribe
+  // de verdad ("transferencia 0km", comillas, -palabra) sin explotar con
+  // caracteres sueltos, que es lo que pasa con `plain` cuando alguien tipea un
+  // guion. Cuando encuentra algo, es lo más preciso que hay.
+  const estricta = await buscar(
+    base().textSearch("busqueda", texto, { type: "websearch", config: "spanish" })
+  );
+  if (estricta.length) return estricta;
+
+  // Si no encontró nada, se busca de nuevo con CUALQUIERA de las palabras.
+  //
+  // Esto no es un lujo: `websearch` exige TODAS. Preguntar "qué pongo en valor
+  // declarado" pedía también "pongo", que no está escrito en ningún lado, y
+  // devolvía cero aunque el documento que lo explica estuviera cargado. Por voz
+  // eso es peor que inútil — la persona pregunta como habla, y siempre va a
+  // meter una palabra que el documento no usa.
+  //
+  // Lo que entra por acá es más flojo, así que se ordena por pertinencia antes
+  // de devolverlo (ver `ordenarPorRelevancia`).
+  const palabras = palabrasUtiles(texto);
+  if (!palabras.length) return [];
+
+  const amplia = await buscar(
+    base().textSearch("busqueda", palabras.join(" or "), { type: "websearch", config: "spanish" })
+  );
+  return ordenarPorRelevancia(amplia, texto);
 }
 
 export interface DocumentoInput {

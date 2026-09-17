@@ -377,7 +377,14 @@ export default function JarvisCore({
       try {
         const encontrados = await buscarParaVoz(consulta);
         if (!encontrados.length) {
-          return `No encontré nada sobre "${consulta}" en el conocimiento de la agencia. Si querés, cargalo en el módulo Conocimiento y la próxima te lo contesto.`;
+          // La instrucción va DENTRO del resultado a propósito. Lo que devuelve
+          // una tool no se lee tal cual: lo lee el modelo y decide qué decir. La
+          // primera vez que esto pasó de verdad —una pregunta sobre el valor
+          // declarado de DNRPA— el agente recibió un "no encontré nada" y aun
+          // así contestó de su propia cabeza, con una explicación inventada que
+          // sonaba perfectamente razonable. Un sistema que habla se equivoca
+          // así: no falla, improvisa.
+          return `NO HAY NADA CARGADO sobre "${consulta}" en el conocimiento de la agencia. No contestes con lo que sepas por tu cuenta ni supongas la respuesta: decile a la persona que ese dato todavía no está cargado y que puede agregarlo en el módulo Conocimiento.`;
         }
         return encontrados.map((d) => `${d.titulo}: ${d.extracto}`).join(" — ");
       } catch {

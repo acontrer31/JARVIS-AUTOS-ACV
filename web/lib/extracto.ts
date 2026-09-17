@@ -31,7 +31,7 @@ const normal = (s: string) =>
     .replace(/[̀-ͯ]/g, "");
 
 /** Las palabras de la consulta que vale la pena buscar (las cortas son ruido). */
-function palabrasUtiles(consulta: string): string[] {
+export function palabrasUtiles(consulta: string): string[] {
   return [...new Set(normal(consulta).split(/[^a-z0-9]+/).filter((p) => p.length > 3))];
 }
 
@@ -44,6 +44,46 @@ function posiciones(cuerpo: string, palabra: string): number[] {
     desde = cuerpo.indexOf(palabra, desde + 1);
   }
   return encontradas;
+}
+
+/**
+ * Ordena del más al menos pertinente, contando cuántas palabras distintas de la
+ * pregunta aparecen en cada documento.
+ *
+ * Hace falta por culpa de la búsqueda amplia. La búsqueda exacta de Postgres
+ * exige TODAS las palabras: preguntando "qué pongo en valor declarado" pedía
+ * también "pongo", que no está escrito en ningún lado, y devolvía cero. Cuando
+ * eso pasa se vuelve a buscar con CUALQUIERA de las palabras — y ahí entra de
+ * todo, así que hay que ordenarlo.
+ *
+ * El título pesa doble: que una palabra esté en el título es mucha más señal de
+ * que el documento trata de eso que si aparece perdida en el cuerpo.
+ *
+ * El orden original decide los empates (viene por fecha), así que entre dos
+ * documentos igual de pertinentes gana el más actualizado.
+ */
+export function ordenarPorRelevancia<T extends { titulo: string; contenido: string | null }>(
+  docs: T[],
+  consulta: string
+): T[] {
+  const palabras = palabrasUtiles(consulta);
+  if (!palabras.length) return docs;
+
+  const puntaje = (d: T) => {
+    const titulo = normal(d.titulo);
+    const cuerpo = normal(d.contenido ?? "");
+    return palabras.reduce(
+      (suma, p) => suma + (titulo.includes(p) ? 2 : 0) + (cuerpo.includes(p) ? 1 : 0),
+      0
+    );
+  };
+
+  // `map` + `sort` sobre los índices: `sort` es estable en JS moderno, pero
+  // apoyarse en eso para el desempate es frágil. Así queda explícito.
+  return docs
+    .map((doc, orden) => ({ doc, orden, puntos: puntaje(doc) }))
+    .sort((a, b) => b.puntos - a.puntos || a.orden - b.orden)
+    .map((x) => x.doc);
 }
 
 /**

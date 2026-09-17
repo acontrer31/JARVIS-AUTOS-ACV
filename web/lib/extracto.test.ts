@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { extracto } from "./extracto";
+import { extracto, ordenarPorRelevancia, palabrasUtiles } from "./extracto";
 
 // Lo que se prueba acá es qué material recibe JARVIS antes de contestar.
 //
@@ -122,5 +122,74 @@ describe("extracto: los bordes", () => {
   it("ignora las palabras cortas al elegir el pasaje", () => {
     const r = extracto(LARGO, "de la que el en prenda declarado");
     expect(r).toContain("valor declarado en el formulario");
+  });
+});
+
+// La búsqueda amplia existe porque la exacta exige TODAS las palabras.
+// Preguntar "qué pongo en valor declarado" pedía también "pongo" —que no está
+// escrito en ningún lado— y devolvía cero, aunque el documento que lo explica
+// estuviera cargado. Ese cero fue el que hizo que JARVIS contestara de su
+// propia cabeza en vez de decir "no lo tengo".
+//
+// Pero al buscar con CUALQUIERA de las palabras entra de todo, y lo que entra
+// hay que ordenarlo. De eso se trata lo que sigue.
+describe("ordenarPorRelevancia", () => {
+  const dnrpa = {
+    titulo: "Cómo consultar el presupuesto de transferencia en el registro (DNRPA)",
+    contenido: "Valor declarado: 1. SIEMPRE 1. El arancel se calcula sobre el valor de tabla.",
+  };
+  const formulario = {
+    titulo: "Formulario 012",
+    contenido: "La verificación policial se hace con el vehículo presente.",
+  };
+  const suelto = {
+    titulo: "Política de vacaciones",
+    contenido: "El personal declara sus días antes de noviembre.",
+  };
+
+  it("pone primero el documento que contesta la pregunta", () => {
+    const r = ordenarPorRelevancia([formulario, suelto, dnrpa], "que pongo en valor declarado");
+    expect(r[0].titulo).toContain("DNRPA");
+  });
+
+  it("el título pesa más que el cuerpo", () => {
+    // "transferencia" está en el título de uno y en el cuerpo del otro.
+    const enElCuerpo = { titulo: "Notas varias", contenido: "Sobre la transferencia conviene avisar." };
+    const r = ordenarPorRelevancia([enElCuerpo, dnrpa], "transferencia");
+    expect(r[0].titulo).toContain("DNRPA");
+  });
+
+  it("ante un empate respeta el orden que venía (el más actualizado primero)", () => {
+    const a = { titulo: "Uno", contenido: "transferencia" };
+    const b = { titulo: "Dos", contenido: "transferencia" };
+    expect(ordenarPorRelevancia([a, b], "transferencia").map((d) => d.titulo)).toEqual(["Uno", "Dos"]);
+    expect(ordenarPorRelevancia([b, a], "transferencia").map((d) => d.titulo)).toEqual(["Dos", "Uno"]);
+  });
+
+  it("sin palabras útiles no reordena nada", () => {
+    const lista = [formulario, dnrpa];
+    expect(ordenarPorRelevancia(lista, "de la que")).toEqual(lista);
+    expect(ordenarPorRelevancia(lista, "")).toEqual(lista);
+  });
+
+  it("un documento sin contenido no rompe", () => {
+    const vacio = { titulo: "Solo un PDF", contenido: null };
+    expect(() => ordenarPorRelevancia([vacio], "transferencia")).not.toThrow();
+  });
+});
+
+describe("palabrasUtiles", () => {
+  // Es lo que se le manda a Postgres como búsqueda amplia, así que importa
+  // que no se cuelen palabras que aparecen en cualquier documento.
+  it("descarta las palabras cortas y repetidas", () => {
+    expect(palabrasUtiles("que pongo en el valor declarado del valor")).toEqual([
+      "pongo",
+      "valor",
+      "declarado",
+    ]);
+  });
+
+  it("ignora los acentos y la puntuación", () => {
+    expect(palabrasUtiles("¿Cuánto sale la transferencia?")).toEqual(["cuanto", "sale", "transferencia"]);
   });
 });
