@@ -1,3 +1,4 @@
+import { extracto } from "@/lib/extracto";
 import { miAgenciaId, supabase } from "@/lib/supabase";
 
 // Base de conocimiento de la agencia: lo que hoy está en un cuaderno, en un
@@ -206,9 +207,12 @@ export function tamanioLegible(bytes: number | null): string {
 }
 
 /**
- * Lo que le contesta JARVIS por voz. Devuelve los documentos que mejor
- * coinciden, ya recortados: si el texto es largo, se queda con el fragmento
- * alrededor de lo buscado en vez de leer tres pantallas en voz alta.
+ * Lo que le contesta JARVIS por voz: los documentos que mejor coinciden, con
+ * el pedazo que de verdad contesta la pregunta.
+ *
+ * Lo que devuelve esto NO se lee en voz alta: se lo damos al modelo para que
+ * arme la respuesta hablada. Por eso conviene mandarle de mas y no de menos
+ * —ver `extracto`, que es donde vive esa decision y el test que la cuida—.
  */
 export async function buscarParaVoz(texto: string, tope = 3): Promise<{ titulo: string; extracto: string }[]> {
   const docs = await cargarDocumentos({ texto });
@@ -218,19 +222,3 @@ export async function buscarParaVoz(texto: string, tope = 3): Promise<{ titulo: 
   }));
 }
 
-// Recorta alrededor de la primera palabra buscada que aparezca en el texto.
-function extracto(contenido: string | null, consulta: string, largo = 320): string {
-  if (!contenido) return "";
-  if (contenido.length <= largo) return contenido;
-
-  const normal = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-  const cuerpo = normal(contenido);
-  const palabra = normal(consulta)
-    .split(/\s+/)
-    .filter((p) => p.length > 3)
-    .find((p) => cuerpo.includes(p));
-
-  const desde = palabra ? Math.max(0, cuerpo.indexOf(palabra) - largo / 3) : 0;
-  const recorte = contenido.slice(desde, desde + largo).trim();
-  return `${desde > 0 ? "…" : ""}${recorte}…`;
-}
