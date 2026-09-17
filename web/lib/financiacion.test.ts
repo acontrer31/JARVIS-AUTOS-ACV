@@ -3,6 +3,7 @@ import {
   AJUSTE_DEFAULT,
   ARANCEL_FIJO_DEFAULT,
   calcularCostoTransferenciaDNRPA,
+  calcularOperacion,
   calcularPrenda,
   calcularTransferenciaTotal,
   GESTORIA_DEFAULT,
@@ -20,6 +21,7 @@ import {
 // La fórmula que cobra la agencia, confirmada por ella en septiembre de 2026:
 //   transferencia = valor de tabla × 2,5% + total del presupuesto + gestoría
 //   prenda        = (cuota × meses) × 2,5% + gestoría
+// Y la gestoría se cobra UNA SOLA VEZ por operación, aunque haya prenda.
 // En los dos casos el 2,5% es un HONORARIO, no un recargo que arrastre el valor
 // del auto ni el del crédito.
 //
@@ -182,5 +184,38 @@ describe("calcularPrenda", () => {
     const r = calcularPrenda({ valorCuota: 100_000, meses: 12, ajuste: 0, gestoria: 0 });
     expect(r?.costoPrenda).toBe(0);
     expect(r?.total).toBe(0);
+  });
+});
+
+describe("calcularOperacion", () => {
+  it("sin vehículo con valor de tabla no devuelve nada", () => {
+    expect(calcularOperacion({ valorTabla: null })).toBeNull();
+  });
+
+  it("sin financiación es la transferencia más la gestoría", () => {
+    const r = calcularOperacion({ valorTabla: GOL_VALOR_TABLA });
+    expect(r?.prenda).toBeNull();
+    expect(r?.total).toBe(180_280 + 75_192 + 200_000); // 455.472
+  });
+
+  // La regla que da nombre a esta función. Antes la pantalla sumaba
+  // `transferencia.total + prenda.total` y cada uno traía su gestoría adentro:
+  // una operación financiada cobraba $400.000 de gestoría en vez de $200.000.
+  it("con financiación cobra UNA sola gestoría, no dos", () => {
+    const r = calcularOperacion({
+      valorTabla: GOL_VALOR_TABLA,
+      valorCuota: 100_000,
+      meses: 12,
+    });
+    expect(r?.prenda?.costoPrenda).toBe(30_000);
+    expect(r?.gestoria).toBe(200_000);
+    expect(r?.total).toBe(180_280 + 75_192 + 30_000 + 200_000); // 485.472
+    expect(r?.total).not.toBe(685_472); // lo que cobraba antes
+  });
+
+  it("financiar suma exactamente el costo de la prenda, nada más", () => {
+    const sin = calcularOperacion({ valorTabla: GOL_VALOR_TABLA });
+    const con = calcularOperacion({ valorTabla: GOL_VALOR_TABLA, valorCuota: 100_000, meses: 12 });
+    expect(con!.total - sin!.total).toBe(30_000);
   });
 });

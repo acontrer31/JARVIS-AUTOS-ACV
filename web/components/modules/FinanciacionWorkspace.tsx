@@ -7,8 +7,7 @@ import {
   DNRPA_DISCLAIMER,
   GESTORIA_DEFAULT,
   calcularCostoTransferenciaDNRPA,
-  calcularPrenda,
-  calcularTransferenciaTotal,
+  calcularOperacion,
   simularCuotas,
 } from "@/lib/financiacion";
 
@@ -40,12 +39,19 @@ export default function FinanciacionWorkspace() {
   const dnrpaResultado = seleccionado ? calcularCostoTransferenciaDNRPA(seleccionado.valor_tabla_dnrpa) : null;
 
   const ajuste = ajustePct / 100;
-  const transferencia = seleccionado
-    ? calcularTransferenciaTotal({ valorTabla: seleccionado.valor_tabla_dnrpa, ajuste, gestoria })
-    : null;
-  const prenda = financia ? calcularPrenda({ valorCuota: valorCuotaMG, meses: mesesPrenda, ajuste, gestoria }) : null;
-  const totalOperacion =
-    transferencia != null ? transferencia.total + (prenda?.total ?? 0) : null;
+  // La operación la arma la lib, no esta pantalla: es la que sabe que la
+  // gestoría se cobra UNA sola vez aunque haya prenda. Cuando esa suma se hacía
+  // acá, una operación financiada cobraba dos gestorías.
+  const operacion = calcularOperacion({
+    valorTabla: seleccionado?.valor_tabla_dnrpa ?? null,
+    ajuste,
+    gestoria,
+    valorCuota: financia ? valorCuotaMG : null,
+    meses: financia ? mesesPrenda : null,
+  });
+  const prenda = operacion?.prenda ?? null;
+  // Sin gestoría adentro: la gestoría se muestra una sola vez, en el total.
+  const transferencia = operacion?.transferencia ?? null;
 
   if (error) return <p className="py-6 text-center text-sm text-red-400">{error}</p>;
   if (!vehiculos) return <p className="py-6 text-center text-sm" style={{ color: "var(--muted)" }}>Cargando stock real…</p>;
@@ -172,10 +178,6 @@ export default function FinanciacionWorkspace() {
                   <span style={{ color: "var(--muted)" }}>Total presupuesto DNRPA</span>
                   <span>{formatearMoneda(transferencia.totalDNRPA)}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span style={{ color: "var(--muted)" }}>Gestoría</span>
-                  <span>{formatearMoneda(transferencia.gestoria)}</span>
-                </div>
                 <div className="mt-1 flex justify-between border-t pt-1 font-semibold" style={{ borderColor: "var(--border)" }}>
                   <span>Transferencia</span>
                   <span style={{ color: "var(--dorado)" }}>{formatearMoneda(transferencia.total)}</span>
@@ -233,12 +235,8 @@ export default function FinanciacionWorkspace() {
                       <span style={{ color: "var(--muted)" }}>{ajustePct}% sobre ese total</span>
                       <span>{formatearMoneda(prenda.costoPrenda)}</span>
                     </div>
-                    <div className="flex justify-between">
-                      <span style={{ color: "var(--muted)" }}>Gestoría</span>
-                      <span>{formatearMoneda(prenda.gestoria)}</span>
-                    </div>
                     <div className="mt-1 flex justify-between border-t pt-1 font-semibold" style={{ borderColor: "var(--border)" }}>
-                      <span>Prenda</span>
+                      <span>Costo de la prenda</span>
                       <span style={{ color: "var(--dorado)" }}>{formatearMoneda(prenda.total)}</span>
                     </div>
                   </div>
@@ -250,21 +248,26 @@ export default function FinanciacionWorkspace() {
               </div>
             )}
 
-            {totalOperacion != null && transferencia && (!financia || prenda) && (
+            {operacion && (!financia || prenda) && (
               <div className="mt-3 flex flex-col gap-1 border-t pt-2" style={{ borderColor: "var(--dorado)" }}>
                 <div className="flex justify-between text-sm">
-                  <span style={{ color: "var(--muted)" }}>Costo de transferencia</span>
-                  <span>{formatearMoneda(transferencia.total)}</span>
+                  <span style={{ color: "var(--muted)" }}>Transferencia</span>
+                  <span>{formatearMoneda(operacion.transferencia.total)}</span>
                 </div>
                 {financia && prenda && (
                   <div className="flex justify-between text-sm">
-                    <span style={{ color: "var(--muted)" }}>Costo de prenda</span>
+                    <span style={{ color: "var(--muted)" }}>Prenda</span>
                     <span>{formatearMoneda(prenda.total)}</span>
                   </div>
                 )}
+                {/* Una sola línea, aunque la operación tenga los dos trámites. */}
+                <div className="flex justify-between text-sm">
+                  <span style={{ color: "var(--muted)" }}>Gestoría</span>
+                  <span>{formatearMoneda(operacion.gestoria)}</span>
+                </div>
                 <div className="mt-1 flex items-baseline justify-between border-t pt-2" style={{ borderColor: "var(--border)" }}>
                   <span className="text-sm font-semibold tracking-wide">TOTAL OPERACIÓN</span>
-                  <span className="text-xl font-bold" style={{ color: "var(--dorado)" }}>{formatearMoneda(totalOperacion)}</span>
+                  <span className="text-xl font-bold" style={{ color: "var(--dorado)" }}>{formatearMoneda(operacion.total)}</span>
                 </div>
               </div>
             )}
