@@ -21,9 +21,9 @@ import {
 // septiembre de 2026. Valor de tabla 7.211.200 → total 75.192.
 const GOL_VALOR_TABLA = 7_211_200;
 
-// El caso histórico, de cuando el arancel fijo era $1.300 y la gestoría
-// $150.000. Se conserva —pasándole esos valores a mano— porque prueba que la
-// fórmula del 1% no se movió: lo único que cambia con el tiempo es el fijo.
+// El otro presupuesto oficial verificado, de cuando el arancel fijo era $1.300.
+// Se conserva —pasándole ese valor a mano— porque prueba que la fórmula del 1%
+// no se movió: lo único que cambia con el tiempo es el fijo.
 const FORD_KA_VALOR_TABLA = 18_308_800;
 
 describe("simularCuotas", () => {
@@ -79,26 +79,34 @@ describe("calcularCostoTransferenciaDNRPA", () => {
 });
 
 describe("calcularTransferenciaTotal", () => {
-  it("reproduce la operación histórica del Ford Ka con los valores de su época", () => {
-    expect(
-      calcularTransferenciaTotal({
-        valorTabla: FORD_KA_VALOR_TABLA,
-        arancelFijo: 1_300,
-        gestoria: 150_000,
-      })
-    ).toEqual({
-      valorTablaAjustado: 18_766_520, // 18.308.800 × 1,025
-      totalDNRPA: 184_388,
-      gestoria: 150_000,
-      total: 19_100_908, // el número que la agencia le cobró en su momento
+  it("cobra el 2,5% del valor de tabla, más el presupuesto y la gestoría", () => {
+    expect(calcularTransferenciaTotal({ valorTabla: GOL_VALOR_TABLA })).toEqual({
+      honorario: 180_280, // 7.211.200 × 2,5%
+      totalDNRPA: 75_192,
+      gestoria: 200_000,
+      total: 455_472,
     });
   });
 
-  it("usa el arancel fijo y la gestoría vigentes cuando no se le pasan", () => {
-    const r = calcularTransferenciaTotal({ valorTabla: GOL_VALOR_TABLA });
-    expect(r?.totalDNRPA).toBe(75_192);
-    expect(r?.gestoria).toBe(200_000);
-    expect(r?.total).toBe(7_391_480 + 75_192 + 200_000); // 7.211.200 × 1,025
+  it("también sobre el Ford Ka, con el arancel fijo de su época", () => {
+    expect(
+      calcularTransferenciaTotal({ valorTabla: FORD_KA_VALOR_TABLA, arancelFijo: 1_300 })
+    ).toEqual({
+      honorario: 457_720, // 18.308.800 × 2,5%
+      totalDNRPA: 184_388,
+      gestoria: 200_000,
+      total: 842_108,
+    });
+  });
+
+  // Regresión del error más caro que tuvo el sistema: `valorTabla × 1,025`
+  // metía el auto entero adentro del costo del trámite. Para este Ford Ka
+  // devolvía una transferencia de 19.150.908 sobre un auto de 18,3 millones.
+  // El costo del trámite SIEMPRE es una fracción del valor del auto.
+  it("el costo del trámite nunca se acerca al valor del auto", () => {
+    const r = calcularTransferenciaTotal({ valorTabla: FORD_KA_VALOR_TABLA });
+    expect(r!.total).toBeLessThan(FORD_KA_VALOR_TABLA / 10);
+    expect(r?.total).not.toBe(19_150_908);
   });
 
   it("sin valor de tabla no devuelve un total", () => {
@@ -112,8 +120,8 @@ describe("calcularTransferenciaTotal", () => {
       ajuste: 0.05,
       gestoria: 200_000,
     });
-    expect(r?.valorTablaAjustado).toBe(10_500_000);
-    expect(r?.total).toBe(10_500_000 + 103_080 + 200_000);
+    expect(r?.honorario).toBe(500_000); // 10.000.000 × 5%
+    expect(r?.total).toBe(500_000 + 103_080 + 200_000);
   });
 
   // Regresión: el código usa `??` y no `||` para los valores por defecto. Con
@@ -122,7 +130,7 @@ describe("calcularTransferenciaTotal", () => {
   // $150.000, y TODA cotización saldría inflada sin que nadie lo note.
   it("un ajuste en cero es cero, no el ajuste por defecto", () => {
     const r = calcularTransferenciaTotal({ valorTabla: 10_000_000, ajuste: 0 });
-    expect(r?.valorTablaAjustado).toBe(10_000_000);
+    expect(r?.honorario).toBe(0);
     expect(AJUSTE_DEFAULT).toBeGreaterThan(0); // si no, el test no probaría nada
   });
 

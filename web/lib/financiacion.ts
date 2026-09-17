@@ -64,17 +64,28 @@ export const GESTORIA_DEFAULT = 200000;
 export const AJUSTE_DEFAULT = 0.025; // 2.5%
 
 export interface TransferenciaTotal {
-  valorTablaAjustado: number; // valor tabla + ajuste
-  totalDNRPA: number; // el total del presupuesto oficial de DNRPA (1% + arancel fijo)
+  /** El 2,5% del valor de tabla: el honorario de la agencia por el trámite. */
+  honorario: number;
+  /** El total del presupuesto oficial de DNRPA (1% + los items fijos). */
+  totalDNRPA: number;
   gestoria: number;
+  /** Lo que la agencia le cobra al cliente por la transferencia. */
   total: number;
 }
 
-// Precio final de la transferencia que le cobra la agencia:
-//   valorTabla × (1 + ajuste) + total del presupuesto DNRPA + gestoría.
-// El total DNRPA sale de la fórmula ya verificada (calcularCostoTransferenciaDNRPA);
-// se confirmó con un presupuesto oficial real (Ford Ka: 1% de 18.308.800 + 1.300
-// = 184.388, idéntico al total que imprime el sitio de DNRPA).
+/**
+ * Lo que la agencia le cobra al cliente por hacerle la transferencia:
+ *   2,5% del valor de tabla + total del presupuesto DNRPA + gestoría.
+ *
+ * OJO con el 2,5%: es un HONORARIO sobre el valor de tabla, no un recargo que
+ * arrastre el valor del auto. Hasta septiembre de 2026 esta función calculaba
+ * `valorTabla × 1,025`, así que metía el auto entero adentro del costo del
+ * trámite: para un Ford Ka de 18,3 millones devolvía una transferencia de
+ * 19.150.908. La cuenta correcta da 842.108.
+ *
+ * Es la misma forma que `calcularPrenda`, y la agencia las explica igual:
+ * "se multiplica por el 2,5% y se suma la gestoría".
+ */
 export function calcularTransferenciaTotal(params: {
   valorTabla: number | null;
   ajuste?: number;
@@ -86,12 +97,12 @@ export function calcularTransferenciaTotal(params: {
   if (!dnrpa || !params.valorTabla) return null;
   const ajuste = params.ajuste ?? AJUSTE_DEFAULT;
   const gestoria = params.gestoria ?? GESTORIA_DEFAULT;
-  const valorTablaAjustado = Math.round(params.valorTabla * (1 + ajuste));
+  const honorario = Math.round(params.valorTabla * ajuste);
   return {
-    valorTablaAjustado,
+    honorario,
     totalDNRPA: dnrpa.total,
     gestoria,
-    total: valorTablaAjustado + dnrpa.total + gestoria,
+    total: honorario + dnrpa.total + gestoria,
   };
 }
 

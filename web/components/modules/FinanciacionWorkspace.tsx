@@ -165,8 +165,8 @@ export default function FinanciacionWorkspace() {
             {transferencia ? (
               <div className="flex flex-col gap-1 text-sm">
                 <div className="flex justify-between">
-                  <span style={{ color: "var(--muted)" }}>Valor tabla + {ajustePct}%</span>
-                  <span>{formatearMoneda(transferencia.valorTablaAjustado)}</span>
+                  <span style={{ color: "var(--muted)" }}>{ajustePct}% del valor tabla</span>
+                  <span>{formatearMoneda(transferencia.honorario)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span style={{ color: "var(--muted)" }}>Total presupuesto DNRPA</span>
