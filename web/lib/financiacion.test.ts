@@ -13,10 +13,16 @@ import {
 // cliente real: con un número mal, alguien cotiza una operación de diecinueve
 // millones y se entera tarde. Todo lo demás, si falla, muestra un dato feo.
 //
-// El caso central no es inventado: es el presupuesto OFICIAL de DNRPA de un Ford
-// Ka que ya está verificado en docs/phases/roadmap.md — valor de tabla
-// 18.308.800, total de transferencia 19.100.908. Si alguien toca una fórmula y
-// este número deja de salir, se rompe el test antes que la cotización.
+// Los casos no son inventados: son dos presupuestos OFICIALES de DNRPA. Si
+// alguien toca una fórmula y estos números dejan de salir, se rompe el test
+// antes que la cotización.
+//
+// La fórmula que cobra la agencia, confirmada por ella en septiembre de 2026:
+//   transferencia = valor de tabla × 2,5% + total del presupuesto + gestoría
+//   prenda        = (cuota × meses) × 2,5% + gestoría
+// En los dos casos el 2,5% es un HONORARIO, no un recargo que arrastre el valor
+// del auto ni el del crédito.
+//
 // El caso vigente: presupuesto oficial de un VW Gol 1.4 2013 importado, de
 // septiembre de 2026. Valor de tabla 7.211.200 → total 75.192.
 const GOL_VALOR_TABLA = 7_211_200;
