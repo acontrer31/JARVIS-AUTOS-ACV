@@ -22,13 +22,35 @@ export interface CostoTransferenciaDNRPA {
   total: number;
 }
 
-// Fórmula real de DNRPA, verificada con 3 ejemplos oficiales (Ford Ka, VW
-// Nivus, Fiat Cronos — nacional e importado dan la misma alícuota):
-// 1% del Valor Tabla + arancel fijo $1.300 (Res. 314/02).
-export function calcularCostoTransferenciaDNRPA(valorTabla: number | null): CostoTransferenciaDNRPA | null {
+/**
+ * Los items del presupuesto de DNRPA que NO salen del 1%.
+ *
+ * Hoy son $3.080, la certificación de firmas ("8A adicionales"). Verificado
+ * contra un presupuesto oficial de un VW Gol 2013 importado: valor de tabla
+ * 7.211.200 → total 75.192, que es exactamente 72.112 (el 1%) + 3.080.
+ *
+ * Los otros dos items que aparecen en el presupuesto —expedición de título y
+ * de cédula— vienen con su bonificación por la misma plata y se anulan de a
+ * pares, así que no suman nada.
+ *
+ * Es un valor por defecto y no una constante escrita en la fórmula porque
+ * cambia: DNRPA actualiza los aranceles, y no todos los trámites llevan los
+ * mismos items. Un presupuesto anterior (Ford Ka) daba $1.300 en su momento.
+ */
+export const ARANCEL_FIJO_DEFAULT = 3080;
+
+// Fórmula real de DNRPA: 1% del Valor Tabla + los items fijos del presupuesto.
+// El 1% está verificado contra varios presupuestos oficiales (Ford Ka, VW
+// Nivus, Fiat Cronos, VW Gol — nacional e importado dan la misma alícuota) y no
+// se movió nunca. Lo que sí se mueve es el fijo, por eso se puede pasar.
+export function calcularCostoTransferenciaDNRPA(
+  valorTabla: number | null,
+  fijo: number = ARANCEL_FIJO_DEFAULT
+): CostoTransferenciaDNRPA | null {
   if (!valorTabla || valorTabla <= 0) return null;
-  const arancel = valorTabla * 0.01;
-  const fijo = 1300;
+  // Al peso entero: los presupuestos de DNRPA vienen en pesos enteros, y
+  // arrastrar centésimas hace que después los totales no den exactos.
+  const arancel = Math.round(valorTabla * 0.01);
   return { arancel, fijo, total: arancel + fijo };
 }
 
@@ -38,50 +60,78 @@ export const DNRPA_DISCLAIMER =
 // Valores de negocio de la agencia para armar el precio final de la operación.
 // Se exportan para que la UI los use como default, pero son editables ahí: son
 // parámetros comerciales que pueden cambiar y no deberían requerir tocar código.
-export const GESTORIA_DEFAULT = 150000;
+export const GESTORIA_DEFAULT = 200000;
 export const AJUSTE_DEFAULT = 0.025; // 2.5%
 
 export interface TransferenciaTotal {
-  valorTablaAjustado: number; // valor tabla + ajuste
-  totalDNRPA: number; // el total del presupuesto oficial de DNRPA (1% + arancel fijo)
+  /** El 2,5% del valor de tabla: el honorario de la agencia por el trámite. */
+  honorario: number;
+  /** El total del presupuesto oficial de DNRPA (1% + los items fijos). */
+  totalDNRPA: number;
   gestoria: number;
+  /** Lo que la agencia le cobra al cliente por la transferencia. */
   total: number;
 }
 
-// Precio final de la transferencia que le cobra la agencia:
-//   valorTabla × (1 + ajuste) + total del presupuesto DNRPA + gestoría.
-// El total DNRPA sale de la fórmula ya verificada (calcularCostoTransferenciaDNRPA);
-// se confirmó con un presupuesto oficial real (Ford Ka: 1% de 18.308.800 + 1.300
-// = 184.388, idéntico al total que imprime el sitio de DNRPA).
+/**
+ * Lo que la agencia le cobra al cliente por hacerle la transferencia:
+ *   2,5% del valor de tabla + total del presupuesto DNRPA + gestoría.
+ *
+ * OJO con el 2,5%: es un HONORARIO sobre el valor de tabla, no un recargo que
+ * arrastre el valor del auto. Hasta septiembre de 2026 esta función calculaba
+ * `valorTabla × 1,025`, así que metía el auto entero adentro del costo del
+ * trámite: para un Ford Ka de 18,3 millones devolvía una transferencia de
+ * 19.150.908. La cuenta correcta da 842.108.
+ *
+ * Es la misma forma que `calcularPrenda`, y la agencia las explica igual:
+ * "se multiplica por el 2,5% y se suma la gestoría".
+ */
 export function calcularTransferenciaTotal(params: {
   valorTabla: number | null;
   ajuste?: number;
   gestoria?: number;
+  /** Los items fijos del presupuesto de DNRPA (ver ARANCEL_FIJO_DEFAULT). */
+  arancelFijo?: number;
 }): TransferenciaTotal | null {
-  const dnrpa = calcularCostoTransferenciaDNRPA(params.valorTabla);
+  const dnrpa = calcularCostoTransferenciaDNRPA(params.valorTabla, params.arancelFijo);
   if (!dnrpa || !params.valorTabla) return null;
   const ajuste = params.ajuste ?? AJUSTE_DEFAULT;
   const gestoria = params.gestoria ?? GESTORIA_DEFAULT;
-  const valorTablaAjustado = params.valorTabla * (1 + ajuste);
+  const honorario = Math.round(params.valorTabla * ajuste);
   return {
-    valorTablaAjustado,
+    honorario,
     totalDNRPA: dnrpa.total,
     gestoria,
-    total: valorTablaAjustado + dnrpa.total + gestoria,
+    total: honorario + dnrpa.total + gestoria,
   };
 }
 
 export interface Prenda {
-  montoFinanciado: number; // valor de la cuota × cantidad de meses
-  montoAjustado: number; // montoFinanciado + ajuste
+  /** Cuota × meses: lo que el cliente termina devolviéndole a MG Group. */
+  totalADevolver: number;
+  /** El costo de inscribir la prenda: el ajuste sobre lo anterior. */
+  costoPrenda: number;
   gestoria: number;
+  /** Lo que la agencia le cobra al cliente por la prenda. */
   total: number;
 }
 
-// Costo de la prenda cuando el cliente financia:
-//   (valor de cuota de MG Group × meses) × (1 + ajuste) + gestoría.
-// El valor de la cuota lo ingresa el usuario (viene de MG Group) — JARVIS no lo
-// inventa: si falta, devuelve null y la UI lo avisa.
+/**
+ * Costo de inscribir la prenda cuando el cliente financia.
+ *
+ * Es el 2,5% del TOTAL A DEVOLVER del crédito, más la gestoría. Con 12 cuotas
+ * de $100.000: se devuelven $1.200.000, la prenda cuesta $30.000, y con
+ * gestoría el cliente paga $230.000.
+ *
+ * OJO con lo que devuelve: es el COSTO del trámite, no el crédito. Hasta
+ * septiembre de 2026 esta función sumaba el crédito entero más el 2,5% más la
+ * gestoría, así que para ese mismo ejemplo devolvía $1.380.000 en vez de
+ * $230.000 — confundía "el crédito con su recargo" con "lo que cuesta
+ * inscribir la prenda". Son cosas distintas.
+ *
+ * El valor de la cuota lo ingresa el usuario (viene de MG Group) — JARVIS no lo
+ * inventa: si falta, devuelve null y la UI lo avisa.
+ */
 export function calcularPrenda(params: {
   valorCuota: number | null;
   meses: number | null;
@@ -92,12 +142,12 @@ export function calcularPrenda(params: {
   if (!params.meses || params.meses <= 0) return null;
   const ajuste = params.ajuste ?? AJUSTE_DEFAULT;
   const gestoria = params.gestoria ?? GESTORIA_DEFAULT;
-  const montoFinanciado = params.valorCuota * params.meses;
-  const montoAjustado = montoFinanciado * (1 + ajuste);
+  const totalADevolver = params.valorCuota * params.meses;
+  const costoPrenda = Math.round(totalADevolver * ajuste);
   return {
-    montoFinanciado,
-    montoAjustado,
+    totalADevolver,
+    costoPrenda,
     gestoria,
-    total: montoAjustado + gestoria,
+    total: costoPrenda + gestoria,
   };
 }

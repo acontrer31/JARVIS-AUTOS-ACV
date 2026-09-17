@@ -165,8 +165,8 @@ export default function FinanciacionWorkspace() {
             {transferencia ? (
               <div className="flex flex-col gap-1 text-sm">
                 <div className="flex justify-between">
-                  <span style={{ color: "var(--muted)" }}>Valor tabla + {ajustePct}%</span>
-                  <span>{formatearMoneda(transferencia.valorTablaAjustado)}</span>
+                  <span style={{ color: "var(--muted)" }}>{ajustePct}% del valor tabla</span>
+                  <span>{formatearMoneda(transferencia.honorario)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span style={{ color: "var(--muted)" }}>Total presupuesto DNRPA</span>
@@ -221,13 +221,17 @@ export default function FinanciacionWorkspace() {
 
                 {prenda ? (
                   <div className="flex flex-col gap-1 text-sm">
+                    {/* El total a devolver se muestra como referencia, NO se
+                        suma: lo que la agencia cobra es el trámite, no el
+                        crédito. Confundir las dos cosas era justamente el error
+                        que tenía esta pantalla. */}
                     <div className="flex justify-between">
-                      <span style={{ color: "var(--muted)" }}>Cuota × {mesesPrenda} meses</span>
-                      <span>{formatearMoneda(prenda.montoFinanciado)}</span>
+                      <span style={{ color: "var(--muted)" }}>Total a devolver (cuota × {mesesPrenda})</span>
+                      <span style={{ color: "var(--muted)" }}>{formatearMoneda(prenda.totalADevolver)}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span style={{ color: "var(--muted)" }}>+ {ajustePct}%</span>
-                      <span>{formatearMoneda(prenda.montoAjustado)}</span>
+                      <span style={{ color: "var(--muted)" }}>{ajustePct}% sobre ese total</span>
+                      <span>{formatearMoneda(prenda.costoPrenda)}</span>
                     </div>
                     <div className="flex justify-between">
                       <span style={{ color: "var(--muted)" }}>Gestoría</span>

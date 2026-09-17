@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   AJUSTE_DEFAULT,
+  ARANCEL_FIJO_DEFAULT,
   calcularCostoTransferenciaDNRPA,
   calcularPrenda,
   calcularTransferenciaTotal,
@@ -12,10 +13,23 @@ import {
 // cliente real: con un número mal, alguien cotiza una operación de diecinueve
 // millones y se entera tarde. Todo lo demás, si falla, muestra un dato feo.
 //
-// El caso central no es inventado: es el presupuesto OFICIAL de DNRPA de un Ford
-// Ka que ya está verificado en docs/phases/roadmap.md — valor de tabla
-// 18.308.800, total de transferencia 19.100.908. Si alguien toca una fórmula y
-// este número deja de salir, se rompe el test antes que la cotización.
+// Los casos no son inventados: son dos presupuestos OFICIALES de DNRPA. Si
+// alguien toca una fórmula y estos números dejan de salir, se rompe el test
+// antes que la cotización.
+//
+// La fórmula que cobra la agencia, confirmada por ella en septiembre de 2026:
+//   transferencia = valor de tabla × 2,5% + total del presupuesto + gestoría
+//   prenda        = (cuota × meses) × 2,5% + gestoría
+// En los dos casos el 2,5% es un HONORARIO, no un recargo que arrastre el valor
+// del auto ni el del crédito.
+//
+// El caso vigente: presupuesto oficial de un VW Gol 1.4 2013 importado, de
+// septiembre de 2026. Valor de tabla 7.211.200 → total 75.192.
+const GOL_VALOR_TABLA = 7_211_200;
+
+// El otro presupuesto oficial verificado, de cuando el arancel fijo era $1.300.
+// Se conserva —pasándole ese valor a mano— porque prueba que la fórmula del 1%
+// no se movió: lo único que cambia con el tiempo es el fijo.
 const FORD_KA_VALOR_TABLA = 18_308_800;
 
 describe("simularCuotas", () => {
@@ -49,11 +63,19 @@ describe("calcularCostoTransferenciaDNRPA", () => {
     expect(calcularCostoTransferenciaDNRPA(0)).toBeNull();
   });
 
-  it("reproduce el presupuesto oficial del Ford Ka", () => {
-    expect(calcularCostoTransferenciaDNRPA(FORD_KA_VALOR_TABLA)).toEqual({
-      arancel: 183_088, // 1% del valor de tabla
-      fijo: 1_300, // Res. 314/02
-      total: 184_388, // idéntico al total que imprime el sitio de DNRPA
+  it("reproduce el presupuesto oficial del VW Gol", () => {
+    expect(calcularCostoTransferenciaDNRPA(GOL_VALOR_TABLA)).toEqual({
+      arancel: 72_112, // 1% del valor de tabla — el item "TRANSFERENCIA IMPORTADO"
+      fijo: ARANCEL_FIJO_DEFAULT, // 3.080: la certificación de firmas (8A adicionales)
+      total: 75_192, // idéntico al total que imprime el sitio de DNRPA
+    });
+  });
+
+  it("reproduce el presupuesto histórico del Ford Ka con el fijo de su época", () => {
+    expect(calcularCostoTransferenciaDNRPA(FORD_KA_VALOR_TABLA, 1_300)).toEqual({
+      arancel: 183_088,
+      fijo: 1_300,
+      total: 184_388,
     });
   });
 
@@ -63,13 +85,34 @@ describe("calcularCostoTransferenciaDNRPA", () => {
 });
 
 describe("calcularTransferenciaTotal", () => {
-  it("reproduce la operación completa del Ford Ka", () => {
-    expect(calcularTransferenciaTotal({ valorTabla: FORD_KA_VALOR_TABLA })).toEqual({
-      valorTablaAjustado: 18_766_520, // 18.308.800 × 1,025
-      totalDNRPA: 184_388,
-      gestoria: GESTORIA_DEFAULT,
-      total: 19_100_908, // el número que la agencia le cobra al cliente
+  it("cobra el 2,5% del valor de tabla, más el presupuesto y la gestoría", () => {
+    expect(calcularTransferenciaTotal({ valorTabla: GOL_VALOR_TABLA })).toEqual({
+      honorario: 180_280, // 7.211.200 × 2,5%
+      totalDNRPA: 75_192,
+      gestoria: 200_000,
+      total: 455_472,
     });
+  });
+
+  it("también sobre el Ford Ka, con el arancel fijo de su época", () => {
+    expect(
+      calcularTransferenciaTotal({ valorTabla: FORD_KA_VALOR_TABLA, arancelFijo: 1_300 })
+    ).toEqual({
+      honorario: 457_720, // 18.308.800 × 2,5%
+      totalDNRPA: 184_388,
+      gestoria: 200_000,
+      total: 842_108,
+    });
+  });
+
+  // Regresión del error más caro que tuvo el sistema: `valorTabla × 1,025`
+  // metía el auto entero adentro del costo del trámite. Para este Ford Ka
+  // devolvía una transferencia de 19.150.908 sobre un auto de 18,3 millones.
+  // El costo del trámite SIEMPRE es una fracción del valor del auto.
+  it("el costo del trámite nunca se acerca al valor del auto", () => {
+    const r = calcularTransferenciaTotal({ valorTabla: FORD_KA_VALOR_TABLA });
+    expect(r!.total).toBeLessThan(FORD_KA_VALOR_TABLA / 10);
+    expect(r?.total).not.toBe(19_150_908);
   });
 
   it("sin valor de tabla no devuelve un total", () => {
@@ -83,8 +126,8 @@ describe("calcularTransferenciaTotal", () => {
       ajuste: 0.05,
       gestoria: 200_000,
     });
-    expect(r?.valorTablaAjustado).toBe(10_500_000);
-    expect(r?.total).toBe(10_500_000 + 101_300 + 200_000);
+    expect(r?.honorario).toBe(500_000); // 10.000.000 × 5%
+    expect(r?.total).toBe(500_000 + 103_080 + 200_000);
   });
 
   // Regresión: el código usa `??` y no `||` para los valores por defecto. Con
@@ -93,7 +136,7 @@ describe("calcularTransferenciaTotal", () => {
   // $150.000, y TODA cotización saldría inflada sin que nadie lo note.
   it("un ajuste en cero es cero, no el ajuste por defecto", () => {
     const r = calcularTransferenciaTotal({ valorTabla: 10_000_000, ajuste: 0 });
-    expect(r?.valorTablaAjustado).toBe(10_000_000);
+    expect(r?.honorario).toBe(0);
     expect(AJUSTE_DEFAULT).toBeGreaterThan(0); // si no, el test no probaría nada
   });
 
@@ -115,18 +158,29 @@ describe("calcularPrenda", () => {
     expect(calcularPrenda({ valorCuota: 850_000, meses: 0 })).toBeNull();
   });
 
-  it("es cuota × meses, más el ajuste, más la gestoría", () => {
-    expect(calcularPrenda({ valorCuota: 850_000, meses: 48 })).toEqual({
-      montoFinanciado: 40_800_000,
-      montoAjustado: 41_820_000, // × 1,025
-      gestoria: GESTORIA_DEFAULT,
-      total: 41_970_000,
+  // El ejemplo que dio la agencia, textual: 12 cuotas de $100.000 son
+  // $1.200.000 a devolver, y la prenda es el 2,5% de ese número.
+  it("es el 2,5% del total a devolver, más la gestoría", () => {
+    expect(calcularPrenda({ valorCuota: 100_000, meses: 12 })).toEqual({
+      totalADevolver: 1_200_000,
+      costoPrenda: 30_000,
+      gestoria: 200_000,
+      total: 230_000,
     });
+  });
+
+  // Regresión del error que se arregló en septiembre de 2026: la función sumaba
+  // el crédito entero más el 2,5% más la gestoría, y para este mismo caso
+  // devolvía $1.380.000. Devolvía el crédito, no lo que cuesta el trámite.
+  it("NO devuelve el crédito: devuelve lo que cuesta inscribir la prenda", () => {
+    const r = calcularPrenda({ valorCuota: 100_000, meses: 12 });
+    expect(r?.total).toBeLessThan(r!.totalADevolver);
+    expect(r?.total).not.toBe(1_380_000);
   });
 
   it("un ajuste y una gestoría en cero se respetan", () => {
     const r = calcularPrenda({ valorCuota: 100_000, meses: 12, ajuste: 0, gestoria: 0 });
-    expect(r?.montoAjustado).toBe(1_200_000);
-    expect(r?.total).toBe(1_200_000);
+    expect(r?.costoPrenda).toBe(0);
+    expect(r?.total).toBe(0);
   });
 });
