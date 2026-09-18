@@ -1,51 +1,70 @@
 # Roadmap JARVIS AUTO — fases del prompt de visión vs. estado real
 
 Este documento mapea las 12 fases del prompt de largo plazo del usuario contra lo que **ya existe y
-funciona hoy** en el sitio actual (producción, Alcover Automotores), para no reconstruir de cero lo
-que ya está resuelto. Se actualiza al cerrar cada fase — ver también `docs/architecture/decisiones.md`
+funciona hoy**. Se actualiza al cerrar cada fase — ver también `docs/architecture/decisiones.md`
 para el porqué de cada decisión de stack.
 
-Convención de estado: ✅ operativo en producción · 🟡 parcialmente cubierto por el stack actual · ⬜
-no iniciado · 🔒 bloqueado por algo externo al código.
+Convención de estado: ✅ operativo en producción · 🟡 parcialmente cubierto · ⬜ no iniciado ·
+🔒 bloqueado por algo externo al código.
 
-Todo lo marcado 🔒 está detallado en **`docs/phases/pendientes.md`**: qué frena, qué hace falta y quién
-lo destraba. Esa es la lista para ir bajando de a uno.
+Todo lo marcado 🔒 está detallado en **`docs/phases/pendientes.md`**: qué frena, qué hace falta y
+quién lo destraba.
 
-| Fase (prompt del usuario) | Estado | Qué ya existe / qué falta |
+> **Actualizado el 18 de septiembre de 2026.** La versión anterior de este archivo había quedado
+> muy atrás de la realidad: daba las Fases 6 y 7 por bloqueadas por una cuota de voz que hacía rato
+> se había destrabado, contaba 4 herramientas donde hay 24 y 13 módulos donde hay 16, daba
+> Automatización por no iniciada teniendo dos relojes corriendo, y el "próximo paso" era correr un
+> schema.sql que ya estaba aplicado. Un roadmap desactualizado es peor que no tenerlo: se planifica
+> desde él.
+
+| Fase | Estado | Qué existe / qué falta |
 |---|---|---|
-| **Fase 0 — Fundación** | ✅ | Este documento + `docs/architecture/decisiones.md` + scaffold `/web` (Next.js + TypeScript + Tailwind, conectado al Supabase real, probado con build y login en vivo). |
-| **Fase 1 — JARVIS CORE** | 🟡 en curso | Construido en `/web`: núcleo visual grande con el isologo (colores + tipografía Plastik real, licencia GPL v2) girando en el centro, estados STANDBY/ESCUCHANDO/RESPONDIENDO/ERROR reales, y los 13 módulos ocultos por defecto. Se pueden abrir por voz (`mostrar_modulo`) **o manualmente** con el acceso discreto "módulos" bajo el core — agregado en la Fase 3 porque depender solo de la voz dejaba el sistema entero inalcanzable cuando el proveedor de voz falla. Vehículos y Financiación abren workspace con datos reales de Supabase; el resto avisa "próximamente". Desplegado en Vercel: **https://jarvis-autos-acv.vercel.app/**. Falta: 🔒 la voz corta por cuota agotada de ElevenLabs (pendientes.md #1) y 🔒 subir el archivo real del isologo (pendientes.md #3); además migrar el resto de pantallas (Clientes, Configuración) que siguen solo en el sitio estático. |
-| **Fase 2 — Fundación de datos** | ✅ | Al esquema base (`agencias`, `perfiles`, `vehiculos`, `clientes`, `interacciones`, todo con RLS multi-tenant por `agencia_id`) se sumó: ciclo de vida + `notas` en `vehiculos` (el costo interno terminó en su propia tabla `vehiculo_costos` — ver `decisiones.md`); tabla **`vehiculo_media`** (fotos/videos/documentos por vehículo); campos de lead en `clientes` (`estado_lead`, `vehiculo_interes_id`, `presupuesto`, `vendedor_id`); y tabla **`operaciones`** (venta/reserva/permuta/consignación). Todo idempotente y con RLS por agencia — verificado corriendo `schema.sql` dos veces seguidas contra un Postgres 16 real. Un lead **no** es tabla aparte a propósito: es un estado del cliente, no otra entidad. Diferidos con criterio: `marketing_assets` (Fase 9) y `audit_log` (Fase 12), que se crean cuando tengan un consumidor real. |
-| **Fase 3 — Sistema de vehículos** | ✅ | **CRUD completo desde la UI** (`VehiculosWorkspace` + `VehiculoForm`): alta, edición, borrado, cambio de estado en línea y filtro por estado, sobre la política RLS `"editar vehiculos de mi agencia"` que ya existía sin usarse. Ciclo de vida real (`borrador/disponible/reservado/vendido/no_disponible`), notas internas, y costo interno separado del precio de venta (en `vehiculo_costos`, visible solo para admin). Los 32 vehículos ya cargados quedan en `disponible` por default — el sitio estático en producción no se entera. Se acabó el "solo se carga por SQL". **Subida de fotos operativa** (`FotosVehiculo` + `lib/media.ts`): se cargan al bucket `vehiculos` bajo `<agencia_id>/<vehiculo_id>/` y quedan registradas en `vehiculo_media`. Las policies de Storage se acotaron por agencia (`supabase/storage-policies.sql`) porque las que generó el asistente de Supabase daban escritura a cualquier usuario autenticado. Falta solo migrar las fotos viejas de `/images/<dominio>/` al bucket. |
-| **Fase 4 — Motor de financiación** | 🟡 casi | Tres motores determinísticos reales, sin inventar números: `simularCuotas` (precio ÷ cuotas), `calcularCostoTransferenciaDNRPA` (1% del valor tabla + arancel fijo) y **la calculadora del valor final de la operación** (`calcularTransferenciaTotal` + `calcularPrenda`), que replica el cálculo real de la agencia: valor tabla + 2.5% + total del presupuesto DNRPA + gestoría, y si el cliente financia, la prenda = cuota MG Group × meses + 2.5% + gestoría. El ajuste y la gestoría son editables en la UI; el valor de cuota lo ingresa el usuario (lo da MG Group, JARVIS no lo inventa). Verificado contra dos presupuestos oficiales de DNRPA: Ford Ka (total 184.388, con el arancel fijo de $1.300 de su momento) y VW Gol 2013 importado (total 75.192, con el fijo de $3.080 de hoy). **Corregido en septiembre de 2026**: el 2,5% es un HONORARIO sobre el valor de tabla, no un recargo sobre el valor del auto — la versión anterior devolvía una transferencia de 19.150.908 para un Ford Ka de 18,3 millones, cuando la cuenta correcta da 842.108. La prenda tenía el mismo error y se corrigió igual: es el 2,5% del total a devolver, no el crédito más su recargo. Y la **gestoría se cobra una sola vez por operación**: la suma la hace `calcularOperacion` en la lib y no la pantalla, que era donde antes se duplicaba ($400.000 en vez de $200.000 cuando el cliente financiaba). Lo único que sigue pendiente es simular la **cuota sola** sin que el usuario la ingrese — eso sí necesita las tasas/CFT de MG Group (pendientes.md #4), pero la calculadora de operación completa ya funciona sin ese dato. |
-| **Fase 5 — Clientes y CRM** | ✅ | **Módulo Clientes real en `/web`**: lista con buscador y filtro por etapa del embudo, alta/edición/borrado (`ClientesWorkspace` + `ClienteForm`) y **perfil unificado** (`PerfilCliente`) que junta en una sola pantalla contacto, etapa, vehículo de interés, presupuesto, vendedor asignado, historial de interacciones y operaciones. El historial se puede anotar a mano (llamada/WhatsApp/visita/email) y convive con las conversaciones que ya cargaba sola la Edge Function de voz (`tipo = 'voz_jarvis'`). `operaciones` deja de ser una tabla vacía: se muestra en el perfil, en solo lectura. Requirió una política RLS nueva — `"ver perfiles de mi agencia"` — porque `perfiles` solo dejaba ver la fila propia y el selector de vendedor asignado mostraba un único nombre; verificado con SQL real que un usuario de otra agencia sigue sin ver nada ajeno. Falta: 🔒 la recuperación por voz ("mostrame el perfil de Carlos"), que depende de la cuota de ElevenLabs (pendientes.md #1). |
-| **Fase 6 — Sistema de voz** | 🔒 | ElevenLabs Conversational AI operativo a nivel código (máquina de estados de activación, detección de aplauso y wake-word client-side, gate `requiereSesionJarvis()` — que NO es verificación de identidad por voz). Bloqueado: la cuenta se quedó sin cuota y toda conversación corta a 1-2s con `This request exceeds your quota limit` (pendientes.md #1). La alternativa de voz local (Pipecat + Whisper.cpp + Ollama + Piper) está evaluada y es viable, pero necesita servidor propio (pendientes.md #2). |
-| **Fase 7 — Orquestación de herramientas** | 🔒 | 4 client tools reales registradas: `consultar_inventario`, `simular_financiacion`, `estimar_transferencia_dnrpa` y `mostrar_modulo` — todas devuelven datos reales o avisan explícitamente cuando falta información, nunca inventan. Bloqueado por lo mismo que la Fase 6: sin voz no se pueden invocar. |
-| **Fase 8 — Comunicaciones** | 🟡 código listo | **Recibir WhatsApp**: Edge Function `whatsapp-webhook` construida y probada (verificación GET de Meta, firma HMAC-SHA256 del body, mapeo `phone_number_id`→agencia, busca/crea cliente por teléfono, inserta interacción `tipo='whatsapp'` con el payload crudo en `datos_origen`). Toda la lógica verificada con payloads reales de la doc de Meta. Queda inactiva hasta que el usuario haga el setup de la Cloud API en Meta y cargue los secretos (guía paso a paso en README) — misma estrategia "dejá todo listo" que se usó con Supabase. Falta: **enviar** mensajes (parte 2, necesita plantillas aprobadas por Meta) y el setup de Meta del usuario (pendientes.md). Redes sociales: sin iniciar. |
-| **Fase 9 — Marketing** | ✅ | **Módulo Marketing real**: arma el texto del aviso desde la ficha del vehículo en tres tonos (ficha técnica / aviso de venta / historia corta) — cada dato entra solo si está cargado, así que no inventa ni un "0 km" que nadie verificó. Y el rendimiento de lo publicado, agrupado por vehículo e **incluidas las publicaciones retiradas**: saber que un auto necesitó seis publicaciones antes de venderse es el dato que sirve para el próximo. Las métricas se refrescan desde Meta con `POST /api/redes/metricas` mientras el aviso sigue vivo, no solo al retirarlo. Donde no hay números dice "sin datos todavía", nunca cero. |
-| **Fase 10 — Conocimiento** | ✅ | **Módulo Conocimiento real**: trámites, precios, políticas y proveedores, como nota escrita adentro, archivo adjunto, o las dos cosas. Búsqueda full-text en castellano **en el servidor**, sobre una columna generada `busqueda tsvector` (desde PostgREST solo se puede buscar sobre una columna: con un índice de expresión suelto, el índice existe pero el cliente no lo usa). Bucket `documentos` **privado** con URLs firmadas a 5 minutos, al revés que el de fotos. Borrar es solo del admin; corregir lo puede hacer cualquiera y queda en la auditoría. La tool de voz `consultar_conocimiento` busca acá y devuelve un extracto recortado; si no encuentra, lo dice. |
-| **Fase 11 — Automatización** | 🔒 | No iniciado. n8n requiere servidor propio. La única automatización real hoy es la Edge Function que captura conversaciones de voz (`supabase/functions/elevenlabs-webhook`). |
-| **Fase 12 — Seguridad** | 🟡 casi | RLS multi-tenant activo y probado. **RBAC real**: `perfiles.rol` (`admin`/`vendedor`) pasó de decorativo a tener efecto, con `mi_rol()` (security definer, igual que `mi_agencia_id()`) y políticas **por comando** en lugar de las `for all` anteriores — un vendedor actualiza vehículos y carga clientes/operaciones, pero no da de alta ni elimina stock, no borra clientes ni reescribe interacciones, y no puede auto-ascenderse. **Audit log real**: tabla `audit_log` + trigger `registrar_auditoria()` sobre `vehiculos`, `clientes` y `operaciones`, que guarda quién cambió qué y cuándo (con `datos_antes`/`datos_despues`); es **inmutable desde el cliente** — no tiene políticas de escritura y los privilegios están revocados, así que ni un admin puede editarlo o borrarlo. Módulos **Seguridad** (registro de auditoría, solo admin) y **Administración** (usuarios y roles) construidos en `/web`. Todo verificado con dos usuarios reales de roles distintos contra Postgres 16. **Revisión de seguridad posterior** (agosto 2026): se detectaron y corrigieron tres problemas reales — el endpoint `/api/elevenlabs-signed-url` no pedía sesión (cualquiera con la URL podía pedir URLs firmadas y consumir cuota de ElevenLabs); los cambios de rol no quedaban auditados, que es justamente la acción que reparte permisos; y `costo_interno` era legible por los vendedores porque RLS es por fila y no por columna (se movió a `vehiculo_costos`, ver `decisiones.md`). Falta: rate limiting, y dos ítems 🔒 en manos del usuario — la función `rls_auto_enable()` marcada por el Security Advisor (pendientes.md #5) y el toggle de protección de contraseña filtrada (pendientes.md #6). |
+| **0 — Fundación** | ✅ | Este documento + `decisiones.md` + la app en `/web` (Next.js 16, TypeScript, Tailwind v4), conectada al Supabase real y desplegada. |
+| **1 — JARVIS CORE** | ✅ | Núcleo visual con el isologo girando, estados STANDBY/ESCUCHANDO/RESPONDIENDO/ERROR reales, y **16 módulos** que se abren por voz (`mostrar_modulo`) **o a mano**. Las dos formas a propósito: depender solo de la voz dejaba el sistema entero inalcanzable el día que el proveedor falla. En producción: **https://jarvis-autos-acv.vercel.app/**. Falta 🔒 el archivo del isologo real (pendientes #3). |
+| **2 — Fundación de datos** | ✅ | **19 tablas**, todas con RLS multi-tenant por `agencia_id`, verificado contra la base viva en la auditoría de seguridad. El costo interno vive en `vehiculo_costos` aparte, porque RLS es por fila y no por columna. Un lead no es una tabla: es un estado del cliente. |
+| **3 — Sistema de vehículos** | ✅ | CRUD completo desde la UI sobre RLS, ciclo de vida real, notas internas, costo separado del precio. Fotos al bucket `vehiculos` bajo `<agencia_id>/<vehiculo_id>/`. Falta migrar las fotos viejas de `/images/<dominio>/` al bucket. |
+| **4 — Motor de financiación** | 🟡 | Las cuentas que cuestan plata, determinísticas y con **31 tests**. La fórmula real de la agencia: `valor de tabla × 2,5% + total del presupuesto DNRPA + gestoría`, y si financia, `prenda = (cuota × meses) × 2,5%`, con la gestoría **una sola vez por operación**. Los cuatro errores de septiembre están corregidos y cada uno tiene un test que compara contra el número viejo. El Valor Tabla y el presupuesto se pegan en la pantalla, con el instructivo de la consulta al registro al lado. Falta 🔒 simular la **cuota sola** sin que la ingrese el usuario: eso necesita las tasas de MG Group (pendientes #4). |
+| **5 — Clientes y CRM** | ✅ | Lista con buscador y filtro por etapa, alta/edición/borrado, y perfil unificado con contacto, embudo, vehículo de interés, vendedor asignado, historial de interacciones y operaciones. Funciona por voz y a mano. |
+| **6 — Sistema de voz** | ✅ | **La cuota se destrabó y la voz funciona en producción.** ElevenLabs Conversational AI: un agente que hace STT + LLM + TTS + turnos. Máquina de estados de activación, wake-word y detección de aplauso del lado del cliente. La URL firmada se pide desde el servidor, exige sesión y está limitada por rate limit (cada conversación gasta cuota, y ya se agotó una vez). |
+| **7 — Orquestación de herramientas** | ✅ | **24 client tools**, no 4. Consultar stock, cotizar, cargar clientes, mover leads, agendar seguimientos, registrar operaciones y movimientos de caja, publicar en redes, buscar en el conocimiento, abrir módulos. Ninguna inventa datos: si falta algo, lo dicen. Una guarda en tiempo de compilación obliga a que los nombres del código y los de `lib/voz.ts` no se separen. Falta 🔒 cargar dos textos en el dashboard para que el agente deje de improvisar cuando no encuentra algo (pendientes #11). |
+| **8 — Comunicaciones** | 🟡 | **Redes funciona**: publica en Facebook e Instagram (feed, historia, reel y carrusel), con programación y retiro automático al vender. **WhatsApp a medias**: la Edge Function que *recibe* está escrita y probada, inactiva esperando el alta en Meta (pendientes #10); *enviar* necesita plantillas aprobadas. Instagram necesita la cuenta Business vinculada — mismo trámite. |
+| **9 — Marketing** | ✅ | Arma el texto del aviso desde la ficha en tres tonos, cada dato entra solo si está cargado. Y el rendimiento de lo publicado por vehículo, **incluidas las publicaciones retiradas**: saber que un auto necesitó seis publicaciones antes de venderse es el dato que sirve para el próximo. Donde no hay números dice "sin datos todavía", nunca cero. |
+| **10 — Conocimiento** | ✅ | Trámites, precios, políticas y proveedores: nota escrita, archivo adjunto, o las dos cosas. Bucket privado con enlaces firmados a 5 minutos. La búsqueda full-text en castellano tuvo **dos bugs graves corregidos en septiembre**: el recorte cortaba antes de la respuesta, y la búsqueda exigía *todas* las palabras — así que preguntar como habla la gente devolvía cero. Los dos con tests (**17**). |
+| **11 — Automatización** | 🟡 | **Corriendo, no "no iniciado".** Dos relojes en pg_cron: publicar lo programado cada 5 minutos, y las automatizaciones diarias a las 8 de la mañana de Salta (seguimientos vencidos y stock estancado, que crean tareas sin duplicarlas). El módulo deja encender y apagar cada regla por agencia y muestra cuándo corrió y qué hizo. n8n sigue sin usarse: requiere servidor propio y hoy no hace falta. |
+| **12 — Seguridad** | ✅ | RLS multi-tenant, RBAC real por comando, audit log inmutable desde el cliente. **Auditoría completa en septiembre de 2026** (ver `pendientes.md` #12): se encontró y cerró un **RCE crítico** de Next.js, dos endpoints que pedían sesión pero no verificaban la agencia —cualquier usuario podía publicar en el Facebook real o leer las conversaciones con clientes—, `anon` con permiso de TRUNCATE sobre las 19 tablas, buckets que aceptaban cualquier tipo de archivo, cero cabeceras de seguridad y cero rate limiting. Todo corregido y verificado contra el servidor corriendo. `npm audit` en 0. Queda 🔒 `script-src` de la CSP (#12.1) y el sitio viejo de la raíz (#12.3). |
 
-## Próximo paso
+## Dónde está parado el proyecto
 
-Fases 2, 3 y 5 cerradas. **Antes de que nada de eso funcione en producción hay que correr
-`supabase/schema.sql` en el SQL Editor de Supabase** — hasta entonces Vehículos y Clientes van a mostrar
-el error real de Postgres (`column vehiculos.estado does not exist` y equivalentes), porque la app ya pide
-las columnas y políticas nuevas. Es un solo paso manual y cubre las tres fases de una.
+**Las 12 fases tienen algo real funcionando.** No queda ninguna en cero. Lo que sigue son tres cosas
+distintas, y conviene no mezclarlas:
 
-**Ya no queda ninguna fase que se pueda avanzar entera sin destrabar algo externo.** Lo que sigue son los
-bloqueos de `pendientes.md`, para ir bajándolos de a uno:
+**1. Lo que depende de un trámite o de una decisión del usuario** — están en `pendientes.md` y no se
+resuelven escribiendo código:
 
-1. **Cuota de ElevenLabs** (#1) — destraba las Fases 6, 7 y lo que falta de la 1. Es el que más desbloquea.
-2. **Política de red del entorno** (#9) — habilita importar el catálogo del sitio de la agencia.
-3. **Bucket de Storage** (#7) — habilita subir fotos desde el CRUD, lo último que le falta a la Fase 3.
-4. **Tasas reales de MG Group** (#4) — destraba la Fase 4.
+- Los **dos textos en el dashboard de ElevenLabs** (#11). Es lo más barato y lo que más cambia: sin
+  eso el agente puede inventar una respuesta sobre un trámite en vez de decir que no la sabe.
+- La **sesión de Meta** para WhatsApp e Instagram (#10). Conviene hacer los dos juntos: es el mismo
+  trámite.
+- Las **tasas de MG Group** (#4) y el **isologo real** (#3).
 
-La parte no bloqueada de la **Fase 12** (RBAC + audit log + módulos Seguridad y Administración) ya está
-hecha. Con eso, **no queda nada más que se pueda avanzar sin destrabar alguno de los cuatro puntos de
-arriba**.
+**2. Lo que se puede hacer sin depender de nadie:**
 
-Nota sobre el RBAC: hoy hay un solo usuario, y quedó como `admin` por el default de `perfiles.rol`, así
-que en la práctica nada cambia para el uso diario. El sistema de roles recién se nota cuando se sume un
-segundo usuario — se le asigna el rol desde el módulo Administración.
+- Cerrar `script-src` de la CSP, que necesita cinco minutos de alguien con la consola del navegador
+  abierta (#12.1).
+- Decidir qué pasa con el **sitio estático viejo** de la raíz (#12.3).
+- Los **5 PRs de Dependabot** abiertos.
+- Migrar las fotos viejas al bucket.
+
+**3. Lo que es producto, no deuda** — agentes especializados para CRM y Marketing, y la arquitectura
+multi-proveedor que el usuario está evaluando. Son decisiones, no pendientes.
+
+## Una nota sobre cómo se rompió este sistema hasta ahora
+
+Los errores caros de este proyecto no fueron caídas. Fueron **respuestas creíbles y equivocadas**:
+una transferencia de 19 millones sobre un auto de 18, una gestoría cobrada dos veces, un
+procedimiento que el agente completó de su propia cabeza. Ninguno rompió nada; todos se veían bien.
+
+Por eso las dos partes que pueden costar plata —las cuentas de financiación y el material que el
+agente lee antes de contestar— son las únicas con tests, y por eso cada corrección deja un test que
+compara contra el número viejo. Y por eso el punto más frágil que queda no es código: es el prompt
+del agente, que vive en un dashboard sin historial, sin revisión y sin tests.
