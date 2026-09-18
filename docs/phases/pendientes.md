@@ -289,21 +289,32 @@ además admite lo que no sabe es el que sirve.
 
 La auditoría completa corrigió lo que se podía corregir desde el código y la base. Queda esto.
 
-### 12.1 Content-Security-Policy completa — REQUIERE PROBAR CONTRA EL SITIO ANDANDO
+### 12.1 Content-Security-Policy — LA MITAD ACTIVA YA ESTÁ; FALTA `script-src`
 
-`next.config.ts` ya manda `frame-ancestors 'none'`, `X-Content-Type-Options`, `Referrer-Policy`,
-`Strict-Transport-Security` y `Permissions-Policy`. Falta la CSP de `script-src` / `connect-src`, que
-es la que de verdad frena un XSS.
+**Ya bloquea** (verificado con `curl` contra el server): `frame-ancestors`, `object-src`,
+`base-uri`, `form-action` y **`connect-src`**. Esta última es la que importa de esta mitad: aunque
+alguien lograra ejecutar un script en la página, el navegador no lo dejaría mandar los datos de la
+agencia a ningún lado que no sea Supabase, ElevenLabs u Open-Meteo.
 
-**Por qué no se aplicó a ciegas:** hay que enumerar cada origen que la app usa de verdad — Supabase
-por `https` y por `wss`, ElevenLabs por `wss`, Storage, Meta — y probarla con el sitio corriendo. Una
-CSP incompleta no rompe el build ni los tests: rompe la aplicación en el navegador del usuario, en
-silencio. El entorno de desarrollo tiene bloqueada la salida a esos dominios, así que no se puede
-verificar desde acá.
+**Falta `script-src`**, que es la que frena el XSS en sí. Va en `Content-Security-Policy-Report-Only`,
+que anota en la consola del navegador y **no bloquea nada**.
 
-**Cómo hacerlo:** aplicarla primero como `Content-Security-Policy-Report-Only`, usar la app un día
-entero (incluida una conversación de voz completa), juntar lo que reporte, y recién ahí pasarla a
-modo bloqueante.
+**Por qué no se enciende de una:** Next inyecta scripts inline para hidratar la página. Bloquearlos
+necesita *nonces*, y los nonces obligan a renderizar cada visita en el servidor en vez de servir la
+página pregenerada. Eso es un cambio de comportamiento y de costo, no solo de seguridad — es una
+decisión del proyecto, no del auditor.
+
+**EL PASO QUE FALTA, y lo tiene que hacer una persona con el sitio abierto:**
+
+1. Abrir https://jarvis-autos-acv.vercel.app/ y abrir la consola del navegador (F12 → Console).
+2. Usar la app un rato: entrar a varios módulos, ver fotos de vehículos, **tener una conversación de
+   voz completa con JARVIS** y publicar algo en redes.
+3. Anotar cada mensaje que diga `Content Security Policy` o `Report Only`.
+4. Pasar esa lista. Con eso se ajusta la política y recién ahí se decide si vale la pena el cambio a
+   nonces.
+
+Si después de un día de uso real no aparece ninguna violación más allá de los scripts inline de Next,
+ya se sabe que lo único que falta resolver es ese punto.
 
 ### 12.2 `AGENCIA_PROPIETARIA` — HACE FALTA ANTES DE LA SEGUNDA AGENCIA
 
