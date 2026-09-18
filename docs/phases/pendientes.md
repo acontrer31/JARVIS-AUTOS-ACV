@@ -223,6 +223,68 @@ aprobadas por Meta).
 
 ---
 
+## 11. Dos textos que van en el dashboard de ElevenLabs — pendientes
+
+Son la mitad de un arreglo que ya está hecho del lado del código (PR #28). Sin ellos, JARVIS
+puede volver a inventar una respuesta sobre un trámite.
+
+**Por qué no lo hace nadie desde acá:** el system prompt y las descripciones de las herramientas
+viven en el dashboard de ElevenLabs, no en este repo. La API está bloqueada por la política de red
+del entorno de desarrollo, así que no hay forma de cargarlo ni de verificarlo programáticamente.
+
+**De dónde salió esto:** probando en producción, a la pregunta *"¿qué pongo en valor declarado
+cuando consulto el registro?"* el agente contestó que dependía del vehículo y que podía ser el
+valor de tabla o el de la operación. No está escrito en ningún lado: se lo inventó. Dos causas
+apiladas — la búsqueda no encontraba el documento (ya corregido), y aun recibiendo "no encontré
+nada" el agente contestó igual. Esto último no se arregla buscando mejor.
+
+### 11.1 System prompt del agente
+
+En **Agents → JARVIS → pestaña Agent → campo `System prompt`**, agregar al final:
+
+```
+Cuando te pregunten por trámites, costos, plazos, requisitos o
+procedimientos de la agencia, SIEMPRE usá consultar_conocimiento
+antes de contestar. Nunca contestes de memoria sobre estos temas.
+
+Si la herramienta dice que no hay nada cargado, decí que ese dato
+todavía no está en el sistema. No supongas, no completes, no des
+una respuesta "probable". Es preferible que la persona sepa que
+falta un dato a que se lleve un número inventado.
+```
+
+### 11.2 Descripción de la herramienta `consultar_conocimiento`
+
+```
+Busca en la base de conocimiento de la agencia: trámites, costos,
+plazos, requisitos, políticas internas y datos de proveedores.
+Usarla SIEMPRE antes de contestar cualquier pregunta sobre cómo se
+hace un trámite o cuánto sale algo. Si devuelve que no hay nada
+cargado, decirlo — no completar con conocimiento propio.
+```
+
+Y su parámetro `consulta` (string):
+
+```
+Lo que la persona quiere saber, en sus palabras. Pasar la pregunta
+completa: la búsqueda entiende frases naturales.
+```
+
+Ese último renglón recién ahora es cierto. Antes la búsqueda exigía que TODAS las palabras
+estuvieran en el documento, así que una pregunta hablada —con un "pongo" o un "sale" que el
+documento no usa— devolvía cero.
+
+### Cómo se verifica que quedó
+
+Dos preguntas, y las dos importan:
+
+1. *"¿Qué pongo en valor declarado cuando consulto el registro?"* → tiene que contestar **1**.
+2. Algo que NO esté cargado en Conocimiento → tiene que admitir que no lo tiene.
+
+La segunda vale tanto como la primera. Un agente que contesta bien lo que sabe es la mitad; el que
+además admite lo que no sabe es el que sirve.
+---
+
 ## 12. Lo que dejó abierto la auditoría de seguridad (septiembre de 2026)
 
 La auditoría completa corrigió lo que se podía corregir desde el código y la base. Queda esto.
