@@ -8,29 +8,23 @@ Estado del resto del proyecto: ver `docs/phases/roadmap.md`.
 
 ---
 
-## 1. Cuota de ElevenLabs agotada — bloquea Fases 1, 6 y 7
+## 1. ~~Cuota de ElevenLabs agotada~~ — RESUELTO (septiembre de 2026)
 
-**Síntoma:** la conversación de voz arranca, el agente alcanza a emitir el saludo y corta a 1-2 segundos.
+Bloqueaba las Fases 1, 6 y 7: la conversación arrancaba, el agente alcanzaba a saludar y cortaba a
+1-2 segundos con `This request exceeds your quota limit`. No era un bug del código — la firma de la
+URL y la conexión del cliente estaban bien; el corte venía de ElevenLabs.
 
-**Causa confirmada** (no es un bug del código): el panel de ElevenLabs → Historial de conversaciones
-muestra todas las pruebas recientes en estado `Error`. El detalle de `conv_9901m0d28y3defvvvknxmetcxcd3`
-(19 ago 2026, 10:09, agente Jarvis, entorno production) dice textual:
+**Está destrabado.** La voz funciona en producción: se mantienen conversaciones completas, el agente
+invoca herramientas y contesta. Verificado en uso real.
 
-> La conversación terminó debido a un error: **This request exceeds your quota limit.**
+Lo que quedó de esa etapa, y conviene no perder:
 
-Coste de la conversación: 0 créditos — ni siquiera llegó a facturar, cortó antes de arrancar.
-
-Esto descarta el código: `web/app/api/elevenlabs-signed-url/route.ts` firma bien la URL y
-`web/components/JarvisCore.tsx` conecta bien; el corte viene del lado de ElevenLabs.
-
-**Qué falta (lo hace el usuario):** revisar Uso / Facturación en la cuenta de ElevenLabs y determinar si es
-- créditos del plan mensual agotados → upgrade o esperar el reset del ciclo, o
-- límite de conversaciones concurrentes del plan → cerrar sesiones colgadas de pruebas anteriores.
-
-**Cómo se verifica cuando se destrabe:** repetir la prueba en producción y confirmar en el Historial de
-conversaciones que la nueva conversación queda en estado distinto de `Error` y con duración real.
-
----
+- **El endpoint que firma la URL ahora exige sesión Y tiene rate limit.** Cada conversación gasta
+  cuota, o sea plata. Antes cualquiera con la URL podía pedir URLs firmadas; después de eso, un
+  usuario legítimo con una pestaña en bucle podía vaciar la cuenta igual. Hoy son 20 cada 5 minutos
+  por usuario (ver `lib/server/sesion.ts`).
+- **Los módulos se abren por voz y también a mano.** Se agregó justamente porque este bloqueo dejó el
+  sistema entero inalcanzable mientras duró. Esa decisión se queda aunque la voz ande.
 
 ## 2. Voz local (Pipecat + Whisper.cpp + Ollama + Piper) — alternativa evaluada, no descartada
 
