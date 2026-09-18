@@ -220,3 +220,65 @@ que conviene usar un número nuevo dedicado.
 **Cuando se destrabe:** se manda un WhatsApp al número y se confirma que aparece como interacción en el
 perfil del cliente. Después arranca la **parte 2 — enviar** mensajes desde JARVIS (requiere plantillas
 aprobadas por Meta).
+
+---
+
+## 12. Lo que dejó abierto la auditoría de seguridad (septiembre de 2026)
+
+La auditoría completa corrigió lo que se podía corregir desde el código y la base. Queda esto.
+
+### 12.1 Content-Security-Policy completa — REQUIERE PROBAR CONTRA EL SITIO ANDANDO
+
+`next.config.ts` ya manda `frame-ancestors 'none'`, `X-Content-Type-Options`, `Referrer-Policy`,
+`Strict-Transport-Security` y `Permissions-Policy`. Falta la CSP de `script-src` / `connect-src`, que
+es la que de verdad frena un XSS.
+
+**Por qué no se aplicó a ciegas:** hay que enumerar cada origen que la app usa de verdad — Supabase
+por `https` y por `wss`, ElevenLabs por `wss`, Storage, Meta — y probarla con el sitio corriendo. Una
+CSP incompleta no rompe el build ni los tests: rompe la aplicación en el navegador del usuario, en
+silencio. El entorno de desarrollo tiene bloqueada la salida a esos dominios, así que no se puede
+verificar desde acá.
+
+**Cómo hacerlo:** aplicarla primero como `Content-Security-Policy-Report-Only`, usar la app un día
+entero (incluida una conversación de voz completa), juntar lo que reporte, y recién ahí pasarla a
+modo bloqueante.
+
+### 12.2 `AGENCIA_PROPIETARIA` — HACE FALTA ANTES DE LA SEGUNDA AGENCIA
+
+Las credenciales de Meta y de ElevenLabs son variables de entorno: una sola cuenta para todo el
+despliegue. `/api/redes/publicar` y `/api/voz/conversaciones` ahora exigen que quien llama pertenezca
+a la agencia dueña de esas cuentas.
+
+Mientras haya **una sola agencia**, se resuelve sola y no hay nada que hacer. En cuanto se dé de alta
+la segunda, los dos endpoints van a devolver 403 hasta que se configure `AGENCIA_PROPIETARIA` en
+Vercel con el id de la agencia dueña de las cuentas. Falla cerrado a propósito: es preferible que
+Marketing deje de publicar y alguien lo note, a que una agencia publique en el Facebook de otra.
+
+### 12.3 El sitio estático viejo — NO AUDITADO EN PROFUNDIDAD
+
+En la raíz del repositorio sigue el sitio original (`index.html`, `script.js`, `db.js`, `login.js`),
+publicado y funcionando. Tiene su propio cliente de Supabase y **14 usos de `innerHTML`**.
+
+No se tocó en esta auditoría: es un sistema aparte, la app nueva vive entera en `/web`, y cambiarlo
+sin poder probarlo era más riesgo que beneficio. Su clave embebida es la `anon` (verificado: el JWT
+dice `role: "anon"`), que es pública por diseño, y la RLS le devuelve cero filas sin sesión.
+
+**Pendiente:** decidir si se sigue publicando o se reemplaza por `/web`. Mientras siga arriba, sus
+`innerHTML` son deuda de seguridad que nadie está mirando.
+
+### 12.4 Protección de contraseña filtrada — REQUIERE PLAN PRO
+
+Ya estaba en el punto 6.5. Sigue igual: es un toggle del dashboard de Supabase disponible desde el
+plan Pro, y la organización está en Free.
+
+### 12.5 `pg_net` en el esquema público — NO SE PUEDE CORREGIR
+
+Ya está explicado en el punto 6.1 y en `supabase/security-hardening.sql`. Solo el dueño
+(`supabase_admin`) puede revocar, y el rol que da Supabase no lo es.
+
+### Lo que NO hace falta rotar
+
+Se revisaron los **168 commits** del historial completo buscando claves. Lo único que aparece son dos
+JWT de Supabase con `role: "anon"` — la clave publicable, diseñada para viajar en el navegador.
+**No se encontró ninguna `service_role`, token de Meta, clave de ElevenLabs ni clave privada en
+ningún commit.** No hay nada que rotar.

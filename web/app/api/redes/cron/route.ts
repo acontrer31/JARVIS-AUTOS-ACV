@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { secretoValido } from "@/lib/server/sesion";
 import {
   idInstagram,
   publicarFacebook,
@@ -50,8 +51,7 @@ export async function GET(request: Request) {
       { status: 500 }
     );
   }
-  const encabezado = request.headers.get("authorization") ?? "";
-  if (encabezado !== `Bearer ${secreto}`) {
+  if (!secretoValido(request.headers.get("authorization") ?? "", secreto)) {
     return NextResponse.json({ error: "No autorizado." }, { status: 401 });
   }
   if (!url || !serviceKey || !pageId || !pageToken) {
