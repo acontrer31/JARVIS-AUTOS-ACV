@@ -1,5 +1,11 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import {
+  demasiadasRequests,
+  dentroDelLimite,
+  esDelTenantConCredenciales,
+  esError,
+  identificar,
+} from "@/lib/server/sesion";
 
 // Historial de conversaciones del agente de voz.
 //
@@ -36,21 +42,23 @@ interface MensajeEL {
 export async function GET(request: Request) {
   const apiKey = process.env.ELEVENLABS_API_KEY;
   const agentId = process.env.NEXT_PUBLIC_ELEVENLABS_AGENT_ID;
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-  if (!supabaseUrl || !anonKey) {
-    return NextResponse.json({ error: "Faltan variables de Supabase en el servidor." }, { status: 500 });
-  }
+  // Estas transcripciones son conversaciones con clientes reales: nombres,
+  // telefonos, que auto miran, cuanto pueden pagar. El agente de ElevenLabs es
+  // uno solo para todo el despliegue, asi que antes de la auditoria de
+  // septiembre de 2026 cualquier usuario logueado de cualquier agencia las
+  // podia leer todas. Tener sesion no alcanza: hay que ser de la agencia duena
+  // de la cuenta.
+  const identidad = await identificar(request);
+  if (esError(identidad)) return identidad.error;
+  const { llamante, admin } = identidad;
 
-  const encabezado = request.headers.get("authorization") ?? "";
-  const token = encabezado.startsWith("Bearer ") ? encabezado.slice(7) : "";
-  if (!token) return NextResponse.json({ error: "Hace falta iniciar sesión." }, { status: 401 });
+  const propietaria = await esDelTenantConCredenciales(admin, llamante);
+  if ("error" in propietaria) return propietaria.error;
 
-  const supabase = createClient(supabaseUrl, anonKey);
-  const { data: sesion, error: errorSesion } = await supabase.auth.getUser(token);
-  if (errorSesion || !sesion.user) {
-    return NextResponse.json({ error: "Sesión inválida o vencida." }, { status: 401 });
+  // Cada llamada pega en la API de ElevenLabs con la clave de la cuenta.
+  if (!(await dentroDelLimite(admin, `conversaciones:${llamante.usuarioId}`, 60, 300))) {
+    return demasiadasRequests(300);
   }
 
   // Falta de configuración no es un error del usuario: se contesta 200 con el

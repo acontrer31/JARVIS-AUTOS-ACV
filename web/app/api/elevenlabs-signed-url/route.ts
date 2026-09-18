@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { demasiadasRequests, dentroDelLimite, esError, identificar } from "@/lib/server/sesion";
 
 // Corre en el servidor (nunca en el navegador) — es el único lugar que
 // puede usar ELEVENLABS_API_KEY (secreta). Le pide a ElevenLabs una URL de
@@ -15,31 +15,24 @@ import { createClient } from "@supabase/supabase-js";
 export async function GET(request: Request) {
   const apiKey = process.env.ELEVENLABS_API_KEY;
   const agentId = process.env.NEXT_PUBLIC_ELEVENLABS_AGENT_ID;
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-  if (!apiKey || !agentId || !supabaseUrl || !anonKey) {
+  if (!apiKey || !agentId) {
     return NextResponse.json(
       { error: "Faltan variables de entorno en el servidor (ver .env.example)." },
       { status: 500 }
     );
   }
 
-  // El token viaja en el header, no en la URL: las URLs quedan en logs de
-  // servidor, historiales y referers; los headers no.
-  const encabezado = request.headers.get("authorization") ?? "";
-  const token = encabezado.startsWith("Bearer ") ? encabezado.slice(7) : "";
-  if (!token) {
-    return NextResponse.json({ error: "Hace falta iniciar sesión." }, { status: 401 });
-  }
+  const identidad = await identificar(request);
+  if (esError(identidad)) return identidad.error;
+  const { llamante, admin } = identidad;
 
-  // Se valida contra el servidor de auth de Supabase (getUser verifica la
-  // firma del lado del servidor); no alcanza con confiar en lo que diga el
-  // cliente. Si el token no es válido, se corta acá sin llamar a ElevenLabs.
-  const supabase = createClient(supabaseUrl, anonKey);
-  const { data: sesion, error: errorSesion } = await supabase.auth.getUser(token);
-  if (errorSesion || !sesion.user) {
-    return NextResponse.json({ error: "Sesión inválida o vencida." }, { status: 401 });
+  // Cada URL firmada arranca una conversación y CADA CONVERSACIÓN GASTA CUOTA
+  // de la cuenta de ElevenLabs — que es plata, y que ya se agotó una vez en
+  // este proyecto. Exigir sesión frenaba a los desconocidos; no frenaba a una
+  // pestaña en bucle ni a un usuario que quisiera vaciar la cuenta. Veinte cada
+  // cinco minutos es muchísimo para hablar y es un techo para el abuso.
+  if (!(await dentroDelLimite(admin, `voz:${llamante.usuarioId}`, 20, 300))) {
+    return demasiadasRequests(300);
   }
 
   try {
@@ -48,18 +41,16 @@ export async function GET(request: Request) {
       { headers: { "xi-api-key": apiKey } }
     );
     if (!respuesta.ok) {
-      const detalle = await respuesta.text();
+      // Solo el código. El cuerpo que devuelve ElevenLabs puede describir la
+      // cuenta, el plan o el agente, y eso no tiene por qué llegar al navegador.
       return NextResponse.json(
-        { error: `ElevenLabs respondió ${respuesta.status}: ${detalle}` },
+        { error: `ElevenLabs respondió ${respuesta.status}.` },
         { status: 502 }
       );
     }
     const datos = await respuesta.json();
     return NextResponse.json({ signedUrl: datos.signed_url });
-  } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Error desconocido pidiendo la URL firmada." },
-      { status: 502 }
-    );
+  } catch {
+    return NextResponse.json({ error: "No se pudo iniciar la sesión de voz." }, { status: 502 });
   }
 }

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { secretoValido } from "@/lib/server/sesion";
 
 // Las automatizaciones diarias: las que miran el estado del negocio y crean una
 // tarea cuando algo se pasó de fecha.
@@ -179,7 +180,7 @@ export async function GET(request: Request) {
       { status: 500 }
     );
   }
-  if ((request.headers.get("authorization") ?? "") !== `Bearer ${secreto}`) {
+  if (!secretoValido(request.headers.get("authorization") ?? "", secreto)) {
     return NextResponse.json({ error: "No autorizado." }, { status: 401 });
   }
   if (!url || !serviceKey) {

@@ -27,6 +27,8 @@ const CAMPOS_PUBLICOS =
 
 const ESTADOS_PUBLICABLES = ["disponible", "reservado"];
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 // El sitio vive en otro dominio, así que sin CORS el navegador bloquea la
 // lectura. Es un catálogo público: no hay nada que restringir por origen, y
 // atarlo a un dominio rompería el día que la agencia cambie de sitio.
@@ -59,6 +61,13 @@ export async function GET(request: Request) {
       { error: "Falta el parámetro `agencia` (el id de la agencia)." },
       { status: 400, headers: CORS }
     );
+  }
+  // Se valida la forma antes de que el valor llegue a la base. Es un endpoint
+  // público y sin sesión: lo que entra por acá no lo escribió nadie de
+  // confianza. Un id mal formado se rechaza como 400 y no como un 500 con el
+  // error de Postgres adentro.
+  if (!UUID.test(agencia)) {
+    return NextResponse.json({ error: "El parámetro `agencia` no es un id válido." }, { status: 400, headers: CORS });
   }
 
   // Service role porque del otro lado no hay sesión: es una página pública. El

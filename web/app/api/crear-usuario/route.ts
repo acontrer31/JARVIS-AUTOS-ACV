@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { demasiadasRequests, dentroDelLimite } from "@/lib/server/sesion";
 
 // Crea un usuario nuevo para la agencia del admin que lo pide. Corre SOLO en el
 // servidor porque usa SUPABASE_SERVICE_ROLE_KEY (la clave de administración de
@@ -49,6 +50,13 @@ export async function POST(request: Request) {
   }
   if (perfilAdmin.rol !== "admin") {
     return NextResponse.json({ error: "Solo un administrador puede crear usuarios." }, { status: 403 });
+  }
+
+  // Crear usuarios da acceso al sistema. Diez por hora y por admin es mucho
+  // más de lo que una agencia necesita, y evita que una sesión robada dé de
+  // alta cuentas en masa para volver más tarde.
+  if (!(await dentroDelLimite(admin, `crear-usuario:${sesion.user.id}`, 10, 3600))) {
+    return demasiadasRequests(3600);
   }
 
   // 3) Validación del cuerpo.

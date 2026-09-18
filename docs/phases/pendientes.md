@@ -220,3 +220,138 @@ que conviene usar un número nuevo dedicado.
 **Cuando se destrabe:** se manda un WhatsApp al número y se confirma que aparece como interacción en el
 perfil del cliente. Después arranca la **parte 2 — enviar** mensajes desde JARVIS (requiere plantillas
 aprobadas por Meta).
+
+---
+
+## 11. Dos textos que van en el dashboard de ElevenLabs — pendientes
+
+Son la mitad de un arreglo que ya está hecho del lado del código (PR #28). Sin ellos, JARVIS
+puede volver a inventar una respuesta sobre un trámite.
+
+**Por qué no lo hace nadie desde acá:** el system prompt y las descripciones de las herramientas
+viven en el dashboard de ElevenLabs, no en este repo. La API está bloqueada por la política de red
+del entorno de desarrollo, así que no hay forma de cargarlo ni de verificarlo programáticamente.
+
+**De dónde salió esto:** probando en producción, a la pregunta *"¿qué pongo en valor declarado
+cuando consulto el registro?"* el agente contestó que dependía del vehículo y que podía ser el
+valor de tabla o el de la operación. No está escrito en ningún lado: se lo inventó. Dos causas
+apiladas — la búsqueda no encontraba el documento (ya corregido), y aun recibiendo "no encontré
+nada" el agente contestó igual. Esto último no se arregla buscando mejor.
+
+### 11.1 System prompt del agente
+
+En **Agents → JARVIS → pestaña Agent → campo `System prompt`**, agregar al final:
+
+```
+Cuando te pregunten por trámites, costos, plazos, requisitos o
+procedimientos de la agencia, SIEMPRE usá consultar_conocimiento
+antes de contestar. Nunca contestes de memoria sobre estos temas.
+
+Si la herramienta dice que no hay nada cargado, decí que ese dato
+todavía no está en el sistema. No supongas, no completes, no des
+una respuesta "probable". Es preferible que la persona sepa que
+falta un dato a que se lleve un número inventado.
+```
+
+### 11.2 Descripción de la herramienta `consultar_conocimiento`
+
+```
+Busca en la base de conocimiento de la agencia: trámites, costos,
+plazos, requisitos, políticas internas y datos de proveedores.
+Usarla SIEMPRE antes de contestar cualquier pregunta sobre cómo se
+hace un trámite o cuánto sale algo. Si devuelve que no hay nada
+cargado, decirlo — no completar con conocimiento propio.
+```
+
+Y su parámetro `consulta` (string):
+
+```
+Lo que la persona quiere saber, en sus palabras. Pasar la pregunta
+completa: la búsqueda entiende frases naturales.
+```
+
+Ese último renglón recién ahora es cierto. Antes la búsqueda exigía que TODAS las palabras
+estuvieran en el documento, así que una pregunta hablada —con un "pongo" o un "sale" que el
+documento no usa— devolvía cero.
+
+### Cómo se verifica que quedó
+
+Dos preguntas, y las dos importan:
+
+1. *"¿Qué pongo en valor declarado cuando consulto el registro?"* → tiene que contestar **1**.
+2. Algo que NO esté cargado en Conocimiento → tiene que admitir que no lo tiene.
+
+La segunda vale tanto como la primera. Un agente que contesta bien lo que sabe es la mitad; el que
+además admite lo que no sabe es el que sirve.
+---
+
+## 12. Lo que dejó abierto la auditoría de seguridad (septiembre de 2026)
+
+La auditoría completa corrigió lo que se podía corregir desde el código y la base. Queda esto.
+
+### 12.1 Content-Security-Policy — LA MITAD ACTIVA YA ESTÁ; FALTA `script-src`
+
+**Ya bloquea** (verificado con `curl` contra el server): `frame-ancestors`, `object-src`,
+`base-uri`, `form-action` y **`connect-src`**. Esta última es la que importa de esta mitad: aunque
+alguien lograra ejecutar un script en la página, el navegador no lo dejaría mandar los datos de la
+agencia a ningún lado que no sea Supabase, ElevenLabs u Open-Meteo.
+
+**Falta `script-src`**, que es la que frena el XSS en sí. Va en `Content-Security-Policy-Report-Only`,
+que anota en la consola del navegador y **no bloquea nada**.
+
+**Por qué no se enciende de una:** Next inyecta scripts inline para hidratar la página. Bloquearlos
+necesita *nonces*, y los nonces obligan a renderizar cada visita en el servidor en vez de servir la
+página pregenerada. Eso es un cambio de comportamiento y de costo, no solo de seguridad — es una
+decisión del proyecto, no del auditor.
+
+**EL PASO QUE FALTA, y lo tiene que hacer una persona con el sitio abierto:**
+
+1. Abrir https://jarvis-autos-acv.vercel.app/ y abrir la consola del navegador (F12 → Console).
+2. Usar la app un rato: entrar a varios módulos, ver fotos de vehículos, **tener una conversación de
+   voz completa con JARVIS** y publicar algo en redes.
+3. Anotar cada mensaje que diga `Content Security Policy` o `Report Only`.
+4. Pasar esa lista. Con eso se ajusta la política y recién ahí se decide si vale la pena el cambio a
+   nonces.
+
+Si después de un día de uso real no aparece ninguna violación más allá de los scripts inline de Next,
+ya se sabe que lo único que falta resolver es ese punto.
+
+### 12.2 `AGENCIA_PROPIETARIA` — HACE FALTA ANTES DE LA SEGUNDA AGENCIA
+
+Las credenciales de Meta y de ElevenLabs son variables de entorno: una sola cuenta para todo el
+despliegue. `/api/redes/publicar` y `/api/voz/conversaciones` ahora exigen que quien llama pertenezca
+a la agencia dueña de esas cuentas.
+
+Mientras haya **una sola agencia**, se resuelve sola y no hay nada que hacer. En cuanto se dé de alta
+la segunda, los dos endpoints van a devolver 403 hasta que se configure `AGENCIA_PROPIETARIA` en
+Vercel con el id de la agencia dueña de las cuentas. Falla cerrado a propósito: es preferible que
+Marketing deje de publicar y alguien lo note, a que una agencia publique en el Facebook de otra.
+
+### 12.3 El sitio estático viejo — NO AUDITADO EN PROFUNDIDAD
+
+En la raíz del repositorio sigue el sitio original (`index.html`, `script.js`, `db.js`, `login.js`),
+publicado y funcionando. Tiene su propio cliente de Supabase y **14 usos de `innerHTML`**.
+
+No se tocó en esta auditoría: es un sistema aparte, la app nueva vive entera en `/web`, y cambiarlo
+sin poder probarlo era más riesgo que beneficio. Su clave embebida es la `anon` (verificado: el JWT
+dice `role: "anon"`), que es pública por diseño, y la RLS le devuelve cero filas sin sesión.
+
+**Pendiente:** decidir si se sigue publicando o se reemplaza por `/web`. Mientras siga arriba, sus
+`innerHTML` son deuda de seguridad que nadie está mirando.
+
+### 12.4 Protección de contraseña filtrada — REQUIERE PLAN PRO
+
+Ya estaba en el punto 6.5. Sigue igual: es un toggle del dashboard de Supabase disponible desde el
+plan Pro, y la organización está en Free.
+
+### 12.5 `pg_net` en el esquema público — NO SE PUEDE CORREGIR
+
+Ya está explicado en el punto 6.1 y en `supabase/security-hardening.sql`. Solo el dueño
+(`supabase_admin`) puede revocar, y el rol que da Supabase no lo es.
+
+### Lo que NO hace falta rotar
+
+Se revisaron los **168 commits** del historial completo buscando claves. Lo único que aparece son dos
+JWT de Supabase con `role: "anon"` — la clave publicable, diseñada para viajar en el navegador.
+**No se encontró ninguna `service_role`, token de Meta, clave de ElevenLabs ni clave privada en
+ningún commit.** No hay nada que rotar.

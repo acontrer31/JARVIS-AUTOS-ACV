@@ -1,5 +1,11 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import {
+  demasiadasRequests,
+  dentroDelLimite,
+  esDelTenantConCredenciales,
+  esError,
+  identificar,
+} from "@/lib/server/sesion";
 
 // Publica en redes (Facebook Page / Instagram) desde el SERVIDOR — es el único
 // lugar que puede tocar el token de la red (secreto). El cliente manda su token
@@ -32,12 +38,7 @@ import {
 export async function POST(request: Request) {
   const pageId = process.env.META_PAGE_ID;
   const pageToken = process.env.META_PAGE_TOKEN;
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-  if (!supabaseUrl || !anonKey) {
-    return NextResponse.json({ error: "Faltan variables de Supabase en el servidor." }, { status: 500 });
-  }
   if (!pageId || !pageToken) {
     return NextResponse.json(
       { error: "Faltan las credenciales de Meta (META_PAGE_ID / META_PAGE_TOKEN) en el servidor." },
@@ -45,15 +46,23 @@ export async function POST(request: Request) {
     );
   }
 
-  // Exige sesión válida (igual que el endpoint de la voz).
-  const encabezado = request.headers.get("authorization") ?? "";
-  const token = encabezado.startsWith("Bearer ") ? encabezado.slice(7) : "";
-  if (!token) return NextResponse.json({ error: "Hace falta iniciar sesión." }, { status: 401 });
+  // Sesión + agencia + rol. Hasta la auditoría de septiembre de 2026 acá solo
+  // se validaba el token, y eso era el agujero: las credenciales de Meta son
+  // una sola cuenta para todo el despliegue, así que CUALQUIER usuario logueado
+  // —de cualquier agencia, con cualquier rol— podía publicar el texto y la
+  // imagen que quisiera en el Facebook e Instagram reales de la agencia.
+  const identidad = await identificar(request);
+  if (esError(identidad)) return identidad.error;
+  const { llamante, admin } = identidad;
 
-  const supabase = createClient(supabaseUrl, anonKey);
-  const { data: sesion, error: errorSesion } = await supabase.auth.getUser(token);
-  if (errorSesion || !sesion.user) {
-    return NextResponse.json({ error: "Sesión inválida o vencida." }, { status: 401 });
+  const propietaria = await esDelTenantConCredenciales(admin, llamante);
+  if ("error" in propietaria) return propietaria.error;
+
+  // Publicar sale a una cuenta pública real: si algo se descontrola, se
+  // descontrola a la vista de los clientes. Diez por usuario cada diez minutos
+  // es holgado para trabajar y corta un bucle.
+  if (!(await dentroDelLimite(admin, `publicar:${llamante.usuarioId}`, 10, 600))) {
+    return demasiadasRequests(600);
   }
 
   let cuerpo: {

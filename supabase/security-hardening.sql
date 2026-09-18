@@ -95,3 +95,105 @@ end $$;
 --   select proname, proacl::text from pg_proc p
 --   join pg_namespace n on n.oid = p.pronamespace
 --   where n.nspname = 'net' and proname = 'http_get';
+
+
+-- ============================================================================
+-- AUDITORÍA DE SEGURIDAD — septiembre de 2026
+-- Aplicado en producción y verificado. Idempotente: se puede correr de nuevo.
+-- ============================================================================
+
+-- ----------------------------------------------------------------------------
+-- 1. MÍNIMO PRIVILEGIO PARA anon Y authenticated
+--
+-- Supabase otorga por defecto GRANT ALL sobre public a los dos roles y deja
+-- que la RLS sea el único freno. Funciona, pero apoya toda la seguridad en que
+-- ninguna tabla se quede nunca sin políticas.
+--
+-- Y TRUNCATE NO PASA POR RLS: un rol con TRUNCATE vacía la tabla entera aunque
+-- sus políticas no le dejen borrar una sola fila. PostgREST no lo expone hoy —
+-- pero `anon` es el rol de la clave que viaja en el navegador.
+--
+-- Estado verificado después de correr esto:
+--   anon           -> SELECT
+--   authenticated  -> SELECT, INSERT, UPDATE, DELETE
+-- ----------------------------------------------------------------------------
+do $$
+declare t record;
+begin
+  for t in select tablename from pg_tables where schemaname = 'public' loop
+    -- anon no escribe nada. Conserva SELECT porque la RLS ya le devuelve cero
+    -- filas, y el sitio viejo hace un select sobre `vehiculos`: quitárselo le
+    -- cambiaría una lista vacía por un error, sin ganar seguridad.
+    execute format('revoke insert, update, delete, truncate, references, trigger on public.%I from anon', t.tablename);
+    -- authenticated sí escribe (con RLS), pero nunca trunca ni toca el esquema.
+    execute format('revoke truncate, references, trigger on public.%I from authenticated', t.tablename);
+  end loop;
+end $$;
+
+alter default privileges in schema public revoke insert, update, delete, truncate on tables from anon;
+alter default privileges in schema public revoke truncate, references, trigger on tables from authenticated;
+
+
+-- ----------------------------------------------------------------------------
+-- 2. RATE LIMITING QUE FUNCIONA EN SERVERLESS
+--
+-- Un contador en memoria no sirve en Vercel: cada request puede caer en una
+-- instancia distinta, así que limita por instancia y no limita nada. El estado
+-- tiene que vivir afuera, y la base ya está.
+-- ----------------------------------------------------------------------------
+create table if not exists public.rate_limits (
+  clave text primary key,
+  ventana_inicio timestamptz not null default now(),
+  contador integer not null default 0
+);
+
+alter table public.rate_limits enable row level security;
+-- Sin políticas: RLS sin política es denegar. Solo service_role la toca.
+revoke all on public.rate_limits from anon, authenticated;
+
+create or replace function public.consumir_rate_limit(
+  p_clave text, p_maximo integer, p_ventana_segundos integer
+) returns boolean
+language plpgsql security definer set search_path = public as $$
+declare v_contador integer;
+begin
+  -- Una sola sentencia atómica: dos requests simultáneas no pueden leer el
+  -- mismo contador y escribir las dos.
+  insert into public.rate_limits as r (clave, ventana_inicio, contador)
+  values (p_clave, now(), 1)
+  on conflict (clave) do update set
+    contador = case when r.ventana_inicio < now() - make_interval(secs => p_ventana_segundos)
+                    then 1 else r.contador + 1 end,
+    ventana_inicio = case when r.ventana_inicio < now() - make_interval(secs => p_ventana_segundos)
+                    then now() else r.ventana_inicio end
+  returning r.contador into v_contador;
+  return v_contador <= p_maximo;
+end; $$;
+
+-- Si la pudiera llamar el cliente, podría gastar la cuota de otro a propósito.
+revoke all on function public.consumir_rate_limit(text, integer, integer) from public, anon, authenticated;
+grant execute on function public.consumir_rate_limit(text, integer, integer) to service_role;
+
+
+-- ----------------------------------------------------------------------------
+-- 3. TIPOS DE ARCHIVO PERMITIDOS EN LOS BUCKETS
+--
+-- Los dos aceptaban CUALQUIER tipo. `vehiculos` además es público: se podía
+-- subir un .html o un .svg y quedaba servido desde el dominio de Storage,
+-- ejecutándose en el navegador de quien abriera el enlace. Supabase sirve el
+-- archivo con el Content-Type declarado al subirlo, así que limitar la lista es
+-- justamente lo que impide que algo se sirva como HTML.
+--
+-- SVG queda afuera a propósito: es una imagen que puede llevar scripts adentro.
+-- ----------------------------------------------------------------------------
+update storage.buckets set allowed_mime_types = array[
+  'image/jpeg','image/png','image/webp','image/avif','image/gif','video/mp4','video/quicktime'
+] where id = 'vehiculos';
+
+update storage.buckets set allowed_mime_types = array[
+  'application/pdf','image/jpeg','image/png','image/webp','image/avif','image/gif',
+  'text/plain','text/csv',
+  'application/msword','application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/zip'
+] where id = 'documentos';
